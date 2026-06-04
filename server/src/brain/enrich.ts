@@ -12,6 +12,15 @@ function inferKind(word: string): VocabKind {
   return word.trim().includes(' ') ? 'phrase' : 'word';
 }
 
+function normalizeKind(kind: unknown, word: string): VocabKind {
+  if (typeof kind !== 'string') return inferKind(word);
+  const value = kind.toLowerCase().trim();
+  if (value.includes('collocation')) return 'collocation';
+  if (value === 'phrase' || value.includes('phrasal') || value.includes('idiom')) return 'phrase';
+  if (value === 'word') return 'word';
+  return inferKind(word);
+}
+
 export async function enrichWord(provider: LLMProvider, ctx: EnrichWordContext): Promise<Vocab> {
   const raw = await provider.complete({
     model: ctx.model,
@@ -26,7 +35,9 @@ export async function enrichWord(provider: LLMProvider, ctx: EnrichWordContext):
     ].join('\n'),
   });
 
-  const parsed = enrichedVocabZ.parse(JSON.parse(raw));
+  const json = JSON.parse(raw) as Record<string, unknown>;
+  json.kind = normalizeKind(json.kind, ctx.word);
+  const parsed = enrichedVocabZ.parse(json);
   const word = parsed.word.trim().replace(/\s+/g, ' ');
   return {
     ...parsed,
