@@ -3,6 +3,7 @@ import type { CoachResponse, Prompt } from '../../shared/types';
 import { coach, submitSession as postSession, type SubmittedAnnotation } from './api';
 import { CoachPanel } from './components/CoachPanel';
 import type { ComparedAnnotation } from './components/CompareView';
+import { CaptureWord } from './components/CaptureWord';
 import { DailyPrompt } from './components/DailyPrompt';
 import { ProfileDashboard } from './components/ProfileDashboard';
 import { VocabPrime } from './components/VocabPrime';
@@ -81,6 +82,7 @@ export function App() {
           </button>
         </header>
 
+        <CaptureWord />
         <DailyPrompt onPrompt={setPrompt} />
         <VocabPrime topic={prompt?.theme ?? ''} />
         <WriteSurface

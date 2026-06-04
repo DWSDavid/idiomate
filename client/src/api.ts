@@ -68,3 +68,14 @@ export function importVocab(file: File): Promise<{ count: number }> {
     body: file,
   }).then(readJson<{ count: number }>);
 }
+
+export function captureWord(word: string, contextSentence?: string): Promise<Vocab> {
+  return postJson<Vocab>('/api/vocab/capture', {
+    word,
+    contextSentence: contextSentence?.trim() || undefined,
+  });
+}
+
+export function saveVocab(vocab: Vocab): Promise<{ id: number }> {
+  return postJson<{ id: number }>('/api/vocab/save', vocab);
+}
