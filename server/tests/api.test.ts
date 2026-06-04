@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type { Server } from 'node:http';
 import { createApp } from '../src/index.js';
 import { openDb, migrate } from '../src/db/db.js';
-import { getPrimeCandidates, getTallies, insertVocab, upsertVocab } from '../src/db/dal.js';
+import { getPrimeCandidates, getTallies, insertVocab, recordErrors, upsertVocab } from '../src/db/dal.js';
 import type { LLMProvider } from '../src/brain/provider.js';
 
 let db: ReturnType<typeof openDb>;
@@ -140,5 +140,36 @@ it('POST /api/vocab/import parses a raw Youdao export', async () => {
     expect(res.status).toBe(201);
     await expect(res.json()).resolves.toEqual({ count: 1 });
     expect(getPrimeCandidates(db, 1)[0].word).toBe('esoteric');
+  });
+});
+
+it('GET /api/prompt/today returns a local writing prompt', async () => {
+  await withServer(createApp({ db }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/prompt/today`);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.date).toEqual(expect.any(String));
+    expect(json.theme).toEqual(expect.any(String));
+    expect(json.text).toContain('?');
+  });
+});
+
+it('GET /api/profile returns error tallies and activation stats', async () => {
+  recordErrors(db, ['noun_plague', 'noun_plague', 'redundancy']);
+  upsertVocab(db, {
+    word: 'shore up',
+    kind: 'phrase',
+    timesSuggested: 3,
+    timesUsed: 1,
+  });
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/profile`);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.tallies[0]).toEqual(expect.objectContaining({ errorType: 'noun_plague', count: 2 }));
+    expect(json.activation).toEqual({ suggested: 3, used: 1 });
   });
 });

@@ -229,6 +229,16 @@ export function getTallies(db: Database.Database): ErrorTally[] {
   }));
 }
 
+export function getActivationStats(db: Database.Database): { suggested: number; used: number } {
+  const row = db.prepare(`
+    SELECT
+      COALESCE(SUM(times_suggested), 0) AS suggested,
+      COALESCE(SUM(times_used), 0) AS used
+    FROM vocab
+  `).get() as { suggested: number; used: number };
+  return row;
+}
+
 export function insertSession(db: Database.Database, input: InsertSessionInput): number {
   const result = db.prepare(`
     INSERT INTO sessions (date, prompt_id, draft_text, final_text, duration_s)
