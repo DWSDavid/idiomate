@@ -15,7 +15,8 @@ You are the **executant engineer** for **Idiomate**, a local-first English writi
 - Stack: Vite + React 18 + TypeScript + TailwindCSS (client); Node + Express (server); `better-sqlite3` (local SQLite); `zod` (validation); `vitest` (tests). LLM = OpenAI HTTP API behind a provider-agnostic `brain/` module.
 - The app is **single-user, local-only**. No auth, no cloud.
 - Two user-supplied inputs will arrive: (a) a Youdao vocab export `.txt` (**UTF-16LE**, ~9,500 lines) for one-time backfill; (b) the book *中式英语之鉴* (Chinglish) PDF for seeding taxonomy examples. If either is not yet present, proceed and leave the clearly-marked seam noted in the plan.
-- **Quick Capture** is the daily vocab path: the user types a new word (+ optional source sentence) → backend enriches it → user edits → saves. Enrichment is **LLM-first (utility model) + Free Dictionary API (`dictionaryapi.dev`) for authoritative IPA**. Cambridge is **not** scraped.
+- **Quick Capture** is the daily vocab path: the user types a new word **or multi-word chunk/phrase/collocation** (+ optional source sentence) → backend enriches it → user edits → saves. Enrichment is **LLM-first (utility model) + Free Dictionary API (`dictionaryapi.dev`) for authoritative IPA**. Cambridge is **not** scraped.
+- **Vocab model v2 (dedup + frequency + chunks):** entries are keyed by `normalized` (UNIQUE). Re-capturing bumps `capture_count` instead of duplicating. Priming is **frequency/recency/phrase-weighted** (`getPrimeCandidates`), not random. `kind` marks word/phrase/collocation; phrases & collocations get priority in both prime and nudge. See plan **Task 1.3**.
 
 ## Task
 Implement the plan **phase by phase, task by task** (Phases 0→6). For each task:
@@ -30,6 +31,7 @@ Implement the plan **phase by phase, task by task** (Phases 0→6). For each tas
 - **The API key never reaches the browser.** Only the Express server reads `OPENAI_API_KEY`.
 - **Model tiering:** coaching uses `OPENAI_MODEL_COACH`; prompt-generation/vocab-matching use `OPENAI_MODEL_UTILITY`. Read both from env via `config.ts`.
 - **Error profile updates only on session submit**, not on every coach call (see Tasks 4.1 / 1.2).
+- **Vocab is deduped on save** (`upsertVocab` ON CONFLICT(normalized) bumps `capture_count`); **priming uses `getPrimeCandidates` (weighted), never `RANDOM()`**; multi-word terms must be saved as `phrase`/`collocation` and prioritized in suggestions.
 - **Youdao parser:** the regex in Task 2.1 is a starting point. Tune it against the *real* UTF-16 file until the fixture test passes on genuine entries. If the real format differs from the spec's sample, adjust the parser — do not silently drop entries. If you cannot reliably parse it, STOP and ask the user to paste 6 sample entries.
 - **Enrichment (Task 2.2):** LLM output is validated with `enrichZ`; IPA from the dictionary API **wins** over the LLM's when present; the dictionary call is best-effort (network failure must not break capture). Capture is **two-step** — `/capture` previews without saving, `/save` persists after the user edits. Never auto-save un-reviewed enrichment.
 - **No placeholders in shipped code.** TDD; DRY; YAGNI; small focused files (the File Structure map is the boundary).

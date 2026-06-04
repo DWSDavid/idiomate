@@ -158,20 +158,29 @@ export interface CoachResponse {
   annotations: Annotation[];
 }
 
+export type VocabKind = 'word' | 'phrase' | 'collocation';
 export interface Vocab {
   id?: number;
   word: string;
+  normalized?: string;        // lowercased/trimmed/space-collapsed word; UNIQUE dedup key (DAL fills if absent)
+  kind?: VocabKind;           // multi-word terms are 'phrase'/'collocation' and get suggestion priority
   ipa?: string;
   defCn?: string;
   pos?: string;
   status?: string;
   source?: string;            // 'youdao' | 'capture'
-  contextSentence?: string;   // where the user met the word (e.g. an FT headline)
+  contextSentence?: string;   // where the user met the term (e.g. an FT headline)
   examples?: string[];        // stored as JSON text in DB
   collocations?: string[];    // stored as JSON text in DB
   register?: string;          // e.g. 'formal', 'neutral', 'informal/journalistic'
+  captureCount?: number;      // defaults 1; ++ on re-capture; drives priming priority
+  lastCaptured?: string;
   timesSuggested: number;
   timesUsed: number;
+}
+
+export function normalizeTerm(word: string): string {
+  return word.toLowerCase().trim().replace(/\s+/g, ' ');
 }
 
 export interface Prompt { id?: number; date: string; theme: string; text: string; sourceUrl?: string; }
@@ -206,10 +215,13 @@ it('tallies error types across calls', () => {
 - [ ] **Step 3:** `schema.sql`:
 ```sql
 CREATE TABLE IF NOT EXISTS vocab (
-  id INTEGER PRIMARY KEY, word TEXT NOT NULL, ipa TEXT, def_cn TEXT, pos TEXT,
-  status TEXT, source TEXT, context_sentence TEXT, examples TEXT, collocations TEXT,
-  register TEXT, date_added TEXT DEFAULT (datetime('now')),
+  id INTEGER PRIMARY KEY, word TEXT NOT NULL, normalized TEXT UNIQUE, kind TEXT,
+  ipa TEXT, def_cn TEXT, pos TEXT, status TEXT, source TEXT, context_sentence TEXT,
+  examples TEXT, collocations TEXT, register TEXT,
+  capture_count INTEGER DEFAULT 1, last_captured TEXT,
+  date_added TEXT DEFAULT (datetime('now')),
   times_suggested INTEGER DEFAULT 0, times_used INTEGER DEFAULT 0);
+CREATE INDEX IF NOT EXISTS idx_vocab_priority ON vocab(times_used, capture_count DESC);
 CREATE TABLE IF NOT EXISTS prompts (
   id INTEGER PRIMARY KEY, date TEXT, theme TEXT, text TEXT, source_url TEXT);
 CREATE TABLE IF NOT EXISTS sessions (
@@ -236,6 +248,95 @@ export function migrate(db: Database.Database) {
 ```
 - [ ] **Step 5:** `dal.ts` — implement `insertVocab`, `getVocabSample(db, n)` (`ORDER BY RANDOM() LIMIT n`), `recordErrors(db, types[])` (UPSERT into `error_tally` incrementing `count`, set `last_seen=datetime('now')`), `getTallies(db)`, plus `insertSession`, `insertAnnotations`, `incrementVocabUsed(db, word)`. Use prepared statements; map snake_case ↔ camelCase. **`examples` and `collocations` are `JSON.stringify`'d on write and `JSON.parse`'d on read** (DB columns are TEXT).
 - [ ] **Step 6:** Run test → PASS. Commit: `feat: sqlite schema + DAL`.
+
+### Task 1.3: Vocab model v2 — dedup, frequency boost, weighted prime, capture fields (TDD)
+**Files:** Modify `server/src/db/schema.sql`, `server/src/db/dal.ts`, `shared/types.ts`; add tests to `server/tests/dal.test.ts`.
+
+> **Correction + extension.** The first Phase-1 pass implemented the pre-amendment vocab model and missed the capture fields. Bring it to the v2 schema/type above and add: (a) `upsertVocab` keyed on `normalized` that bumps `capture_count` on conflict; (b) `getPrimeCandidates` ordered by a priority score (frequency ↑, not-yet-used ↓, recency, phrase/collocation boost) instead of `RANDOM()`; (c) `incrementVocabUsed`. `examples`/`collocations` are JSON-encoded TEXT.
+
+- [ ] **Step 1 (failing tests):** add to `server/tests/dal.test.ts`:
+```ts
+import { upsertVocab, getPrimeCandidates, incrementVocabUsed } from '../src/db/dal.js';
+
+it('dedups by normalized term and bumps capture_count', () => {
+  upsertVocab(db, { word: 'Kick the can', defCn:'拖延', timesSuggested:0, timesUsed:0 });
+  upsertVocab(db, { word: 'kick the  can', defCn:'拖延', timesSuggested:0, timesUsed:0 }); // same normalized
+  const rows = getPrimeCandidates(db, 10);
+  expect(rows.length).toBe(1);
+  expect(rows[0].captureCount).toBe(2);
+  expect(rows[0].kind).toBe('phrase'); // multi-word → phrase
+});
+
+it('prime ranks high-frequency, unused, phrase terms first', () => {
+  upsertVocab(db, { word: 'use', kind:'word', captureCount:1, timesSuggested:0, timesUsed:5 });
+  upsertVocab(db, { word: 'shore up', captureCount:3, timesSuggested:0, timesUsed:0 });
+  const top = getPrimeCandidates(db, 1)[0];
+  expect(top.word).toBe('shore up'); // higher freq + unused + phrase boost
+});
+
+it('round-trips examples/collocations as JSON', () => {
+  upsertVocab(db, { word:'leverage', examples:['Firms leverage data.'], collocations:['leverage data'], timesSuggested:0, timesUsed:0 });
+  const v = getPrimeCandidates(db, 10).find(x => x.word === 'leverage')!;
+  expect(v.examples).toEqual(['Firms leverage data.']);
+});
+```
+- [ ] **Step 2:** Run → FAIL.
+- [ ] **Step 3:** Update `schema.sql` to the v2 `vocab` table (above) and `mapVocab` to read the new columns (`normalized, kind, context_sentence, capture_count, last_captured`, JSON-parse `examples`/`collocations`, defaulting to `[]`).
+- [ ] **Step 4:** Implement in `dal.ts`:
+```ts
+import { normalizeTerm, type VocabKind } from '../../../shared/types.js';
+
+function inferKind(word: string): VocabKind {
+  return word.trim().includes(' ') ? 'phrase' : 'word';
+}
+
+export function upsertVocab(db: Database.Database, v: Vocab) {
+  const normalized = v.normalized ?? normalizeTerm(v.word);
+  const kind = v.kind ?? inferKind(v.word);
+  db.prepare(`
+    INSERT INTO vocab (word, normalized, kind, ipa, def_cn, pos, status, source,
+      context_sentence, examples, collocations, register, capture_count, last_captured,
+      times_suggested, times_used)
+    VALUES (@word,@normalized,@kind,@ipa,@defCn,@pos,@status,@source,
+      @contextSentence,@examples,@collocations,@register,@captureCount,datetime('now'),
+      @timesSuggested,@timesUsed)
+    ON CONFLICT(normalized) DO UPDATE SET
+      capture_count = capture_count + 1,
+      last_captured = datetime('now'),
+      context_sentence = COALESCE(excluded.context_sentence, context_sentence)
+  `).run({
+    word: v.word, normalized, kind,
+    ipa: v.ipa ?? null, defCn: v.defCn ?? null, pos: v.pos ?? null,
+    status: v.status ?? null, source: v.source ?? null,
+    contextSentence: v.contextSentence ?? null,
+    examples: JSON.stringify(v.examples ?? []),
+    collocations: JSON.stringify(v.collocations ?? []),
+    register: v.register ?? null,
+    captureCount: v.captureCount ?? 1,
+    timesSuggested: v.timesSuggested, timesUsed: v.timesUsed,
+  });
+}
+
+// priority: frequency up, not-yet-used down, recency, phrase/collocation boost
+export function getPrimeCandidates(db: Database.Database, n: number): Vocab[] {
+  const rows = db.prepare(`
+    SELECT *, (
+      capture_count * 3
+      - times_used * 2
+      + (CASE kind WHEN 'phrase' THEN 4 WHEN 'collocation' THEN 4 ELSE 0 END)
+      + (CASE WHEN last_captured >= datetime('now','-7 day') THEN 2 ELSE 0 END)
+    ) AS score
+    FROM vocab ORDER BY score DESC, RANDOM() LIMIT ?
+  `).all(n) as VocabRow[];
+  return rows.map(mapVocab);
+}
+
+export function incrementVocabUsed(db: Database.Database, normalized: string) {
+  db.prepare('UPDATE vocab SET times_used = times_used + 1 WHERE normalized = ?').run(normalizeTerm(normalized));
+}
+```
+> Keep the legacy `insertVocab` (bulk Youdao import) but route it through `upsertVocab` so the importer also dedups. `getVocabSample` may stay for tests, but the **prime route uses `getPrimeCandidates`**.
+- [ ] **Step 5:** Run → PASS. Commit: `feat: vocab v2 (dedup + frequency + weighted prime)`.
 
 ---
 
@@ -436,7 +537,7 @@ export const coachResponseZ = z.object({
 ```
 - [ ] **Step 2:** `prompts.ts` — `assembleCoachPrompt(ctx)` returns `{ system, user }`. The **system** prompt MUST encode the non-negotiables:
   - "You are a writing coach for an advanced Chinese-L1 writer. NEVER rewrite the whole text for them as the primary output. Identify issues, name each by errorType, give a one-line hint that does NOT reveal the fix, and a separate modelRewrite that the UI will hide until the user has tried."
-  - Inject: the paragraph, the user's top recurring error types (so it can prioritize/reference), the vocab candidates (for `vocab_suggestion` annotations — suggest, never force), and `taxonomySnippet(...)`.
+  - Inject: the paragraph, the user's top recurring error types (so it can prioritize/reference), the vocab candidates (for `vocab_suggestion` annotations — suggest, never force; **prefer multi-word chunk/collocation matches over single words**), and `taxonomySnippet(...)`.
   - "Return ONLY JSON matching: {paragraphIndex, annotations:[{span,errorType,hint,explanation,modelRewrite,vocabWord?}]}."
 - [ ] **Step 3 (failing test):**
 ```ts
@@ -486,7 +587,7 @@ export async function coachParagraph(p: LLMProvider, ctx: CoachContext): Promise
 
 ### Task 3.4: Daily prompt + vocab prime assembly (TDD)
 **Files:** `server/src/brain/prompts.ts` (extend), `server/tests/prompts.test.ts`.
-- [ ] Add `assembleDailyPrompt({theme})` and `assemblePrimePrompt({topic, vocab})`. Test with a mock provider that the daily prompt request includes the theme mix (finance/tech dominant + occasional professional) and that prime returns 3–5 words. Commit: `feat: daily-prompt + vocab-prime assembly`.
+- [ ] Add `assembleDailyPrompt({theme})` and `assemblePrimePrompt({topic, vocab})`. The prime prompt instructs the model to pick 3–5 topic-relevant terms and to **favor phrases/collocations** when present. Test with a mock provider that the daily prompt request includes the theme mix (finance/tech dominant + occasional professional) and that prime returns 3–5 terms. Commit: `feat: daily-prompt + vocab-prime assembly`.
 
 ---
 
@@ -495,11 +596,11 @@ export async function coachParagraph(p: LLMProvider, ctx: CoachContext): Promise
 ### Task 4.1: Express bootstrap + routes
 **Files:** `server/src/index.ts`, `server/src/routes/*.ts`.
 - [ ] `index.ts`: create app, `express.json({limit:'1mb'})`, mount routers, `migrate(openDb())` on boot, listen on `config.port`.
-- [ ] `coach.ts`: `POST /api/coach` body `{sessionId?, paragraphIndex, paragraph}` → load `topErrors=getTallies()` (top 3), `vocabCandidates=getVocabSample(8)`, call `coachParagraph(new OpenAIProvider(), {...,model:config.modelCoach})`, **do not** persist error tallies yet (only on submit), return `CoachResponse`.
-- [ ] `sessions.ts`: `POST /api/sessions` persists draft/final + annotations (with the user's rewrite) and calls `recordErrors(db, errorTypes)` — **this** is where the error profile updates. `vocab_suggestion` annotations that the user accepted increment `times_used`.
+- [ ] `coach.ts`: `POST /api/coach` body `{sessionId?, paragraphIndex, paragraph}` → load `topErrors=getTallies()` (top 3), `vocabCandidates=getPrimeCandidates(db, 8)` (frequency/phrase-weighted, **not** random), call `coachParagraph(new OpenAIProvider(), {...,model:config.modelCoach})`, **do not** persist error tallies yet (only on submit), return `CoachResponse`.
+- [ ] `sessions.ts`: `POST /api/sessions` persists draft/final + annotations (with the user's rewrite) and calls `recordErrors(db, errorTypes)` — **this** is where the error profile updates. For each accepted `vocab_suggestion` annotation, call `incrementVocabUsed(db, annotation.vocabWord)`.
 - [ ] `prompts.ts`: `GET /api/prompt/today` returns today's prompt (from bank; generate+cache via utility model if none).
-- [ ] `vocab.ts`: `POST /api/vocab/import` (multipart or raw body) → `parseYoudaoTxt` → `insertVocab`; `GET /api/vocab/prime?topic=` → 3–5 words + increments `times_suggested`.
-- [ ] `vocab.ts` (capture): `POST /api/vocab/capture` body `{word, contextSentence?}` → `enrichWord(word, {provider:new OpenAIProvider(), model:config.modelUtility, contextSentence})` → return the enriched `Vocab` **without saving** (preview). `POST /api/vocab/save` body `Vocab` → `insertVocab` (after the user's edits). Two-step so the user can edit before commit.
+- [ ] `vocab.ts`: `POST /api/vocab/import` (multipart or raw body) → `parseYoudaoTxt` → `insertVocab` (routes through `upsertVocab`, so import dedups too); `GET /api/vocab/prime?topic=` → pull `getPrimeCandidates(db, ~12)`, narrow to 3–5 topic-relevant via the utility model (prefer phrases/collocations), increment `times_suggested` on the chosen ones.
+- [ ] `vocab.ts` (capture): `POST /api/vocab/capture` body `{word, contextSentence?}` → `enrichWord(word, {provider:new OpenAIProvider(), model:config.modelUtility, contextSentence})` → return the enriched `Vocab` **without saving** (preview). `POST /api/vocab/save` body `Vocab` → **`upsertVocab`** (dedups by normalized; re-capture bumps `capture_count`). Two-step so the user can edit before commit. Works for multi-word chunks/phrases too (`kind` inferred).
 - [ ] `profile.ts`: `GET /api/profile` → `{tallies, activation:{suggested,used}}`.
 - [ ] Manual smoke: `curl` each route. Commit per route: `feat(api): <route>`.
 
@@ -574,7 +675,9 @@ it('hides modelRewrite until submit', () => {
 | Error taxonomy v0 (10) | 1.1 types, 3.2 taxonomy |
 | Error profile tracking | 1.2 DAL tallies, 4.1 sessions route, 5.5 dashboard |
 | Vocab prime + nudge | 3.4 prime, 4.1 vocab route, 5.2; nudge via `vocab_suggestion` in 3.3 |
-| Vocab activation metric | DAL `times_suggested/used`, 5.5 |
+| Vocab dedup + frequency boost | Task 1.3 (`upsertVocab` ON CONFLICT, `getPrimeCandidates` weighted) |
+| Chunks/phrases first-class + prioritized | Task 1.3 (`kind`, phrase boost), 3.3/3.4 prompts (prefer chunks) |
+| Vocab activation metric | DAL `times_suggested/used`, `incrementVocabUsed`, 5.5 |
 | Youdao importer (UTF-16) | Phase 2 (Task 2.1) |
 | Quick Capture + LLM/dictionary enrichment | Task 2.2 (enrich), 4.1 capture/save routes, 5.6 CaptureWord UI |
 | Daily prompt (finance/tech mix) | 3.4, 4.1 prompts |

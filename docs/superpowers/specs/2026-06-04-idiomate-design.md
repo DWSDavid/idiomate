@@ -75,12 +75,14 @@ Each error type carries: a short display name, a one-line "what it is," and a co
 
 ## 5. Vocabulary Activation
 
-- **Capture (new):** the user types a word (optionally with the source sentence where they met it, e.g. an FT headline). The backend **enriches** it and saves it to `vocab`. This is the daily intake path.
+- **Capture (new):** the user types a word **or a multi-word chunk/phrase/collocation** (optionally with the source sentence where they met it, e.g. an FT headline). The backend **enriches** it and saves it to `vocab`. This is the daily intake path.
   - **Enrichment source: LLM-first + dictionary backstop.** OpenAI (utility model) generates EN definition, CN gloss, 1–2 natural example sentences, common collocations, and a register note; **IPA/phonetics are pulled from the Free Dictionary API** (`dictionaryapi.dev`) when available for authoritative pronunciation, falling back to the LLM. Cambridge has no official API and is **not** scraped (fragile + ToS).
   - The user can edit any field before saving (LLMs occasionally miss rare senses).
-- **Prime (pre-writing):** given the day's topic, select 3–5 relevant words from the user's `vocab` table and challenge the user to work them in.
-- **Nudge (during review):** when a paragraph has a spot where a user-vocab word fits naturally, emit a suggestion annotation ("you could use X here") — **suggest, never auto-replace**; the user chooses.
-- **Track:** `times_suggested` and `times_used` per word → an "activation rate" the user can see.
+- **Dedup + frequency boost:** entries are keyed by a **normalized form** (lowercased, trimmed, collapsed whitespace). Re-capturing an existing term does **not** duplicate — it increments `capture_count` and refreshes `last_captured`. Higher `capture_count` = higher priming priority (the words you keep meeting surface sooner and more often).
+- **Chunks/phrases are first-class.** Each entry has a `kind` (`word` | `phrase` | `collocation`). Multi-word terms are detected at capture. Both Prime and Nudge **prioritize phrases and fixed collocations** — these matter most for natural, non-translated output.
+- **Prime (pre-writing):** given the day's topic, select 3–5 terms from `vocab`, chosen by a **priority score** (not random): `capture_count` ↑, `times_used` ↓ (not yet activated), recency of `last_captured`, and a **boost for `phrase`/`collocation`**. Challenge the user to work them in.
+- **Nudge (during review):** when a paragraph has a spot where a user-vocab term fits naturally, emit a suggestion annotation ("you could use X here") — **suggest, never auto-replace**; the user chooses. Prefer chunk/collocation matches over single words.
+- **Track:** `times_suggested` and `times_used` per term → an "activation rate" the user can see.
 
 ---
 
@@ -130,7 +132,10 @@ Daily prompt (bank) ──▶ Write surface ──▶ "Coach paragraph"
 
 ## 8. Data Model (SQLite)
 
-- `vocab(id, word, ipa, def_cn, pos, status, source, context_sentence, examples, collocations, register, date_added, times_suggested, times_used)`  ← `source` distinguishes `youdao` vs `capture`; `examples`/`collocations` stored as JSON text
+- `vocab(id, word, normalized UNIQUE, kind, ipa, def_cn, pos, status, source, context_sentence, examples, collocations, register, capture_count, last_captured, date_added, times_suggested, times_used)`
+  - `normalized` = lowercased/trimmed/space-collapsed `word`, **UNIQUE** (dedup key)
+  - `kind` ∈ `word` | `phrase` | `collocation`; `source` ∈ `youdao` | `capture`
+  - `capture_count` defaults 1, incremented on re-capture; `examples`/`collocations` stored as JSON text
 - `prompts(id, date, theme, text, source_url?)`
 - `sessions(id, date, prompt_id, draft_text, final_text, duration_s)`
 - `annotations(id, session_id, paragraph_idx, span_text, error_type, hint, explanation, model_rewrite, user_rewrite, accepted)`
