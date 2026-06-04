@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
+  assembleCoachPrompt,
   assembleDailyPrompt,
   assemblePrimePrompt,
   generateDailyPrompt,
   selectPrimeWords,
 } from '../src/brain/prompts.js';
+import { ERROR_TYPES } from '../../shared/types.js';
 import type { LLMProvider } from '../src/brain/provider.js';
 
 it('assembles a daily prompt request with the required theme mix', () => {
@@ -13,6 +15,20 @@ it('assembles a daily prompt request with the required theme mix', () => {
   expect(prompt.system).toContain('finance/tech dominant');
   expect(prompt.system).toContain('occasional professional');
   expect(prompt.user).toContain('finance');
+});
+
+it('injects the full taxonomy while treating top errors as priority only', () => {
+  const prompt = assembleCoachPrompt({
+    paragraph: 'We carried out the implementation of the policy.',
+    paragraphIndex: 0,
+    topErrors: ['noun_plague'],
+    vocabCandidates: [],
+  });
+
+  for (const type of ERROR_TYPES) {
+    expect(prompt.user).toContain(`[${type}]`);
+  }
+  expect(prompt.user).toContain('Prioritize these recurring error types when relevant: noun_plague');
 });
 
 it('asks the utility model to select 3 to 5 prime words from user vocab', async () => {

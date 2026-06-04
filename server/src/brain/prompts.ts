@@ -10,13 +10,8 @@ export interface CoachPromptContext {
   vocabCandidates: Pick<Vocab, 'word' | 'defCn'>[];
 }
 
-function uniqueErrorTypes(types: ErrorType[]): ErrorType[] {
-  return Array.from(new Set(types));
-}
-
 export function assembleCoachPrompt(ctx: CoachPromptContext): { system: string; user: string } {
-  const taxonomyTypes = uniqueErrorTypes([...ctx.topErrors, 'vocab_suggestion']);
-  const snippet = taxonomySnippet(taxonomyTypes.length > 1 ? taxonomyTypes : ALL_ERROR_TYPES);
+  const snippet = taxonomySnippet(ALL_ERROR_TYPES);
   const vocab = ctx.vocabCandidates.length
     ? ctx.vocabCandidates.map(v => `- ${v.word}${v.defCn ? `: ${v.defCn}` : ''}`).join('\n')
     : '- none';
@@ -33,7 +28,7 @@ export function assembleCoachPrompt(ctx: CoachPromptContext): { system: string; 
     user: [
       `Paragraph index: ${ctx.paragraphIndex}`,
       `Paragraph:\n${ctx.paragraph}`,
-      `Top recurring error types: ${topErrors}`,
+      `Prioritize these recurring error types when relevant: ${topErrors}`,
       `Vocabulary candidates:\n${vocab}`,
       `Taxonomy:\n${snippet}`,
     ].join('\n\n'),
