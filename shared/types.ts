@@ -1,0 +1,35 @@
+export const ERROR_TYPES = [
+  'redundancy', 'calque', 'over_explanation', 'tense', 'modality',
+  'word_order', 'sprawl', 'small_grammar', 'word_choice', 'cohesion',
+  'vocab_suggestion',
+] as const;
+export type ErrorType = typeof ERROR_TYPES[number];
+
+export interface Annotation {
+  span: string;            // exact substring of the paragraph
+  errorType: ErrorType;
+  hint: string;            // shown BEFORE the user rewrites (no answer leaked)
+  explanation: string;     // shown AFTER, names the error + why
+  modelRewrite: string;    // hidden until user submits their rewrite
+  vocabWord?: string;      // set when errorType === 'vocab_suggestion'
+}
+
+export interface CoachResponse {
+  paragraphIndex: number;
+  annotations: Annotation[];
+}
+
+export interface Vocab {
+  id?: number;
+  word: string;
+  ipa?: string;
+  defCn?: string;
+  pos?: string;
+  status?: string;
+  source?: string;
+  timesSuggested: number;
+  timesUsed: number;
+}
+
+export interface Prompt { id?: number; date: string; theme: string; text: string; sourceUrl?: string; }
+export interface ErrorTally { errorType: ErrorType; count: number; lastSeen: string; }
