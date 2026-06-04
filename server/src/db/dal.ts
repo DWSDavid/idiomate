@@ -188,6 +188,20 @@ export function incrementVocabUsed(db: Database.Database, word: string) {
   `).run(normalizeVocabWord(word));
 }
 
+export function incrementVocabSuggested(db: Database.Database, words: string[]) {
+  const stmt = db.prepare(`
+    UPDATE vocab
+    SET times_suggested = times_suggested + 1
+    WHERE normalized = ?
+  `);
+  const incrementMany = db.transaction((items: string[]) => {
+    for (const word of items) {
+      stmt.run(normalizeVocabWord(word));
+    }
+  });
+  incrementMany(words);
+}
+
 export function recordErrors(db: Database.Database, types: ErrorType[]) {
   const stmt = db.prepare(`
     INSERT INTO error_tally (error_type, count, last_seen)

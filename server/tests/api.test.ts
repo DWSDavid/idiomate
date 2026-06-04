@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type { Server } from 'node:http';
 import { createApp } from '../src/index.js';
 import { openDb, migrate } from '../src/db/db.js';
-import { getPrimeCandidates, getTallies, insertVocab } from '../src/db/dal.js';
+import { getPrimeCandidates, getTallies, insertVocab, upsertVocab } from '../src/db/dal.js';
 import type { LLMProvider } from '../src/brain/provider.js';
 
 let db: ReturnType<typeof openDb>;
@@ -98,5 +98,47 @@ it('POST /api/sessions records errors and increments accepted vocab suggestions'
       expect.objectContaining({ errorType: 'redundancy', count: 1 }),
     ]);
     expect(getPrimeCandidates(db, 1)[0].timesUsed).toBe(1);
+  });
+});
+
+it('POST /api/vocab/save upserts and GET /api/vocab/prime returns weighted candidates', async () => {
+  upsertVocab(db, { word: 'plain', kind: 'word', captureCount: 1, timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, { word: 'overused', kind: 'word', captureCount: 9, timesSuggested: 0, timesUsed: 12 });
+
+  await withServer(createApp({ db }), async baseUrl => {
+    for (let i = 0; i < 2; i += 1) {
+      const save = await fetch(`${baseUrl}/api/vocab/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ word: ' Risk premium ', kind: 'phrase', defCn: 'risk-return spread' }),
+      });
+      expect(save.status).toBe(201);
+    }
+
+    const prime = await fetch(`${baseUrl}/api/vocab/prime?topic=markets`);
+    expect(prime.status).toBe(200);
+    const json = await prime.json();
+    expect(json.vocab[0].word).toBe('Risk premium');
+    expect(json.vocab[0].captureCount).toBe(2);
+
+    const saved = getPrimeCandidates(db, 1)[0];
+    expect(saved.normalized).toBe('risk premium');
+    expect(saved.timesSuggested).toBe(1);
+  });
+});
+
+it('POST /api/vocab/import parses a raw Youdao export', async () => {
+  const body = '1, esoteric  [ˌiːsəˈterɪk]  英译中\nadj. 只有内行才懂的\n未分组单词';
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/vocab/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      body,
+    });
+
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toEqual({ count: 1 });
+    expect(getPrimeCandidates(db, 1)[0].word).toBe('esoteric');
   });
 });
