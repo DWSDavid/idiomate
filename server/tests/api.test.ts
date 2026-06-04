@@ -127,6 +127,42 @@ it('POST /api/vocab/save upserts and GET /api/vocab/prime returns weighted candi
   });
 });
 
+it('POST /api/vocab/capture returns an enriched preview without saving', async () => {
+  const utilityProvider: LLMProvider = {
+    async complete() {
+      return JSON.stringify({
+        word: 'shore up',
+        kind: 'phrase',
+        defCn: 'support or strengthen',
+        contextSentence: 'We need to shore up margins.',
+        examples: ['They moved quickly to shore up confidence.'],
+        collocations: ['shore up margins'],
+        register: 'business',
+      });
+    },
+  };
+
+  await withServer(createApp({ db, utilityProvider }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/vocab/capture`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word: 'shore up', contextSentence: 'We need to shore up margins.' }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toEqual(expect.objectContaining({
+      word: 'shore up',
+      kind: 'phrase',
+      defCn: 'support or strengthen',
+      source: 'capture',
+      timesSuggested: 0,
+      timesUsed: 0,
+    }));
+    expect(getPrimeCandidates(db, 1)).toEqual([]);
+  });
+});
+
 it('POST /api/vocab/import parses a raw Youdao export', async () => {
   const body = '1, esoteric  [ˌiːsəˈterɪk]  英译中\nadj. 只有内行才懂的\n未分组单词';
 

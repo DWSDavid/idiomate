@@ -23,3 +23,18 @@ export const dailyPromptZ = z.object({
 export const primeWordsZ = z.object({
   words: z.array(z.string().min(1)).min(3).max(5),
 });
+
+const vocabKindZ = z.enum(['word', 'phrase', 'collocation']);
+
+export const enrichedVocabZ = z.object({
+  word: z.string().min(1),
+  normalized: z.string().optional(),
+  kind: vocabKindZ.optional(),
+  ipa: z.string().optional(),
+  defCn: z.string().optional(),
+  pos: z.string().optional(),
+  contextSentence: z.string().optional(),
+  examples: z.array(z.string()).optional(),
+  collocations: z.array(z.string()).optional(),
+  register: z.string().optional(),
+});

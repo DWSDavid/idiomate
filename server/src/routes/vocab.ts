@@ -1,6 +1,8 @@
 import express, { Router } from 'express';
 import { z } from 'zod';
 import type { AppDependencies } from '../appContext.js';
+import { enrichWord } from '../brain/enrich.js';
+import { config } from '../config.js';
 import { parseYoudaoTxt } from '../import/youdao.js';
 import {
   getPrimeCandidates,
@@ -30,8 +32,27 @@ const saveVocabZ = z.object({
   timesUsed: z.number().int().nonnegative().optional(),
 });
 
+const captureVocabZ = z.object({
+  word: z.string().min(1),
+  contextSentence: z.string().optional(),
+});
+
 export function createVocabRouter(deps: AppDependencies): Router {
   const router = Router();
+
+  router.post('/capture', async (req, res, next) => {
+    try {
+      const body = captureVocabZ.parse(req.body);
+      const preview = await enrichWord(deps.utilityProvider, {
+        word: body.word,
+        contextSentence: body.contextSentence,
+        model: config.modelUtility,
+      });
+      res.json(preview);
+    } catch (err) {
+      next(err);
+    }
+  });
 
   router.post('/save', (req, res, next) => {
     try {
