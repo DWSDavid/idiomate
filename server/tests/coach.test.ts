@@ -12,9 +12,15 @@ const mock: LLMProvider = {
           errorType: 'noun_plague',
           hint: 'Turn the heavy noun phrase into a verb.',
           explanation: 'Noun plague: nominalization weakens the sentence.',
+          rule: 'Prefer a verb over a noun string',
+          ruleExample: {
+            before: 'carried out the implementation of the policy',
+            after: 'implemented the policy',
+          },
           modelRewrite: 'implemented the policy',
         },
       ],
+      nativeVersion: 'We implemented the policy.',
     });
   },
 };
@@ -29,8 +35,14 @@ it('validates and returns a CoachResponse using the current ERROR_TYPES contract
   });
 
   expect(res.annotations[0].errorType).toBe('noun_plague');
+  expect(res.annotations[0].rule).toBe('Prefer a verb over a noun string');
+  expect(res.annotations[0].ruleExample).toEqual({
+    before: 'carried out the implementation of the policy',
+    after: 'implemented the policy',
+  });
   expect(res.annotations[0].modelRewrite).toBe('implemented the policy');
   expect(res.annotations[0].hint).not.toBe(res.annotations[0].modelRewrite);
+  expect(res.nativeVersion).toBe('We implemented the policy.');
 });
 
 it('throws on malformed JSON', async () => {

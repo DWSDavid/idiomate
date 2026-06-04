@@ -96,6 +96,7 @@ export function App() {
           <CoachPanel
             key={paragraphIndex}
             paragraph={item.paragraph}
+            nativeVersion={item.response.nativeVersion}
             annotations={item.response.annotations}
             onSubmit={handleCoachSubmit(Number(paragraphIndex))}
           />

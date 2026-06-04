@@ -72,6 +72,8 @@ it('POST /api/sessions records errors and increments accepted vocab suggestions'
             errorType: 'redundancy',
             hint: 'Use fewer words.',
             explanation: 'Redundancy.',
+            rule: 'Drop empty category nouns',
+            ruleExample: { before: 'in order to', after: 'to' },
             modelRewrite: 'to',
             userRewrite: 'to',
             accepted: false,
@@ -98,6 +100,13 @@ it('POST /api/sessions records errors and increments accepted vocab suggestions'
       expect.objectContaining({ errorType: 'redundancy', count: 1 }),
     ]);
     expect(getPrimeCandidates(db, 1)[0].timesUsed).toBe(1);
+    const row = db.prepare(`
+      SELECT rule, rule_example
+      FROM annotations
+      WHERE span_text = ?
+    `).get('in order to') as { rule: string; rule_example: string };
+    expect(row.rule).toBe('Drop empty category nouns');
+    expect(JSON.parse(row.rule_example)).toEqual({ before: 'in order to', after: 'to' });
   });
 });
 

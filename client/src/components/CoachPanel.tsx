@@ -6,11 +6,12 @@ type CoachPhase = 'review' | 'rewriting' | 'compared';
 
 interface CoachPanelProps {
   paragraph: string;
+  nativeVersion?: string;
   annotations: Annotation[];
   onSubmit: (rewrite: string, accepted: ComparedAnnotation[]) => void;
 }
 
-export function CoachPanel({ paragraph, annotations, onSubmit }: CoachPanelProps) {
+export function CoachPanel({ paragraph, nativeVersion, annotations, onSubmit }: CoachPanelProps) {
   const [phase, setPhase] = useState<CoachPhase>('review');
   const [rewrite, setRewrite] = useState(paragraph);
   const [accepted, setAccepted] = useState<ComparedAnnotation[]>([]);
@@ -29,7 +30,7 @@ export function CoachPanel({ paragraph, annotations, onSubmit }: CoachPanelProps
   if (phase === 'compared') {
     return (
       <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
-        <CompareView original={paragraph} rewrite={rewrite} annotations={accepted} />
+        <CompareView original={paragraph} rewrite={rewrite} nativeVersion={nativeVersion} annotations={accepted} />
       </div>
     );
   }

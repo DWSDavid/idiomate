@@ -13,6 +13,6 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS annotations (
   id INTEGER PRIMARY KEY, session_id INTEGER, paragraph_idx INTEGER, span_text TEXT,
   error_type TEXT, hint TEXT, explanation TEXT, model_rewrite TEXT,
-  user_rewrite TEXT, accepted INTEGER DEFAULT 0);
+  rule TEXT, rule_example TEXT, user_rewrite TEXT, accepted INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS error_tally (
   error_type TEXT PRIMARY KEY, count INTEGER DEFAULT 0, last_seen TEXT);

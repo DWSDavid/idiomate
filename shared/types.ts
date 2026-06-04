@@ -12,6 +12,8 @@ export interface Annotation {
   errorType: ErrorType;
   hint: string;            // shown BEFORE the user rewrites (no answer leaked)
   explanation: string;     // shown AFTER, names the error + why
+  rule?: string;            // named grammar or Chinglish principle
+  ruleExample?: { before: string; after: string };
   modelRewrite: string;    // hidden until user submits their rewrite
   vocabWord?: string;      // set when errorType === 'vocab_suggestion'
 }
@@ -19,6 +21,7 @@ export interface Annotation {
 export interface CoachResponse {
   paragraphIndex: number;
   annotations: Annotation[];
+  nativeVersion?: string;
 }
 
 export interface Vocab {

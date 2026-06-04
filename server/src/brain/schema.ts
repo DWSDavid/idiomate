@@ -1,11 +1,18 @@
 import { z } from 'zod';
 import { ERROR_TYPES } from '../../../shared/types.js';
 
+const ruleExampleZ = z.object({
+  before: z.string().min(1),
+  after: z.string().min(1),
+});
+
 export const annotationZ = z.object({
   span: z.string().min(1),
   errorType: z.enum(ERROR_TYPES),
   hint: z.string().min(1),
   explanation: z.string().min(1),
+  rule: z.string().min(1).optional(),
+  ruleExample: ruleExampleZ.optional(),
   modelRewrite: z.string(),
   vocabWord: z.string().optional(),
 });
@@ -13,6 +20,7 @@ export const annotationZ = z.object({
 export const coachResponseZ = z.object({
   paragraphIndex: z.number(),
   annotations: z.array(annotationZ),
+  nativeVersion: z.string().optional(),
 });
 
 export const dailyPromptZ = z.object({

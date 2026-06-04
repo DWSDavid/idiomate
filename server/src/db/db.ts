@@ -11,4 +11,13 @@ export function openDb(path = join(here, '../../idiomate.sqlite')) {
 
 export function migrate(db: Database.Database) {
   db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'));
+  ensureColumn(db, 'annotations', 'rule', 'TEXT');
+  ensureColumn(db, 'annotations', 'rule_example', 'TEXT');
+}
+
+function ensureColumn(db: Database.Database, table: string, column: string, definition: string) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!columns.some(item => item.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }

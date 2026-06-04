@@ -31,6 +31,33 @@ it('injects the full taxonomy while treating top errors as priority only', () =>
   expect(prompt.user).toContain('Prioritize these recurring error types when relevant: noun_plague');
 });
 
+it('injects focused named grammar rules for recurring errors', () => {
+  const prompt = assembleCoachPrompt({
+    paragraph: 'We carried out the implementation of the policy.',
+    paragraphIndex: 0,
+    topErrors: ['noun_plague'],
+    vocabCandidates: [],
+  });
+
+  expect(prompt.user).toContain('Named grammar and Chinglish rules');
+  expect(prompt.user).toContain('Prefer a verb over a noun string');
+  expect(prompt.user).toContain('implemented the policy');
+  expect(prompt.system).toContain('nativeVersion');
+  expect(prompt.system).toContain('ruleExample');
+});
+
+it('falls back to the full named rule set when recurring errors are sparse', () => {
+  const prompt = assembleCoachPrompt({
+    paragraph: "Let's started with an example.",
+    paragraphIndex: 0,
+    topErrors: [],
+    vocabCandidates: [],
+  });
+
+  expect(prompt.user).toContain("Let's + base verb");
+  expect(prompt.user).toContain('Prefer a verb over a noun string');
+});
+
 it('asks the utility model to select 3 to 5 prime words from user vocab', async () => {
   let captured: { system: string; user: string; model: string } | undefined;
   const mock: LLMProvider = {

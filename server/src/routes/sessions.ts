@@ -15,6 +15,11 @@ const submittedAnnotationZ = z.object({
   errorType: z.enum(ERROR_TYPES),
   hint: z.string().min(1),
   explanation: z.string().min(1),
+  rule: z.string().optional(),
+  ruleExample: z.object({
+    before: z.string().min(1),
+    after: z.string().min(1),
+  }).optional(),
   modelRewrite: z.string(),
   userRewrite: z.string().optional(),
   accepted: z.boolean().optional(),

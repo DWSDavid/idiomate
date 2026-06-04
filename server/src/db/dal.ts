@@ -261,11 +261,11 @@ export function insertAnnotations(
   const stmt = db.prepare(`
     INSERT INTO annotations (
       session_id, paragraph_idx, span_text, error_type, hint, explanation,
-      model_rewrite, user_rewrite, accepted
+      model_rewrite, rule, rule_example, user_rewrite, accepted
     )
     VALUES (
       @sessionId, @paragraphIdx, @span, @errorType, @hint, @explanation,
-      @modelRewrite, @userRewrite, @accepted
+      @modelRewrite, @rule, @ruleExample, @userRewrite, @accepted
     )
   `);
   const insertMany = db.transaction((items: InsertAnnotationInput[]) => {
@@ -278,6 +278,8 @@ export function insertAnnotations(
         hint: item.hint,
         explanation: item.explanation,
         modelRewrite: item.modelRewrite,
+        rule: item.rule ?? null,
+        ruleExample: item.ruleExample ? JSON.stringify(item.ruleExample) : null,
         userRewrite: item.userRewrite ?? null,
         accepted: item.accepted ? 1 : 0,
       });
