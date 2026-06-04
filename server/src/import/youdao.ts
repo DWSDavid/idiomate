@@ -1,6 +1,4 @@
-import type { Vocab, VocabKind, YoudaoDirection } from '../../../shared/types.js';
-
-const DIRECTION_MARKERS: YoudaoDirection[] = ['英译中', '中译英', '英译英'];
+import type { Vocab, VocabKind } from '../../../shared/types.js';
 
 const STATUS_MARKERS = [
   '未分组单词',
@@ -47,17 +45,14 @@ function extractPos(lines: string[]): string | undefined {
   return tags.size ? Array.from(tags).join(' ') : undefined;
 }
 
-function parseHeader(header: string): { word: string; ipa?: string; direction?: YoudaoDirection } | undefined {
+function parseHeader(header: string): { word: string; ipa?: string; direction?: string } | undefined {
   let rest = header.replace(/^\s*\d+\s*,\s*/, '').trim();
-  let direction: YoudaoDirection | undefined;
+  let direction: string | undefined;
 
-  for (const marker of DIRECTION_MARKERS) {
-    const markerPattern = new RegExp(`\\s+${marker}\\s*$`, 'u');
-    if (markerPattern.test(rest)) {
-      direction = marker;
-      rest = rest.replace(markerPattern, '').trim();
-      break;
-    }
+  const directionMatch = rest.match(/\s*([\u4e00-\u9fff]{1,3}译[\u4e00-\u9fff]{1,3})\s*$/u);
+  if (directionMatch) {
+    direction = directionMatch[1];
+    rest = rest.slice(0, directionMatch.index).trim();
   }
 
   const ipaMatch = rest.match(/\[([^\]]*)\]\s*$/u);
@@ -66,8 +61,9 @@ function parseHeader(header: string): { word: string; ipa?: string; direction?: 
     rest = rest.slice(0, ipaMatch.index).trim();
   }
 
-  const word = normalizeSpaces(rest);
-  return word ? { word, ipa, direction } : undefined;
+  const word = normalizeSpaces(rest.replace(/[\uFFFC\u0000-\u001F]/g, ''));
+  if (!word || /[\u4e00-\u9fff]/u.test(word)) return undefined;
+  return { word, ipa, direction };
 }
 
 export function parseYoudaoTxt(buf: Buffer): Vocab[] {

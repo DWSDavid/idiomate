@@ -20,7 +20,7 @@ const saveVocabZ = z.object({
   pos: z.string().optional(),
   status: z.string().optional(),
   source: z.string().optional(),
-  direction: z.enum(['英译中', '中译英', '英译英']).optional(),
+  direction: z.string().optional(),
   contextSentence: z.string().optional(),
   examples: z.array(z.string()).optional(),
   collocations: z.array(z.string()).optional(),

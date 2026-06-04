@@ -7,7 +7,7 @@ const fixtureText = readFileSync(new URL('./fixtures/youdao-sample.txt', import.
 it('parses words, ipa, cn definition, and phrase kind from real entries', () => {
   const vocab = parseYoudaoTxt(Buffer.from(fixtureText, 'utf8'));
 
-  expect(vocab.length).toBe(9);
+  expect(vocab.length).toBe(8);
   const esoteric = vocab.find(v => v.word === 'esoteric');
   expect(esoteric).toBeDefined();
   expect(esoteric!.ipa).toBe('ˌiːsəˈterɪk');
@@ -18,9 +18,7 @@ it('parses words, ipa, cn definition, and phrase kind from real entries', () => 
   expect(shoreUp!.kind).toBe('phrase');
   expect(shoreUp!.defCn).toContain('支撑');
 
-  const flattery = vocab.find(v => v.word === '拍马屁');
-  expect(flattery).toBeDefined();
-  expect(flattery!.defCn).toContain("lick sb's boots");
+  expect(vocab.find(v => v.word === '拍马屁')).toBeUndefined();
 
   const rusty = vocab.find(v => v.word === 'rusty');
   expect(rusty).toBeDefined();
@@ -34,11 +32,28 @@ it('parses words, ipa, cn definition, and phrase kind from real entries', () => 
   expect(timely!.defCn).toContain('handled promptly');
 });
 
+it('parses generic direction markers and drops non-English headwords', () => {
+  const text = [
+    '1, alpha object\uFFFC  [a l f a]  法译英',
+    'definition in English',
+    '未分组单词',
+    '2, 拍马屁  [pāi mǎ pì]  中译英',
+    "lick sb's boots",
+    '未分组单词',
+  ].join('\n');
+  const vocab = parseYoudaoTxt(Buffer.from(text, 'utf8'));
+
+  expect(vocab).toHaveLength(1);
+  expect(vocab[0].word).toBe('alpha object');
+  expect(vocab[0].ipa).toBe('alfa');
+  expect(vocab[0].direction).toBe('法译英');
+});
+
 it('handles the real UTF-16LE export without mojibake or NULs', () => {
   const buf = Buffer.from(`\ufeff${fixtureText}`, 'utf16le');
   const vocab = parseYoudaoTxt(buf);
 
-  expect(vocab).toHaveLength(9);
+  expect(vocab).toHaveLength(8);
   expect(vocab.every(v => !v.word.includes('\u0000'))).toBe(true);
   expect(vocab.find(v => v.word === 'kick the can down the road')!.defCn).toContain('拖延问题');
 });
