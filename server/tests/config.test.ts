@@ -40,3 +40,17 @@ it('loads OpenAI settings from a local env file before building config', async (
   expect(config.modelUtility).toBe('utility-env-file');
   expect(config.port).toBe(9876);
 });
+
+it('defaults both model tiers to gpt-4o when not overridden', async () => {
+  delete process.env.OPENAI_API_KEY;
+  delete process.env.OPENAI_MODEL_COACH;
+  delete process.env.OPENAI_MODEL_UTILITY;
+  delete process.env.PORT;
+  process.env.IDIOMATE_ENV_FILE = join(tmpdir(), 'idiomate-missing-env-file');
+  vi.resetModules();
+
+  const { config } = await import('../src/config.js');
+
+  expect(config.modelCoach).toBe('gpt-4o');
+  expect(config.modelUtility).toBe('gpt-4o');
+});

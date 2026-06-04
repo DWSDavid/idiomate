@@ -15,7 +15,7 @@ npm install
 ```dotenv
 OPENAI_API_KEY=sk-your-key-here
 OPENAI_MODEL_COACH=gpt-4o
-OPENAI_MODEL_UTILITY=gpt-4o-mini
+OPENAI_MODEL_UTILITY=gpt-4o
 PORT=8787
 ```
 
