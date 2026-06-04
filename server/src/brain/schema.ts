@@ -14,3 +14,12 @@ export const coachResponseZ = z.object({
   paragraphIndex: z.number(),
   annotations: z.array(annotationZ),
 });
+
+export const dailyPromptZ = z.object({
+  theme: z.string().min(1),
+  text: z.string().min(1),
+});
+
+export const primeWordsZ = z.object({
+  words: z.array(z.string().min(1)).min(3).max(5),
+});
