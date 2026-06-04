@@ -297,6 +297,10 @@ export function parseYoudaoTxt(buf: Buffer): Vocab[] {
 > Codex: the exact header regex must be tuned against the **real** file — the sample in the spec shows extra spacing between characters. Verify against the user's export and adjust the split/normalize step until the test passes on real data.
 - [ ] **Step 5:** Run → PASS. Commit: `feat: youdao utf16 importer`.
 
+> **Validated against the real `Vocabs.txt` (2026-06-04):** the regex above parses **2,715 / 2,723** entries cleanly (IPA + CN, no mojibake). Two refinements to apply:
+> 1. The 8 failures are **reverse `中译英` entries** (Chinese headwords like `拍马屁 … 中译英`). Skip them (don't treat as English vocab) — current regex already does, just don't count them as errors.
+> 2. **Strip trailing status markers** from `defCn`: tokens like `未分组单词`, `未读熟单词`, `未分组单`. Add a cleanup: `defCn.replace(/\s*(未分组单词?|未读熟单词?|已掌握)\s*$/,'').trim()`.
+
 ### Task 2.2: Word enrichment — LLM-first + Free Dictionary backstop (TDD)
 **Files:** Create `server/src/import/enrich.ts`, `server/src/brain/schema.ts` (extend), `server/tests/enrich.test.ts`.
 
