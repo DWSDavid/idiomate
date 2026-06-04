@@ -110,11 +110,18 @@ it('POST /api/sessions records errors and increments accepted vocab suggestions'
   });
 });
 
-it('POST /api/vocab/save upserts and GET /api/vocab/prime returns weighted candidates', async () => {
+it('POST /api/vocab/save upserts and GET /api/vocab/prime returns LLM-selected topic-fit candidates', async () => {
   upsertVocab(db, { word: 'plain', kind: 'word', captureCount: 1, timesSuggested: 0, timesUsed: 0 });
   upsertVocab(db, { word: 'overused', kind: 'word', captureCount: 9, timesSuggested: 0, timesUsed: 12 });
+  let captured: { system: string; user: string; model: string } | undefined;
+  const utilityProvider: LLMProvider = {
+    async complete(opts) {
+      captured = opts;
+      return JSON.stringify({ words: ['Risk premium'] });
+    },
+  };
 
-  await withServer(createApp({ db }), async baseUrl => {
+  await withServer(createApp({ db, utilityProvider }), async baseUrl => {
     for (let i = 0; i < 2; i += 1) {
       const save = await fetch(`${baseUrl}/api/vocab/save`, {
         method: 'POST',
@@ -124,11 +131,15 @@ it('POST /api/vocab/save upserts and GET /api/vocab/prime returns weighted candi
       expect(save.status).toBe(201);
     }
 
-    const prime = await fetch(`${baseUrl}/api/vocab/prime?topic=markets`);
+    const promptText = 'Should investors treat AI infrastructure spending as a durable moat or a near-term margin risk?';
+    const prime = await fetch(`${baseUrl}/api/vocab/prime?promptText=${encodeURIComponent(promptText)}`);
     expect(prime.status).toBe(200);
     const json = await prime.json();
     expect(json.vocab[0].word).toBe('Risk premium');
     expect(json.vocab[0].captureCount).toBe(2);
+    expect(json.limit).toBe(10);
+    expect(captured!.user).toContain(promptText);
+    expect(captured!.system).toContain('10');
 
     const saved = getPrimeCandidates(db, 1)[0];
     expect(saved.normalized).toBe('risk premium');
@@ -188,14 +199,62 @@ it('POST /api/vocab/import parses a raw Youdao export', async () => {
   });
 });
 
-it('GET /api/prompt/today returns a local writing prompt', async () => {
-  await withServer(createApp({ db }), async baseUrl => {
+it('GET /api/prompt/today generates a fresh news-grounded prompt through the utility model', async () => {
+  let calls = 0;
+  let captured: { system: string; user: string; model: string } | undefined;
+  const utilityProvider: LLMProvider = {
+    async complete(opts) {
+      calls += 1;
+      captured = opts;
+      return JSON.stringify({
+        theme: 'humanoid robotics',
+        text: `What is your view on humanoid robotics changing workplace productivity angle ${calls}?`,
+      });
+    },
+  };
+
+  await withServer(createApp({
+    db,
+    utilityProvider,
+    headlineFetcher: async () => ['Humanoid robots enter warehouses', 'Robotics firms sign chip deals'],
+  }), async baseUrl => {
+    const first = await fetch(`${baseUrl}/api/prompt/today`);
+    const second = await fetch(`${baseUrl}/api/prompt/today`);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    const firstJson = await first.json();
+    const secondJson = await second.json();
+    expect(firstJson.text).toContain('angle 1');
+    expect(secondJson.text).toContain('angle 2');
+    expect(calls).toBe(2);
+    expect(captured!.user).toContain('Humanoid robots enter warehouses');
+  });
+});
+
+it('GET /api/prompt/today falls back to LLM-only generation when news fetch fails', async () => {
+  const utilityProvider: LLMProvider = {
+    async complete(opts) {
+      expect(opts.user).toContain('No fresh headlines were available');
+      return JSON.stringify({
+        theme: 'financial markets',
+        text: 'What is your view on how investors should discuss market uncertainty without overstating risk?',
+      });
+    },
+  };
+
+  await withServer(createApp({
+    db,
+    utilityProvider,
+    headlineFetcher: async () => {
+      throw new Error('offline');
+    },
+  }), async baseUrl => {
     const res = await fetch(`${baseUrl}/api/prompt/today`);
 
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.date).toEqual(expect.any(String));
-    expect(json.theme).toEqual(expect.any(String));
     expect(json.text).toContain('?');
   });
 });

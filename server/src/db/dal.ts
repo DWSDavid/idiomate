@@ -180,6 +180,36 @@ export function getPrimeCandidates(db: Database.Database, n: number): Vocab[] {
   return rows.map(mapVocab);
 }
 
+export function getPrimeCandidatePool(db: Database.Database, n = 40): Vocab[] {
+  const limit = Math.max(1, n);
+  const priorityLimit = Math.max(1, Math.ceil(limit * 25 / 40));
+  const oldestLimit = Math.max(0, limit - priorityLimit);
+  const priority = getPrimeCandidates(db, priorityLimit);
+  const oldestRows = oldestLimit > 0
+    ? db.prepare(`
+      SELECT *
+      FROM vocab
+      WHERE times_used = 0
+      ORDER BY last_captured ASC, normalized ASC
+      LIMIT ?
+    `).all(oldestLimit) as VocabRow[]
+    : [];
+
+  const byNormalized = new Map<string, Vocab>();
+  for (const item of [...priority, ...oldestRows.map(mapVocab)]) {
+    byNormalized.set(normalizeVocabWord(item.normalized ?? item.word), item);
+  }
+
+  if (byNormalized.size < limit) {
+    for (const item of getPrimeCandidates(db, limit * 2)) {
+      byNormalized.set(normalizeVocabWord(item.normalized ?? item.word), item);
+      if (byNormalized.size >= limit) break;
+    }
+  }
+
+  return Array.from(byNormalized.values()).slice(0, limit);
+}
+
 export function incrementVocabUsed(db: Database.Database, word: string) {
   db.prepare(`
     UPDATE vocab

@@ -55,22 +55,47 @@ export function assembleDailyPrompt(ctx: { theme: string }): { system: string; u
   };
 }
 
+export function assembleNewsPrompt(ctx: { topic: string; headlines: string[] }): { system: string; user: string } {
+  const headlines = ctx.headlines.length
+    ? ctx.headlines.map((headline, index) => `${index + 1}. ${headline}`).join('\n')
+    : 'No fresh headlines were available. Generate a timely but non-specific discussion prompt from the topic alone.';
+
+  return {
+    system: [
+      'You generate one fresh discussion-style writing prompt for Idiomate.',
+      'Aim it at academic writing and professional discussion prep for an advanced Chinese-L1 English writer.',
+      'Ground the prompt in the supplied headlines when they are available.',
+      'The prompt should start naturally, often with "What\'s your view on", and invite a paragraph-length argument rather than a list.',
+      'Return ONLY JSON matching: {theme,text}.',
+    ].join(' '),
+    user: [
+      `Topic: ${ctx.topic}`,
+      `Headlines:\n${headlines}`,
+      'Write one fresh prompt with a concrete angle. Do not copy a headline verbatim.',
+      "What's your view prompt:",
+    ].join('\n\n'),
+  };
+}
+
 export interface PrimePromptContext {
   topic: string;
   vocab: Pick<Vocab, 'word' | 'defCn' | 'kind'>[];
+  limit?: number;
 }
 
 export function assemblePrimePrompt(ctx: PrimePromptContext): { system: string; user: string } {
   const vocab = ctx.vocab.map(v => `- ${v.word}${v.kind ? ` (${v.kind})` : ''}${v.defCn ? `: ${v.defCn}` : ''}`).join('\n');
+  const limit = ctx.limit ?? 10;
   return {
     system: [
       'You select vocabulary activation candidates for a writing practice session.',
-      'Choose 3 to 5 words or phrases that naturally fit the topic.',
-      'Prioritize phrases and collocations when they fit.',
-      'Return ONLY JSON matching: {words:[string,string,string]}.',
+      `Choose up to ${limit} words, phrases, or collocations that naturally fit the full prompt text.`,
+      'Favor phrases and collocations, especially terms useful for academic or professional writing.',
+      'Use recency and memory value only as secondary signals; relevance to the prompt wins.',
+      'Return ONLY JSON matching: {words:[string]}.',
     ].join(' '),
     user: [
-      `Topic: ${ctx.topic}`,
+      `Full prompt text: ${ctx.topic}`,
       `User vocabulary candidates:\n${vocab || '- none'}`,
     ].join('\n\n'),
   };
@@ -81,6 +106,15 @@ export async function generateDailyPrompt(
   ctx: { theme: string; model: string },
 ): Promise<{ theme: string; text: string }> {
   const { system, user } = assembleDailyPrompt(ctx);
+  const raw = await provider.complete({ system, user, model: ctx.model });
+  return dailyPromptZ.parse(JSON.parse(raw));
+}
+
+export async function generateNewsPrompt(
+  provider: LLMProvider,
+  ctx: { topic: string; headlines: string[]; model: string },
+): Promise<{ theme: string; text: string }> {
+  const { system, user } = assembleNewsPrompt(ctx);
   const raw = await provider.complete({ system, user, model: ctx.model });
   return dailyPromptZ.parse(JSON.parse(raw));
 }

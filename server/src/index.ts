@@ -18,12 +18,13 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     db,
     coachProvider: overrides.coachProvider ?? new OpenAIProvider(config.apiKey),
     utilityProvider: overrides.utilityProvider ?? new OpenAIProvider(config.apiKey),
+    headlineFetcher: overrides.headlineFetcher,
   };
 
   const app = express();
   app.use(express.json({ limit: '1mb' }));
   app.use('/api/coach', createCoachRouter(deps));
-  app.use('/api/prompt', createPromptsRouter());
+  app.use('/api/prompt', createPromptsRouter(deps));
   app.use('/api/sessions', createSessionsRouter(deps));
   app.use('/api/vocab', createVocabRouter(deps));
   app.use('/api/profile', createProfileRouter(deps));

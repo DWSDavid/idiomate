@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { openDb, migrate } from '../src/db/db.js';
 import {
   getPrimeCandidates,
+  getPrimeCandidatePool,
   getVocabSample,
   incrementVocabUsed,
   insertVocab,
@@ -57,6 +58,55 @@ it('selects prime candidates by deterministic weighted priority', () => {
   });
 
   expect(getPrimeCandidates(db, 2).map(v => v.word)).toEqual(['risk premium', 'plain']);
+});
+
+it('builds a blended prime pool from priority terms and oldest unused terms', () => {
+  upsertVocab(db, {
+    word: 'top phrase one',
+    kind: 'phrase',
+    captureCount: 5,
+    lastCaptured: '2026-06-04T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+  upsertVocab(db, {
+    word: 'top phrase two',
+    kind: 'phrase',
+    captureCount: 4,
+    lastCaptured: '2026-06-04T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+  upsertVocab(db, {
+    word: 'top phrase three',
+    kind: 'phrase',
+    captureCount: 3,
+    lastCaptured: '2026-06-04T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+  upsertVocab(db, {
+    word: 'old unused',
+    kind: 'word',
+    captureCount: 1,
+    lastCaptured: '2025-01-01T00:00:00.000Z',
+    timesSuggested: 9,
+    timesUsed: 0,
+  });
+  upsertVocab(db, {
+    word: 'old but used',
+    kind: 'word',
+    captureCount: 1,
+    lastCaptured: '2024-01-01T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 1,
+  });
+
+  const pool = getPrimeCandidatePool(db, 4).map(v => v.word);
+
+  expect(pool).toEqual(expect.arrayContaining(['top phrase one', 'top phrase two', 'top phrase three']));
+  expect(pool).toContain('old unused');
+  expect(pool).not.toContain('old but used');
 });
 
 it('increments vocab usage by normalized word', () => {

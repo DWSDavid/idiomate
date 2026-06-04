@@ -29,7 +29,7 @@ export const dailyPromptZ = z.object({
 });
 
 export const primeWordsZ = z.object({
-  words: z.array(z.string().min(1)).min(3).max(5),
+  words: z.array(z.string().min(1)).min(1).max(10),
 });
 
 const vocabKindZ = z.enum(['word', 'phrase', 'collocation']);

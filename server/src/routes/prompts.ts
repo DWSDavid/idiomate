@@ -1,32 +1,43 @@
 import { Router } from 'express';
+import type { AppDependencies } from '../appContext.js';
+import { generateNewsPrompt } from '../brain/prompts.js';
+import { config } from '../config.js';
+import { fetchHeadlines, NEWS_TOPICS } from '../news.js';
 
-const PROMPT_BANK = [
-  {
-    theme: 'finance',
-    text: 'Should investors treat AI infrastructure spending as a durable moat or a near-term margin risk?',
-  },
-  {
-    theme: 'tech',
-    text: 'How should a software company explain slower growth if it is deliberately shifting toward higher-quality revenue?',
-  },
-  {
-    theme: 'professional',
-    text: 'When should a team escalate a small operational problem before it becomes a strategic risk?',
-  },
-];
+const OFFLINE_FALLBACK = {
+  theme: 'professional discussion',
+  text: 'What is your view on how professionals should make careful decisions when fresh information is limited?',
+};
 
-export function createPromptsRouter(): Router {
+export function createPromptsRouter(deps: AppDependencies): Router {
   const router = Router();
+  let topicCursor = 0;
 
-  router.get('/today', (_req, res) => {
-    const today = new Date().toISOString().slice(0, 10);
-    const prompt = PROMPT_BANK[Math.abs(hashDate(today)) % PROMPT_BANK.length];
-    res.json({ date: today, ...prompt });
+  router.get('/today', async (req, res) => {
+    const date = new Date().toISOString().slice(0, 10);
+    const requestedTopic = String(req.query.topic ?? '').trim();
+    const topic = requestedTopic || NEWS_TOPICS[topicCursor % NEWS_TOPICS.length];
+    topicCursor += 1;
+
+    const fetcher = deps.headlineFetcher ?? fetchHeadlines;
+    let headlines: string[] = [];
+    try {
+      headlines = await fetcher(topic);
+    } catch {
+      headlines = [];
+    }
+
+    try {
+      const prompt = await generateNewsPrompt(deps.utilityProvider, {
+        topic,
+        headlines,
+        model: config.modelUtility,
+      });
+      res.json({ date, ...prompt });
+    } catch {
+      res.json({ date, ...OFFLINE_FALLBACK });
+    }
   });
 
   return router;
-}
-
-function hashDate(date: string): number {
-  return Array.from(date).reduce((acc, char) => acc + char.charCodeAt(0), 0);
 }
