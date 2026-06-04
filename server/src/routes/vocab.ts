@@ -89,7 +89,7 @@ export function createVocabRouter(deps: AppDependencies): Router {
       const limit = Number.isFinite(parsedLimit)
         ? Math.max(1, Math.min(10, Math.floor(parsedLimit)))
         : 10;
-      const pool = getPrimeCandidatePool(deps.db, 40);
+      const pool = getPrimeCandidatePool(deps.db, promptText, 120);
       const selectedWords = await selectPrimeWords(deps.utilityProvider, {
         topic: promptText,
         vocab: pool.map(v => ({ word: v.word, defCn: v.defCn, kind: v.kind })),

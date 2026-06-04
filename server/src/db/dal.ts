@@ -180,31 +180,68 @@ export function getPrimeCandidates(db: Database.Database, n: number): Vocab[] {
   return rows.map(mapVocab);
 }
 
-export function getPrimeCandidatePool(db: Database.Database, n = 40): Vocab[] {
-  const limit = Math.max(1, n);
-  const priorityLimit = Math.max(1, Math.ceil(limit * 25 / 40));
-  const oldestLimit = Math.max(0, limit - priorityLimit);
-  const priority = getPrimeCandidates(db, priorityLimit);
-  const oldestRows = oldestLimit > 0
-    ? db.prepare(`
-      SELECT *
-      FROM vocab
-      WHERE times_used = 0
-      ORDER BY last_captured ASC, normalized ASC
-      LIMIT ?
-    `).all(oldestLimit) as VocabRow[]
-    : [];
+const PRIME_STOPWORDS = new Set([
+  'what', 'your', 'view', 'the', 'and', 'for', 'that', 'with', 'this', 'from', 'their', 'should',
+  'about', 'how', 'are', 'you', 'consider', 'discuss', 'between', 'such', 'whether', 'these', 'those',
+  'where', 'while', 'might', 'each', 'they', 'have', 'has', 'its', 'into', 'over', 'under', 'when',
+  'which', 'who', 'because', 'would', 'could', 'will', 'them', 'then', 'than', 'some', 'more', 'most',
+  'also', 'been', 'being', 'other', 'there', 'here', 'make', 'made', 'like', 'just', 'very', 'much',
+]);
 
+function keywordsFromText(text: string): string[] {
+  const words = text.toLowerCase().match(/[a-z]{4,}/g) ?? [];
+  return Array.from(new Set(words)).filter(w => !PRIME_STOPWORDS.has(w)).slice(0, 14);
+}
+
+/**
+ * Build a candidate pool for topic-fit priming. Blends:
+ *  1. topical lexical matches - vocab whose word/def/examples/collocations contain a prompt keyword
+ *  2. memory                  - priority (frequent/recent/phrase) + oldest unused
+ *  3. coverage                - random sample, so relevant words exist even when scores tie
+ * The LLM then ranks this pool down to the final set.
+ */
+export function getPrimeCandidatePool(db: Database.Database, promptText = '', n = 120): Vocab[] {
+  const limit = Math.max(1, n);
   const byNormalized = new Map<string, Vocab>();
-  for (const item of [...priority, ...oldestRows.map(mapVocab)]) {
-    byNormalized.set(normalizeVocabWord(item.normalized ?? item.word), item);
+  const add = (items: Vocab[]) => {
+    for (const item of items) {
+      const key = normalizeVocabWord(item.normalized ?? item.word);
+      if (!byNormalized.has(key)) byNormalized.set(key, item);
+    }
+  };
+
+  // 1. Topical lexical matches (keywords against word + Chinese gloss + examples/collocations).
+  const keywords = keywordsFromText(promptText);
+  if (keywords.length) {
+    const clause = keywords
+      .map(() => '(word LIKE ? OR def_cn LIKE ? OR examples LIKE ? OR collocations LIKE ?)')
+      .join(' OR ');
+    const params: string[] = [];
+    for (const keyword of keywords) {
+      const like = `%${keyword}%`;
+      params.push(like, like, like, like);
+    }
+    const rows = db
+      .prepare(`SELECT * FROM vocab WHERE ${clause} ORDER BY times_used ASC, capture_count DESC LIMIT 60`)
+      .all(...params) as VocabRow[];
+    add(rows.map(mapVocab));
   }
 
+  // 2. Memory blend: priority + oldest unused, proportional so old words keep a guaranteed slot.
+  const priorityLimit = Math.max(1, Math.ceil(limit * 25 / 40));
+  const oldestLimit = Math.max(0, limit - priorityLimit);
+  add(getPrimeCandidates(db, priorityLimit));
+  if (oldestLimit > 0) {
+    const oldest = db
+      .prepare('SELECT * FROM vocab WHERE times_used = 0 ORDER BY last_captured ASC, normalized ASC LIMIT ?')
+      .all(oldestLimit) as VocabRow[];
+    add(oldest.map(mapVocab));
+  }
+
+  // 3. Coverage: random fill so topical words can surface even when scores tie.
   if (byNormalized.size < limit) {
-    for (const item of getPrimeCandidates(db, limit * 2)) {
-      byNormalized.set(normalizeVocabWord(item.normalized ?? item.word), item);
-      if (byNormalized.size >= limit) break;
-    }
+    const random = db.prepare('SELECT * FROM vocab ORDER BY RANDOM() LIMIT ?').all(limit * 2) as VocabRow[];
+    add(random.map(mapVocab));
   }
 
   return Array.from(byNormalized.values()).slice(0, limit);

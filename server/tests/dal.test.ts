@@ -102,7 +102,7 @@ it('builds a blended prime pool from priority terms and oldest unused terms', ()
     timesUsed: 1,
   });
 
-  const pool = getPrimeCandidatePool(db, 4).map(v => v.word);
+  const pool = getPrimeCandidatePool(db, '', 4).map(v => v.word);
 
   expect(pool).toEqual(expect.arrayContaining(['top phrase one', 'top phrase two', 'top phrase three']));
   expect(pool).toContain('old unused');
