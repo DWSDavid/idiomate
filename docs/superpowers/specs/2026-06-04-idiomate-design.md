@@ -27,7 +27,8 @@ Three real, under-served problems for *advanced* learners:
 - A coaching loop that teaches (annotate → you rewrite → compare), never auto-fixes.
 - A persistent **error profile** that tags every issue, tallies recurring patterns, and references them.
 - **Vocabulary activation**: prime relevant words before writing; nudge opportunistically during review; track activation rate.
-- Import the user's Youdao vocab export.
+- Import the user's Youdao vocab export (one-time backfill).
+- **Quick Capture**: type a new word → auto-enrich (definition, IPA, CN gloss, examples, collocations, register) → save. The daily path for new words; replaces the Youdao round-trip going forward.
 
 **Non-Goals (explicitly deferred)**
 - Speaking practice (secondary; later).
@@ -74,6 +75,9 @@ Each error type carries: a short display name, a one-line "what it is," and a co
 
 ## 5. Vocabulary Activation
 
+- **Capture (new):** the user types a word (optionally with the source sentence where they met it, e.g. an FT headline). The backend **enriches** it and saves it to `vocab`. This is the daily intake path.
+  - **Enrichment source: LLM-first + dictionary backstop.** OpenAI (utility model) generates EN definition, CN gloss, 1–2 natural example sentences, common collocations, and a register note; **IPA/phonetics are pulled from the Free Dictionary API** (`dictionaryapi.dev`) when available for authoritative pronunciation, falling back to the LLM. Cambridge has no official API and is **not** scraped (fragile + ToS).
+  - The user can edit any field before saving (LLMs occasionally miss rare senses).
 - **Prime (pre-writing):** given the day's topic, select 3–5 relevant words from the user's `vocab` table and challenge the user to work them in.
 - **Nudge (during review):** when a paragraph has a spot where a user-vocab word fits naturally, emit a suggestion annotation ("you could use X here") — **suggest, never auto-replace**; the user chooses.
 - **Track:** `times_suggested` and `times_used` per word → an "activation rate" the user can see.
@@ -126,7 +130,7 @@ Daily prompt (bank) ──▶ Write surface ──▶ "Coach paragraph"
 
 ## 8. Data Model (SQLite)
 
-- `vocab(id, word, ipa, def_cn, pos, status, source, date_added, times_suggested, times_used)`
+- `vocab(id, word, ipa, def_cn, pos, status, source, context_sentence, examples, collocations, register, date_added, times_suggested, times_used)`  ← `source` distinguishes `youdao` vs `capture`; `examples`/`collocations` stored as JSON text
 - `prompts(id, date, theme, text, source_url?)`
 - `sessions(id, date, prompt_id, draft_text, final_text, duration_s)`
 - `annotations(id, session_id, paragraph_idx, span_text, error_type, hint, explanation, model_rewrite, user_rewrite, accepted)`
@@ -138,7 +142,7 @@ Daily prompt (bank) ──▶ Write surface ──▶ "Coach paragraph"
 
 ## 9. MVP Scope Boundary
 
-**In:** daily prompt (mixed finance/tech), write surface, coaching loop (annotate→rewrite→compare), vocab prime + opportunistic nudge, error profile + simple dashboard, Youdao txt importer.
+**In:** daily prompt (mixed finance/tech), write surface, coaching loop (annotate→rewrite→compare), vocab prime + opportunistic nudge, error profile + simple dashboard, Youdao txt importer (one-time backfill), **Quick Capture with LLM+dictionary enrichment**.
 
 **Out (later):** speaking; browser/editor extension; in-flow real-writing mode; SRS; multi-user/auth; cloud sync; live news fetch.
 

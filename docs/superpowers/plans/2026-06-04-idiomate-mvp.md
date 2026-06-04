@@ -35,7 +35,8 @@ idiomate/
 │   │   │   ├── coach.ts          # coachParagraph(): provider → zod-validated CoachResponse
 │   │   │   └── schema.ts         # zod schemas for LLM JSON outputs
 │   │   ├── import/
-│   │   │   └── youdao.ts         # parseYoudaoTxt(): UTF-16 → Vocab[]
+│   │   │   ├── youdao.ts         # parseYoudaoTxt(): UTF-16 → Vocab[]
+│   │   │   └── enrich.ts         # enrichWord(): LLM + Free Dictionary IPA → Vocab
 │   │   └── routes/
 │   │       ├── prompts.ts        # GET /api/prompt/today
 │   │       ├── coach.ts          # POST /api/coach
@@ -59,6 +60,7 @@ idiomate/
     │   │   ├── WriteSurface.tsx
     │   │   ├── CoachPanel.tsx     # annotate→rewrite→compare loop
     │   │   ├── CompareView.tsx
+    │   │   ├── CaptureWord.tsx    # quick-capture + enrichment preview/edit
     │   │   └── ProfileDashboard.tsx
     │   └── styles.css            # tailwind entry
     └── tests/
@@ -163,7 +165,11 @@ export interface Vocab {
   defCn?: string;
   pos?: string;
   status?: string;
-  source?: string;
+  source?: string;            // 'youdao' | 'capture'
+  contextSentence?: string;   // where the user met the word (e.g. an FT headline)
+  examples?: string[];        // stored as JSON text in DB
+  collocations?: string[];    // stored as JSON text in DB
+  register?: string;          // e.g. 'formal', 'neutral', 'informal/journalistic'
   timesSuggested: number;
   timesUsed: number;
 }
@@ -201,7 +207,8 @@ it('tallies error types across calls', () => {
 ```sql
 CREATE TABLE IF NOT EXISTS vocab (
   id INTEGER PRIMARY KEY, word TEXT NOT NULL, ipa TEXT, def_cn TEXT, pos TEXT,
-  status TEXT, source TEXT, date_added TEXT DEFAULT (datetime('now')),
+  status TEXT, source TEXT, context_sentence TEXT, examples TEXT, collocations TEXT,
+  register TEXT, date_added TEXT DEFAULT (datetime('now')),
   times_suggested INTEGER DEFAULT 0, times_used INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS prompts (
   id INTEGER PRIMARY KEY, date TEXT, theme TEXT, text TEXT, source_url TEXT);
@@ -227,7 +234,7 @@ export function migrate(db: Database.Database) {
   db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'));
 }
 ```
-- [ ] **Step 5:** `dal.ts` — implement `insertVocab`, `getVocabSample(db, n)` (`ORDER BY RANDOM() LIMIT n`), `recordErrors(db, types[])` (UPSERT into `error_tally` incrementing `count`, set `last_seen=datetime('now')`), `getTallies(db)`, plus `insertSession`, `insertAnnotations`. Use prepared statements; map snake_case ↔ camelCase.
+- [ ] **Step 5:** `dal.ts` — implement `insertVocab`, `getVocabSample(db, n)` (`ORDER BY RANDOM() LIMIT n`), `recordErrors(db, types[])` (UPSERT into `error_tally` incrementing `count`, set `last_seen=datetime('now')`), `getTallies(db)`, plus `insertSession`, `insertAnnotations`, `incrementVocabUsed(db, word)`. Use prepared statements; map snake_case ↔ camelCase. **`examples` and `collocations` are `JSON.stringify`'d on write and `JSON.parse`'d on read** (DB columns are TEXT).
 - [ ] **Step 6:** Run test → PASS. Commit: `feat: sqlite schema + DAL`.
 
 ---
@@ -289,6 +296,87 @@ export function parseYoudaoTxt(buf: Buffer): Vocab[] {
 ```
 > Codex: the exact header regex must be tuned against the **real** file — the sample in the spec shows extra spacing between characters. Verify against the user's export and adjust the split/normalize step until the test passes on real data.
 - [ ] **Step 5:** Run → PASS. Commit: `feat: youdao utf16 importer`.
+
+### Task 2.2: Word enrichment — LLM-first + Free Dictionary backstop (TDD)
+**Files:** Create `server/src/import/enrich.ts`, `server/src/brain/schema.ts` (extend), `server/tests/enrich.test.ts`.
+
+> Daily intake path for new words. **LLM (utility model)** produces def/CN/examples/collocations/register; **IPA comes from the Free Dictionary API** (`https://api.dictionaryapi.dev/api/v2/entries/en/<word>`) when available, else falls back to the LLM's IPA. **Cambridge is NOT scraped.** Enrichment returns a `Vocab` the user can edit before saving.
+
+- [ ] **Step 1:** Extend `schema.ts` with a zod schema for the LLM enrichment output:
+```ts
+export const enrichZ = z.object({
+  ipa: z.string().optional(),
+  defCn: z.string(),
+  pos: z.string().optional(),
+  examples: z.array(z.string()).max(3),
+  collocations: z.array(z.string()).max(6),
+  register: z.string(),
+});
+```
+- [ ] **Step 2 (failing test)** with a mock provider + injected fetch:
+```ts
+import { describe, it, expect } from 'vitest';
+import { enrichWord } from '../src/import/enrich.js';
+import type { LLMProvider } from '../src/brain/provider.js';
+
+const mock: LLMProvider = { async complete() {
+  return JSON.stringify({ defCn:'利用；杠杆', pos:'v.', examples:['Firms leverage data to cut costs.'],
+    collocations:['leverage data','financial leverage'], register:'neutral/business', ipa:'ˈlevərɪdʒ' });
+}};
+// fake Free Dictionary API returning an authoritative IPA
+const fakeFetch = async () => ({ ok:true, json: async () => ([{ phonetic:'/ˈliːvərɪdʒ/' }]) }) as any;
+
+it('merges LLM fields with dictionary IPA (dictionary wins)', async () => {
+  const v = await enrichWord('leverage', { provider: mock, model:'test', fetchImpl: fakeFetch, contextSentence:'Firms leverage AI.' });
+  expect(v.word).toBe('leverage');
+  expect(v.defCn).toContain('利用');
+  expect(v.ipa).toBe('/ˈliːvərɪdʒ/');        // dictionary backstop wins
+  expect(v.source).toBe('capture');
+  expect(v.contextSentence).toBe('Firms leverage AI.');
+});
+
+it('falls back to LLM ipa when dictionary has none', async () => {
+  const noIpaFetch = async () => ({ ok:true, json: async () => ([{}]) }) as any;
+  const v = await enrichWord('leverage', { provider: mock, model:'test', fetchImpl: noIpaFetch });
+  expect(v.ipa).toBe('ˈlevərɪdʒ');
+});
+```
+- [ ] **Step 3:** Run → FAIL.
+- [ ] **Step 4:** Implement `enrich.ts`:
+```ts
+import type { LLMProvider } from '../brain/provider.js';
+import { enrichZ } from '../brain/schema.js';
+import type { Vocab } from '../../../shared/types.js';
+
+interface EnrichOpts {
+  provider: LLMProvider; model: string;
+  fetchImpl?: typeof fetch; contextSentence?: string;
+}
+export async function enrichWord(word: string, opts: EnrichOpts): Promise<Vocab> {
+  const f = opts.fetchImpl ?? fetch;
+  const system = 'You are a lexicographer for an advanced Chinese-L1 English learner. Return ONLY JSON: '
+    + '{ipa?, defCn, pos?, examples[<=3], collocations[<=6], register}. defCn is a concise Chinese gloss. '
+    + 'examples are natural sentences (business/journalistic where apt). register e.g. formal/neutral/informal.';
+  const raw = await opts.provider.complete({ system, user: `Word: ${word}`, model: opts.model });
+  const llm = enrichZ.parse(JSON.parse(raw));
+  let ipa = llm.ipa;
+  try {
+    const res = await f(`https://api.dictionaryapi.dev/api/v2/entries/en/${encodeURIComponent(word)}`);
+    if (res.ok) {
+      const data: any = await res.json();
+      const dictIpa = data?.[0]?.phonetic ?? data?.[0]?.phonetics?.find((p: any) => p.text)?.text;
+      if (dictIpa) ipa = dictIpa; // dictionary backstop wins
+    }
+  } catch { /* network optional; keep LLM ipa */ }
+  return {
+    word, ipa, defCn: llm.defCn, pos: llm.pos, register: llm.register,
+    examples: llm.examples, collocations: llm.collocations,
+    source: 'capture', contextSentence: opts.contextSentence,
+    status: 'new', timesSuggested: 0, timesUsed: 0,
+  };
+}
+```
+- [ ] **Step 5:** Run → PASS. Commit: `feat: word enrichment (llm + dictionary ipa)`.
 
 ---
 
@@ -407,6 +495,7 @@ export async function coachParagraph(p: LLMProvider, ctx: CoachContext): Promise
 - [ ] `sessions.ts`: `POST /api/sessions` persists draft/final + annotations (with the user's rewrite) and calls `recordErrors(db, errorTypes)` — **this** is where the error profile updates. `vocab_suggestion` annotations that the user accepted increment `times_used`.
 - [ ] `prompts.ts`: `GET /api/prompt/today` returns today's prompt (from bank; generate+cache via utility model if none).
 - [ ] `vocab.ts`: `POST /api/vocab/import` (multipart or raw body) → `parseYoudaoTxt` → `insertVocab`; `GET /api/vocab/prime?topic=` → 3–5 words + increments `times_suggested`.
+- [ ] `vocab.ts` (capture): `POST /api/vocab/capture` body `{word, contextSentence?}` → `enrichWord(word, {provider:new OpenAIProvider(), model:config.modelUtility, contextSentence})` → return the enriched `Vocab` **without saving** (preview). `POST /api/vocab/save` body `Vocab` → `insertVocab` (after the user's edits). Two-step so the user can edit before commit.
 - [ ] `profile.ts`: `GET /api/profile` → `{tallies, activation:{suggested,used}}`.
 - [ ] Manual smoke: `curl` each route. Commit per route: `feat(api): <route>`.
 
@@ -456,6 +545,11 @@ it('hides modelRewrite until submit', () => {
 ### Task 5.5: ProfileDashboard
 - [ ] `GET /api/profile`; render top recurring error types (bar list with counts + lastSeen) and a vocab activation ratio (`used/suggested`). Read-only.
 
+### Task 5.6: CaptureWord (Quick Capture UI)
+**Files:** `client/src/components/CaptureWord.tsx`, extend `client/src/api.ts`.
+- [ ] `api.ts`: add `captureWord(word, contextSentence?)` → `POST /api/vocab/capture`; `saveVocab(v)` → `POST /api/vocab/save`.
+- [ ] `CaptureWord`: a small always-available input ("+ new word" with optional "where you saw it" field). On submit → call `captureWord` → show the enriched fields (ipa, defCn, examples, collocations, register) in **editable** inputs → "Save" calls `saveVocab`. Newly saved words become eligible for priming. Surface in `App.tsx` (e.g. a header button/drawer).
+
 ---
 
 ## Phase 6 — Wiring & Acceptance
@@ -477,7 +571,8 @@ it('hides modelRewrite until submit', () => {
 | Error profile tracking | 1.2 DAL tallies, 4.1 sessions route, 5.5 dashboard |
 | Vocab prime + nudge | 3.4 prime, 4.1 vocab route, 5.2; nudge via `vocab_suggestion` in 3.3 |
 | Vocab activation metric | DAL `times_suggested/used`, 5.5 |
-| Youdao importer (UTF-16) | Phase 2 |
+| Youdao importer (UTF-16) | Phase 2 (Task 2.1) |
+| Quick Capture + LLM/dictionary enrichment | Task 2.2 (enrich), 4.1 capture/save routes, 5.6 CaptureWord UI |
 | Daily prompt (finance/tech mix) | 3.4, 4.1 prompts |
 | Provider-agnostic / OpenAI tiering | 3.1 provider, config tiering |
 | Local-only SQLite | Phase 1 |
