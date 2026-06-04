@@ -4,6 +4,7 @@ export const ERROR_TYPES = [
   'vocab_suggestion',
 ] as const;
 export type ErrorType = typeof ERROR_TYPES[number];
+export type VocabKind = 'word' | 'phrase' | 'collocation';
 
 export interface Annotation {
   span: string;            // exact substring of the paragraph
@@ -22,11 +23,19 @@ export interface CoachResponse {
 export interface Vocab {
   id?: number;
   word: string;
+  normalized?: string;
+  kind?: VocabKind;
   ipa?: string;
   defCn?: string;
   pos?: string;
   status?: string;
   source?: string;
+  contextSentence?: string;
+  examples?: string[];
+  collocations?: string[];
+  register?: string;
+  captureCount?: number;
+  lastCaptured?: string;
   timesSuggested: number;
   timesUsed: number;
 }

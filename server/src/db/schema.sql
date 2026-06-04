@@ -1,6 +1,9 @@
 CREATE TABLE IF NOT EXISTS vocab (
-  id INTEGER PRIMARY KEY, word TEXT NOT NULL, ipa TEXT, def_cn TEXT, pos TEXT,
-  status TEXT, source TEXT, date_added TEXT DEFAULT (datetime('now')),
+  id INTEGER PRIMARY KEY, word TEXT NOT NULL, normalized TEXT NOT NULL UNIQUE,
+  kind TEXT NOT NULL DEFAULT 'word', ipa TEXT, def_cn TEXT, pos TEXT,
+  status TEXT, source TEXT, context_sentence TEXT, examples TEXT,
+  collocations TEXT, register TEXT, capture_count INTEGER DEFAULT 1,
+  last_captured TEXT DEFAULT (datetime('now')), date_added TEXT DEFAULT (datetime('now')),
   times_suggested INTEGER DEFAULT 0, times_used INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS prompts (
   id INTEGER PRIMARY KEY, date TEXT, theme TEXT, text TEXT, source_url TEXT);
