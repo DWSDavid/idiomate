@@ -1,5 +1,5 @@
 export const ERROR_TYPES = [
-  'redundancy', 'calque', 'over_explanation', 'tense', 'modality',
+  'redundancy', 'noun_plague', 'calque', 'over_explanation', 'tense', 'modality',
   'word_order', 'sprawl', 'small_grammar', 'word_choice', 'cohesion',
   'vocab_suggestion',
 ] as const;

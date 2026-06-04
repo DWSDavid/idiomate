@@ -4,3 +4,4 @@ dist/
 *.sqlite
 Vocabs.txt
 *.pdf
+refs/

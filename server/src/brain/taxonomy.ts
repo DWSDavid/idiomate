@@ -29,11 +29,21 @@ export const ERROR_TAXONOMY: Record<ErrorType, TaxonomyEntry> = {
   redundancy: {
     name: 'Redundancy / wordiness',
     whatItIs:
-      'Unnecessary words that add no meaning — category nouns ("the work of…"), empty verbs ("make an improvement to"), or stacked synonyms.',
+      'Unnecessary words that add no meaning. Common families: category nouns ("the work of…"), unnecessary modifiers ("completely eliminate"), redundant twins (paired synonyms like "help and assistance"), saying the same thing twice, and repeated references to the same thing.',
     examples: [
       { before: 'We must make an improvement to the plan.', after: 'We must improve the plan.' },
       { before: 'The economy is in a state of rapid growth.', after: 'The economy is growing rapidly.', note: 'drop the category noun "state of"' },
       { before: 'These are completely new innovations.', after: 'These are innovations.', note: '"new" is built into "innovation"' },
+    ],
+  },
+  noun_plague: {
+    name: 'Noun plague (nominalization)',
+    whatItIs:
+      'Overusing abstract nouns where a strong verb would be clearer — chains of -tion/-ment/-ance nouns propped up by empty verbs ("carry out", "make", "achieve").',
+    examples: [
+      { before: 'We carried out the implementation of the new policy.', after: 'We implemented the new policy.' },
+      { before: 'The realization of cost reduction is our main objective.', after: 'Our main objective is to cut costs.' },
+      { before: 'There was an improvement in the performance of the team.', after: 'The team performed better.' },
     ],
   },
   calque: {
@@ -76,7 +86,7 @@ export const ERROR_TAXONOMY: Record<ErrorType, TaxonomyEntry> = {
   word_order: {
     name: 'Word order',
     whatItIs:
-      'Misplaced adverbs/adjectives or marked information structure transferred from Chinese.',
+      'Misplaced adverbs/adjectives, dangling modifiers, or phrases/clauses parked in the wrong spot — placement transferred from Chinese word order.',
     examples: [
       { before: 'She speaks fluently English.', after: 'She speaks English fluently.' },
       { before: 'I know already the answer.', after: 'I already know the answer.' },
@@ -96,7 +106,7 @@ export const ERROR_TAXONOMY: Record<ErrorType, TaxonomyEntry> = {
   small_grammar: {
     name: 'Small grammar',
     whatItIs:
-      'Articles, prepositions, and singular/plural — the high-frequency low-level errors.',
+      'Articles, prepositions, singular/plural, and unclear pronoun reference (a vague "this/it" with no clear antecedent) — the high-frequency low-level errors.',
     examples: [
       { before: 'She is teacher.', after: 'She is a teacher.' },
       { before: 'We discussed about the plan.', after: 'We discussed the plan.' },
@@ -115,7 +125,7 @@ export const ERROR_TAXONOMY: Record<ErrorType, TaxonomyEntry> = {
   cohesion: {
     name: 'Cohesion',
     whatItIs:
-      'Missing or misused logical connectors, or given-new ordering that makes sentences feel disconnected.',
+      'Missing/misused logical connectives, broken parallel structure in lists, or given-new ordering that leaves sentences feeling disconnected.',
     examples: [
       {
         before: 'Sales fell. The team worked hard. Costs rose.',

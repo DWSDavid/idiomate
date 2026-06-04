@@ -58,16 +58,19 @@ Matches the chosen model: **annotate → you rewrite the whole paragraph → sid
 
 Derived from *中式英语之鉴* (Pinkham) + the user's stated patterns. Locked as **v0 — iterate in use.**
 
-1. **Redundancy / wordiness** — unnecessary words, category nouns (范畴词), synonym stacking
-2. **Direct translation / calque** — literal collocations & idioms transferred from Chinese
-3. **Over-explanation / over-qualification**
-4. **Tense consistency** — mixed/unstable tenses
-5. **Modality & register** — can/will vs could/would; hedging, formality
-6. **Word order** — adjective/adverb placement, information structure
-7. **Sentence sprawl / non-linear** — one sentence carrying too much; topic jumps → split
-8. **Small grammar** — articles, prepositions, singular/plural
-9. **Word choice / collocation / register mismatch**
-10. **Cohesion** — logical connectors, given-new ordering
+1. **Redundancy / wordiness** — Pinkham's core: category nouns (范畴词), unnecessary modifiers, redundant twins (paired synonyms), saying the same thing twice, repeated references
+2. **Noun plague (nominalization)** — abstract-noun chains + empty verbs ("carry out the implementation of") where a strong verb would do
+3. **Direct translation / calque** — literal collocations & idioms transferred from Chinese
+4. **Over-explanation / over-qualification**
+5. **Tense consistency** — mixed/unstable tenses
+6. **Modality & register** — can/will vs could/would; hedging, formality
+7. **Word order** — adjective/adverb placement, dangling modifiers, phrase/clause placement
+8. **Sentence sprawl / non-linear** — one sentence carrying too much; topic jumps → split
+9. **Small grammar** — articles, prepositions, singular/plural, unclear pronoun reference
+10. **Word choice / collocation / register mismatch**
+11. **Cohesion** — logical connectives, parallel structure, given-new ordering
+
+(11 error types + `vocab_suggestion`. Categories aligned to *中式英语之鉴* / Pinkham's scheme; all in-app examples are original, not reproduced from the book.)
 
 Each error type carries: a short display name, a one-line "what it is," and a couple of canonical before/after examples (seeded from Pinkham). These power consistent hints and explanations.
 
