@@ -5,6 +5,7 @@ export const ERROR_TYPES = [
 ] as const;
 export type ErrorType = typeof ERROR_TYPES[number];
 export type VocabKind = 'word' | 'phrase' | 'collocation';
+export type YoudaoDirection = '英译中' | '中译英' | '英译英';
 
 export interface Annotation {
   span: string;            // exact substring of the paragraph
@@ -30,6 +31,7 @@ export interface Vocab {
   pos?: string;
   status?: string;
   source?: string;
+  direction?: YoudaoDirection;
   contextSentence?: string;
   examples?: string[];
   collocations?: string[];

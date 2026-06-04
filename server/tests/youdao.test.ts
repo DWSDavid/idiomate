@@ -7,7 +7,7 @@ const fixtureText = readFileSync(new URL('./fixtures/youdao-sample.txt', import.
 it('parses words, ipa, cn definition, and phrase kind from real entries', () => {
   const vocab = parseYoudaoTxt(Buffer.from(fixtureText, 'utf8'));
 
-  expect(vocab.length).toBe(8);
+  expect(vocab.length).toBe(9);
   const esoteric = vocab.find(v => v.word === 'esoteric');
   expect(esoteric).toBeDefined();
   expect(esoteric!.ipa).toBe('ˌiːsəˈterɪk');
@@ -26,13 +26,19 @@ it('parses words, ipa, cn definition, and phrase kind from real entries', () => 
   expect(rusty).toBeDefined();
   expect(rusty!.defCn).toContain('生疏');
   expect(rusty!.defCn).toContain('不熟练');
+
+  const timely = vocab.find(v => v.word === 'timely matter');
+  expect(timely).toBeDefined();
+  expect(timely!.normalized).toBe('timely matter');
+  expect(timely!.direction).toBe('英译英');
+  expect(timely!.defCn).toContain('handled promptly');
 });
 
 it('handles the real UTF-16LE export without mojibake or NULs', () => {
   const buf = Buffer.from(`\ufeff${fixtureText}`, 'utf16le');
   const vocab = parseYoudaoTxt(buf);
 
-  expect(vocab).toHaveLength(8);
+  expect(vocab).toHaveLength(9);
   expect(vocab.every(v => !v.word.includes('\u0000'))).toBe(true);
   expect(vocab.find(v => v.word === 'kick the can down the road')!.defCn).toContain('拖延问题');
 });

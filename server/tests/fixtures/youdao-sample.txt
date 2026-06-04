@@ -28,3 +28,6 @@ flatter
 8, rusty    英译中
 adj.生锈的，锈迹斑斑的；（技术、知识等）荒废的，生疏的；（人）不熟练的
 未分组单词
+9, timely matter    英译英
+something that must be handled promptly
+未分组单词

@@ -1,4 +1,6 @@
-import type { Vocab, VocabKind } from '../../../shared/types.js';
+import type { Vocab, VocabKind, YoudaoDirection } from '../../../shared/types.js';
+
+const DIRECTION_MARKERS: YoudaoDirection[] = ['英译中', '中译英', '英译英'];
 
 const STATUS_MARKERS = [
   '未分组单词',
@@ -45,6 +47,29 @@ function extractPos(lines: string[]): string | undefined {
   return tags.size ? Array.from(tags).join(' ') : undefined;
 }
 
+function parseHeader(header: string): { word: string; ipa?: string; direction?: YoudaoDirection } | undefined {
+  let rest = header.replace(/^\s*\d+\s*,\s*/, '').trim();
+  let direction: YoudaoDirection | undefined;
+
+  for (const marker of DIRECTION_MARKERS) {
+    const markerPattern = new RegExp(`\\s+${marker}\\s*$`, 'u');
+    if (markerPattern.test(rest)) {
+      direction = marker;
+      rest = rest.replace(markerPattern, '').trim();
+      break;
+    }
+  }
+
+  const ipaMatch = rest.match(/\[([^\]]*)\]\s*$/u);
+  const ipa = ipaMatch?.[1].replace(/\s+/g, '').trim() || undefined;
+  if (ipaMatch) {
+    rest = rest.slice(0, ipaMatch.index).trim();
+  }
+
+  const word = normalizeSpaces(rest);
+  return word ? { word, ipa, direction } : undefined;
+}
+
 export function parseYoudaoTxt(buf: Buffer): Vocab[] {
   const text = decodeText(buf).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const blocks = text
@@ -55,26 +80,23 @@ export function parseYoudaoTxt(buf: Buffer): Vocab[] {
   const vocab: Vocab[] = [];
   for (const block of blocks) {
     const lines = block.split('\n').map(line => normalizeSpaces(line)).filter(Boolean);
-    const header = lines[0];
-    const match = header.match(/^\s*\d+\s*,\s*(.*?)\s*(?:\[([^\]]*)\])?\s*(?:英译中|中译英|$)/u);
-    if (!match) continue;
-
-    const word = normalizeSpaces(match[1]);
-    if (!word) continue;
+    const parsed = parseHeader(lines[0]);
+    if (!parsed) continue;
 
     const definitionLines = lines.slice(1).filter(line => !isStatusLine(line));
     const defCn = definitionLines.join(' ').replace(/\s+/g, ' ').trim();
     const status = lines.find(isStatusLine);
 
     vocab.push({
-      word,
-      normalized: word.toLowerCase(),
-      kind: inferKind(word),
-      ipa: match[2]?.replace(/\s+/g, '').trim() || undefined,
+      word: parsed.word,
+      normalized: parsed.word.toLowerCase(),
+      kind: inferKind(parsed.word),
+      ipa: parsed.ipa,
       defCn: defCn || undefined,
       pos: extractPos(definitionLines),
       status,
       source: 'youdao',
+      direction: parsed.direction,
       captureCount: 1,
       timesSuggested: 0,
       timesUsed: 0,
