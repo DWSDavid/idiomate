@@ -13,6 +13,7 @@ interface CompareViewProps {
   annotations: ComparedAnnotation[];
 }
 
+// Word-level LCS: returns indices in nativeVersion that differ from the user's rewrite.
 function changedNativeWords(userRewrite: string, nativeVersion: string): Set<number> {
   const userWords = userRewrite.trim().split(/\s+/).filter(Boolean);
   const nativeWords = nativeVersion.trim().split(/\s+/).filter(Boolean);
@@ -49,64 +50,69 @@ function NativeVersion({ rewrite, nativeVersion }: { rewrite: string; nativeVers
   const changed = changedNativeWords(rewrite, nativeVersion);
 
   return (
-    <div className="rounded-md border border-amber-200 bg-amber-50 p-4">
-      <h3 className="text-sm font-semibold text-amber-900">Native Version</h3>
-      <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-zinc-950">
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+      <span className="section-label text-emerald-700">Native version</span>
+      <p className="prose mt-2 text-lg">
         {nativeWords.map((word, index) => (
           <React.Fragment key={`${word}-${index}`}>
             {index > 0 ? ' ' : null}
             {changed.has(index) ? (
-              <mark className="rounded bg-amber-200 px-1 text-zinc-950">{word}</mark>
+              <mark className="rounded bg-emerald-200/70 px-0.5 text-emerald-950">{word}</mark>
             ) : (
               <span>{word}</span>
             )}
           </React.Fragment>
         ))}
       </p>
+      <p className="mt-2 text-xs text-emerald-700/80">Highlighted words are where the native version differs from yours.</p>
     </div>
   );
 }
 
 export function CompareView({ original, rewrite, nativeVersion, annotations }: CompareViewProps) {
   return (
-    <section className="space-y-5" aria-label="rewrite comparison">
+    <div className="space-y-5" aria-label="rewrite comparison">
       {nativeVersion ? <NativeVersion rewrite={rewrite} nativeVersion={nativeVersion} /> : null}
 
       <div className="space-y-3">
+        <span className="section-label">Why these changes</span>
         {annotations.map(annotation => (
-          <article key={`${annotation.errorType}-${annotation.span}`} className="rounded-md border border-zinc-200 bg-white p-4">
+          <div key={`${annotation.errorType}-${annotation.span}`} className="rounded-xl border border-stone-200 p-4">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-sm text-zinc-900">{annotation.span}</span>
-              <span className="rounded bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-600">
-                {annotation.errorType}
-              </span>
+              <span className="font-serif text-stone-900">{annotation.span}</span>
+              <span className="chip">{annotation.errorType.replace(/_/g, ' ')}</span>
             </div>
-            {annotation.rule ? (
-              <p className="mt-3 text-sm font-semibold text-zinc-900">{annotation.rule}</p>
+            {annotation.rule ? <p className="mt-3 text-sm font-semibold text-stone-900">{annotation.rule}</p> : null}
+            {annotation.explanation ? (
+              <p className="mt-1 text-sm leading-6 text-stone-600">{annotation.explanation}</p>
             ) : null}
-            <p className="mt-3 text-sm leading-6 text-zinc-700">{annotation.explanation}</p>
             {annotation.ruleExample ? (
-              <p className="mt-2 text-sm text-zinc-600">
-                <span className="line-through">{annotation.ruleExample.before}</span>
-                <span> → </span>
-                <span className="font-medium text-zinc-900">{annotation.ruleExample.after}</span>
+              <p className="mt-2 text-sm">
+                <span className="text-stone-400 line-through">{annotation.ruleExample.before}</span>
+                <span className="text-stone-400"> → </span>
+                <span className="font-medium text-stone-900">{annotation.ruleExample.after}</span>
               </p>
             ) : null}
-            <p className="mt-2 text-sm font-medium text-emerald-800">{annotation.modelRewrite}</p>
-          </article>
+            {annotation.modelRewrite ? (
+              <p className="mt-3 text-sm">
+                <span className="text-stone-400">Suggested: </span>
+                <span className="font-medium text-emerald-800">{annotation.modelRewrite}</span>
+              </p>
+            ) : null}
+          </div>
         ))}
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
-        <div className="rounded-md border border-zinc-200 bg-white p-4">
-          <h3 className="text-sm font-semibold text-zinc-700">Your Rewrite</h3>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-900">{rewrite}</p>
+        <div className="rounded-xl border border-stone-200 p-4">
+          <span className="section-label">Your rewrite</span>
+          <p className="prose mt-2 whitespace-pre-wrap text-base text-stone-700">{rewrite}</p>
         </div>
-        <div className="rounded-md border border-zinc-200 bg-white p-4">
-          <h3 className="text-sm font-semibold text-zinc-700">Original</h3>
-          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-900">{original}</p>
+        <div className="rounded-xl border border-stone-200 p-4">
+          <span className="section-label">Original</span>
+          <p className="prose mt-2 whitespace-pre-wrap text-base text-stone-500">{original}</p>
         </div>
       </div>
-    </section>
+    </div>
   );
 }

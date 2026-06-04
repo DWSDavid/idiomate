@@ -17,10 +17,14 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, onSubmit }: 
   const [accepted, setAccepted] = useState<ComparedAnnotation[]>([]);
 
   const submitRewrite = () => {
+    const lower = rewrite.toLowerCase();
     const compared = annotations.map(annotation => ({
       ...annotation,
       userRewrite: rewrite,
-      accepted: rewrite.trim().length > 0 && rewrite !== paragraph,
+      // A vocab suggestion counts as "used" only if the rewrite actually contains the word.
+      accepted: annotation.errorType === 'vocab_suggestion'
+        ? Boolean(annotation.vocabWord) && lower.includes((annotation.vocabWord ?? '').toLowerCase())
+        : rewrite.trim().length > 0 && rewrite !== paragraph,
     }));
     setAccepted(compared);
     setPhase('compared');
@@ -29,56 +33,51 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, onSubmit }: 
 
   if (phase === 'compared') {
     return (
-      <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
+      <section className="surface" aria-label="coaching result">
         <CompareView original={paragraph} rewrite={rewrite} nativeVersion={nativeVersion} annotations={accepted} />
-      </div>
+      </section>
     );
   }
 
   return (
-    <section className="rounded-md border border-zinc-200 bg-white p-4" aria-label="coach notes">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-base font-semibold text-zinc-900">Coach Notes</h2>
+    <section className="surface" aria-label="coach notes">
+      <div className="flex items-center justify-between gap-3">
+        <span className="section-label">Coach notes</span>
         {phase === 'review' ? (
-          <button
-            type="button"
-            className="rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700"
-            onClick={() => setPhase('rewriting')}
-          >
-            Rewrite
+          <button type="button" className="btn-primary" onClick={() => setPhase('rewriting')}>
+            Try the rewrite
           </button>
         ) : null}
       </div>
 
       <div className="mt-4 space-y-3">
-        {annotations.length ? annotations.map(annotation => (
-          <article key={`${annotation.errorType}-${annotation.span}`} className="rounded-md border border-zinc-200 p-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="font-mono text-sm text-zinc-900">{annotation.span}</span>
-              <span className="rounded bg-zinc-100 px-2 py-1 text-xs font-medium text-zinc-600">
-                {annotation.errorType}
-              </span>
+        {annotations.length ? (
+          annotations.map(annotation => (
+            <div key={`${annotation.errorType}-${annotation.span}`} className="border-l-2 border-stone-200 pl-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-serif text-stone-900">{annotation.span}</span>
+                <span className="chip">{annotation.errorType.replace(/_/g, ' ')}</span>
+              </div>
+              <p className="mt-1 text-sm leading-6 text-stone-600">{annotation.hint}</p>
             </div>
-            <p className="mt-2 text-sm leading-6 text-zinc-700">{annotation.hint}</p>
-          </article>
-        )) : (
-          <p className="text-sm text-zinc-600">No notes for this paragraph.</p>
+          ))
+        ) : (
+          <p className="text-sm text-stone-500">No notes for this paragraph. Nicely done.</p>
         )}
       </div>
 
       {phase === 'rewriting' ? (
         <div className="mt-4 space-y-3">
+          <p className="text-xs text-stone-400">
+            Rewrite the whole paragraph yourself first. The native version stays hidden until you submit.
+          </p>
           <textarea
-            className="min-h-32 w-full rounded-md border border-zinc-300 bg-white p-3 text-sm leading-6 text-zinc-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            className="prose min-h-32 w-full resize-y rounded-xl border border-stone-200 bg-stone-50/40 p-3 text-base outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
             value={rewrite}
             onChange={event => setRewrite(event.target.value)}
           />
-          <button
-            type="button"
-            className="rounded-md bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-600"
-            onClick={submitRewrite}
-          >
-            Submit Rewrite
+          <button type="button" className="btn-primary" onClick={submitRewrite}>
+            Submit rewrite
           </button>
         </div>
       ) : null}

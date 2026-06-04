@@ -8,7 +8,7 @@ interface DailyPromptProps {
 
 export function DailyPrompt({ onPrompt }: DailyPromptProps) {
   const [prompt, setPrompt] = useState<Prompt | null>(null);
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading');
 
   const loadPrompt = async () => {
     setStatus('loading');
@@ -27,22 +27,15 @@ export function DailyPrompt({ onPrompt }: DailyPromptProps) {
   }, []);
 
   return (
-    <section className="rounded-md border border-zinc-200 bg-white p-5" aria-label="daily prompt">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-zinc-950">Daily Prompt</h2>
-          {prompt ? <p className="mt-1 text-sm uppercase tracking-normal text-zinc-500">{prompt.theme}</p> : null}
-        </div>
-        <button
-          type="button"
-          className="rounded-md border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-100"
-          onClick={loadPrompt}
-        >
-          New Prompt
+    <section className="surface" aria-label="daily prompt">
+      <div className="flex items-center justify-between gap-3">
+        <span className="section-label">Today's prompt{prompt?.theme ? ` · ${prompt.theme}` : ''}</span>
+        <button type="button" className="btn-ghost" onClick={loadPrompt} disabled={status === 'loading'}>
+          {status === 'loading' ? 'Loading' : 'New prompt'}
         </button>
       </div>
-      <p className="mt-4 text-base leading-7 text-zinc-900">
-        {prompt?.text ?? (status === 'error' ? 'Could not load prompt.' : 'Loading prompt...')}
+      <p className="prose mt-4 text-xl">
+        {prompt?.text ?? (status === 'error' ? 'Could not load a prompt.' : 'Loading a prompt for you.')}
       </p>
     </section>
   );

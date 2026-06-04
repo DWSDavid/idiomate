@@ -26,7 +26,7 @@ it('renders the single-page writing workspace', async () => {
 
   render(<App />);
 
-  expect(await screen.findByText('Daily Prompt')).toBeInTheDocument();
+  expect(await screen.findByText(/Today's prompt/)).toBeInTheDocument();
   expect(screen.getByLabelText('Draft')).toBeInTheDocument();
-  expect(screen.getByText('Profile')).toBeInTheDocument();
+  expect(screen.getByText('Your patterns')).toBeInTheDocument();
 });

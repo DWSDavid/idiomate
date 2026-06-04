@@ -18,34 +18,44 @@ export function WriteSurface({ value, onChange, onCoachParagraph, coachingIndex 
   const paragraphs = paragraphsFromDraft(value);
 
   return (
-    <section className="rounded-md border border-zinc-200 bg-white p-5" aria-label="writing surface">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-zinc-950">Draft</h2>
-        <span className="text-sm text-zinc-500">{paragraphs.length} paragraphs</span>
+    <section className="surface" aria-label="writing surface">
+      <div className="flex items-center justify-between gap-3">
+        <span className="section-label">Your draft</span>
+        <span className="text-xs text-stone-400">
+          {paragraphs.length} paragraph{paragraphs.length === 1 ? '' : 's'}
+        </span>
       </div>
 
       <textarea
         aria-label="Draft"
-        className="mt-4 min-h-72 w-full rounded-md border border-zinc-300 bg-white p-4 text-base leading-7 text-zinc-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+        placeholder="Write a full paragraph, then ask the coach. Finish your thought before you stop."
+        className="prose mt-4 min-h-72 w-full resize-y rounded-xl border border-stone-200 bg-stone-50/40 p-4 text-lg outline-none transition focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
         value={value}
         onChange={event => onChange(event.target.value)}
       />
 
-      <div className="mt-4 space-y-2">
-        {paragraphs.map((paragraph, index) => (
-          <div key={`${index}-${paragraph.slice(0, 24)}`} className="flex items-center justify-between gap-3 rounded-md border border-zinc-200 px-3 py-2">
-            <p className="min-w-0 truncate text-sm text-zinc-700">Paragraph {index + 1}</p>
-            <button
-              type="button"
-              className="shrink-0 rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-400"
-              disabled={coachingIndex === index}
-              onClick={() => onCoachParagraph(paragraph, index)}
+      {paragraphs.length ? (
+        <div className="mt-4 space-y-2">
+          {paragraphs.map((paragraph, index) => (
+            <div
+              key={`${index}-${paragraph.slice(0, 24)}`}
+              className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 px-3 py-2"
             >
-              {coachingIndex === index ? 'Coaching...' : 'Coach'}
-            </button>
-          </div>
-        ))}
-      </div>
+              <p className="min-w-0 truncate text-sm text-stone-500">
+                {index + 1}. {paragraph}
+              </p>
+              <button
+                type="button"
+                className="btn-ghost shrink-0"
+                disabled={coachingIndex === index}
+                onClick={() => onCoachParagraph(paragraph, index)}
+              >
+                {coachingIndex === index ? 'Coaching' : 'Coach'}
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

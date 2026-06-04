@@ -42,8 +42,8 @@ export function getTodayPrompt(): Promise<Prompt> {
   return fetch('/api/prompt/today').then(readJson<Prompt>);
 }
 
-export function primeVocab(topic: string, limit = 5): Promise<{ topic: string; vocab: Vocab[] }> {
-  const params = new URLSearchParams({ topic, limit: String(limit) });
+export function primeVocab(promptText: string, limit = 10): Promise<{ topic: string; vocab: Vocab[] }> {
+  const params = new URLSearchParams({ promptText, limit: String(limit) });
   return fetch(`/api/vocab/prime?${params.toString()}`).then(readJson<{ topic: string; vocab: Vocab[] }>);
 }
 

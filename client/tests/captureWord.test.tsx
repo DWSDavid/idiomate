@@ -25,15 +25,15 @@ vi.mock('../src/api', () => ({
 it('captures a word, lets the user edit enrichment, and saves it', async () => {
   render(<CaptureWord onSaved={() => {}} />);
 
-  fireEvent.change(screen.getByLabelText('Word'), { target: { value: 'shore up' } });
-  fireEvent.change(screen.getByLabelText('Context sentence'), {
+  fireEvent.change(screen.getByLabelText('Word or phrase'), { target: { value: 'shore up' } });
+  fireEvent.change(screen.getByLabelText('Where you saw it (optional)'), {
     target: { value: 'We need to shore up margins.' },
   });
-  fireEvent.click(screen.getByRole('button', { name: 'Capture' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Enrich' }));
 
   expect(await screen.findByDisplayValue('support')).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText('Definition'), { target: { value: 'strengthen' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Save to my words' }));
 
   await waitFor(() => {
     expect(saveVocab).toHaveBeenCalledWith(expect.objectContaining({

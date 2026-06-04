@@ -58,48 +58,42 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
   };
 
   return (
-    <section className="rounded-md border border-zinc-200 bg-white p-5" aria-label="quick capture">
-      <div className="grid gap-3 md:grid-cols-[minmax(10rem,14rem)_1fr_auto]">
-        <label className="text-sm font-medium text-zinc-700">
-          Word
-          <input
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-            value={word}
-            onChange={event => setWord(event.target.value)}
-          />
+    <section className="surface" aria-label="quick capture">
+      <span className="section-label">Add a word you met today</span>
+      <div className="mt-4 grid gap-3 md:grid-cols-[minmax(9rem,13rem)_1fr_auto]">
+        <label className="field-label">
+          Word or phrase
+          <input className="field mt-1" value={word} onChange={event => setWord(event.target.value)} />
         </label>
-        <label className="text-sm font-medium text-zinc-700">
-          Context sentence
+        <label className="field-label">
+          Where you saw it (optional)
           <input
-            className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+            className="field mt-1"
+            placeholder="e.g. an FT headline"
             value={contextSentence}
             onChange={event => setContextSentence(event.target.value)}
           />
         </label>
         <button
           type="button"
-          className="self-end rounded-md bg-zinc-900 px-3 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:cursor-not-allowed disabled:bg-zinc-400"
+          className="btn-primary self-end"
           disabled={!word.trim() || status === 'capturing'}
           onClick={handleCapture}
         >
-          {status === 'capturing' ? 'Capturing...' : 'Capture'}
+          {status === 'capturing' ? 'Enriching' : 'Enrich'}
         </button>
       </div>
 
       {preview ? (
         <div className="mt-5 grid gap-3 md:grid-cols-2">
-          <label className="text-sm font-medium text-zinc-700">
+          <label className="field-label">
             Headword
-            <input
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-              value={preview.word}
-              onChange={event => setPreview({ ...preview, word: event.target.value })}
-            />
+            <input className="field mt-1" value={preview.word} onChange={event => setPreview({ ...preview, word: event.target.value })} />
           </label>
-          <label className="text-sm font-medium text-zinc-700">
+          <label className="field-label">
             Kind
             <select
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              className="field mt-1"
               value={preview.kind ?? 'word'}
               onChange={event => setPreview({ ...preview, kind: event.target.value as VocabKind })}
             >
@@ -108,61 +102,36 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
               <option value="collocation">collocation</option>
             </select>
           </label>
-          <label className="text-sm font-medium text-zinc-700">
+          <label className="field-label">
             IPA
-            <input
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-              value={preview.ipa ?? ''}
-              onChange={event => setPreview({ ...preview, ipa: event.target.value })}
-            />
+            <input className="field mt-1" value={preview.ipa ?? ''} onChange={event => setPreview({ ...preview, ipa: event.target.value })} />
           </label>
-          <label className="text-sm font-medium text-zinc-700">
+          <label className="field-label">
             Register
-            <input
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-              value={preview.register ?? ''}
-              onChange={event => setPreview({ ...preview, register: event.target.value })}
-            />
+            <input className="field mt-1" value={preview.register ?? ''} onChange={event => setPreview({ ...preview, register: event.target.value })} />
           </label>
-          <label className="text-sm font-medium text-zinc-700 md:col-span-2">
+          <label className="field-label md:col-span-2">
             Definition
-            <input
-              className="mt-1 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-              value={preview.defCn ?? ''}
-              onChange={event => setPreview({ ...preview, defCn: event.target.value })}
-            />
+            <input className="field mt-1" value={preview.defCn ?? ''} onChange={event => setPreview({ ...preview, defCn: event.target.value })} />
           </label>
-          <label className="text-sm font-medium text-zinc-700">
+          <label className="field-label">
             Examples
-            <textarea
-              className="mt-1 min-h-24 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-              value={examplesText}
-              onChange={event => setExamplesText(event.target.value)}
-            />
+            <textarea className="field mt-1 min-h-24" value={examplesText} onChange={event => setExamplesText(event.target.value)} />
           </label>
-          <label className="text-sm font-medium text-zinc-700">
+          <label className="field-label">
             Collocations
-            <textarea
-              className="mt-1 min-h-24 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
-              value={collocationsText}
-              onChange={event => setCollocationsText(event.target.value)}
-            />
+            <textarea className="field mt-1 min-h-24" value={collocationsText} onChange={event => setCollocationsText(event.target.value)} />
           </label>
           <div className="flex items-center gap-3 md:col-span-2">
-            <button
-              type="button"
-              className="rounded-md bg-emerald-700 px-3 py-2 text-sm font-medium text-white hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-zinc-400"
-              disabled={status === 'saving'}
-              onClick={handleSave}
-            >
-              {status === 'saving' ? 'Saving...' : 'Save'}
+            <button type="button" className="btn-primary" disabled={status === 'saving'} onClick={handleSave}>
+              {status === 'saving' ? 'Saving' : 'Save to my words'}
             </button>
             {status === 'saved' ? <span className="text-sm text-emerald-700">Saved.</span> : null}
-            {status === 'error' ? <span className="text-sm text-red-700">Could not complete request.</span> : null}
+            {status === 'error' ? <span className="text-sm text-red-700">Could not complete that.</span> : null}
           </div>
         </div>
       ) : status === 'error' ? (
-        <p className="mt-3 text-sm text-red-700">Could not complete request.</p>
+        <p className="mt-3 text-sm text-red-700">Could not complete that.</p>
       ) : null}
     </section>
   );

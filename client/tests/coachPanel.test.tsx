@@ -29,13 +29,13 @@ it('keeps the rewrite and explanation hidden while the user is drafting', () => 
   const onSubmit = vi.fn();
   render(<CoachPanel paragraph="We did X in order to Y" annotations={ann as any} onSubmit={onSubmit} />);
 
-  fireEvent.click(screen.getByRole('button', { name: 'Rewrite' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
 
   expect(screen.queryByText(/^to$/)).not.toBeInTheDocument();
   expect(screen.queryByText('Redundancy.')).not.toBeInTheDocument();
 
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'We did X to Y' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Submit Rewrite' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
 
   expect(screen.getAllByText(/^to$/).length).toBeGreaterThan(0);
   expect(screen.getByText('Redundancy.')).toBeInTheDocument();
@@ -54,12 +54,12 @@ it('hides nativeVersion until the user submits a rewrite', () => {
 
   expect(screen.queryByText('We did X to Y.')).not.toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole('button', { name: 'Rewrite' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
 
   expect(screen.queryByText('We did X to Y.')).not.toBeInTheDocument();
 
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'We did X so Y happens.' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Submit Rewrite' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
 
   expect(screen.getByText((_, node) => node?.textContent === 'We did X to Y.')).toBeInTheDocument();
   expect(screen.getByText('Drop empty category nouns')).toBeInTheDocument();

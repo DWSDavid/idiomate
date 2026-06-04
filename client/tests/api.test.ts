@@ -45,7 +45,7 @@ describe('client api', () => {
     await saveVocab({ word: 'shore up', timesSuggested: 0, timesUsed: 0 });
 
     expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/prompt/today');
-    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/vocab/prime?topic=tech+risk&limit=5');
+    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/vocab/prime?promptText=tech+risk&limit=10');
     expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/profile');
     expect(fetchMock).toHaveBeenNthCalledWith(4, '/api/coach', expect.objectContaining({ method: 'POST' }));
     expect(fetchMock).toHaveBeenNthCalledWith(5, '/api/sessions', expect.objectContaining({ method: 'POST' }));
