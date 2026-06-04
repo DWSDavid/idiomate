@@ -69,7 +69,7 @@ npx vitest run
 npm run build
 ```
 
-Latest local run: `28 passed / 0 failed`, build passed.
+Latest local run: `30 passed / 0 failed`, build passed.
 
 Manual smoke path after adding `.env`:
 
@@ -82,3 +82,11 @@ Manual smoke path after adding `.env`:
 7. Submit your own rewrites
 8. Save Session
 9. Confirm Profile updates with recurring errors and vocab activation
+
+Latest real smoke result:
+
+- Imported `Vocabs.txt`: 2716 parsed entries
+- Quick Capture enriched and saved `shore up`
+- Coached two paragraphs with real `gpt-4o` responses
+- Confirmed `/api/coach` did not update `error_tally`
+- Submitted a session and confirmed Profile tallies updated
