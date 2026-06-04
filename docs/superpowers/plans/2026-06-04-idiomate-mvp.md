@@ -90,7 +90,7 @@ idiomate/
     "build": "vite build --config client/vite.config.ts"
   },
   "dependencies": {
-    "better-sqlite3": "^11.0.0",
+    "better-sqlite3": "^12.10.0",
     "express": "^4.19.0",
     "zod": "^3.23.0"
   },
