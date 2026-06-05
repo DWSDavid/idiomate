@@ -24,8 +24,8 @@ You are the executant engineer for Idiomate v1.2. Implement the approved plan ex
 
 **Then P1:**
 3. **W3** error ranking + drill-down (`getMistakeRanking`, `getMistakeLog`, `/api/profile` + `/api/mistakes`).
-4. **W4** systematic lessons (`/api/lesson?type=`, Chinglish `mindset` notes - leave a clearly marked seam; the reviewer authors the original mindset text).
-5. **W5** content analysis + sourced research (`fetchNews` with links, `/api/research` -> analysis + angles + `{title, link, summary}[]`).
+4. **W4** systematic lessons (`/api/lesson?type=`): the rule + principle + mindset + the user's own past instances of that error + 4-6 comparison pairs. **Output may be bilingual** - Chinese for explanations/mindset/principle, English for the before/after example pairs. Leave a marked seam for the Chinglish `mindset` text; the reviewer authors the original wording.
+5. **W5** content analysis + sourced research (`fetchNews` with links, `POST /api/research`): returns `{ analysis, otherAngles, sources: [{title, link, summary}], integratedEssay, integrationNotes }`. The **evidence-integrated essay** is the key deliverable: weave the gathered evidence into the user's essay at appropriate positions and explain in `integrationNotes` WHERE/WHAT/WHY + which structural slot (topic sentence / claim / evidence / commentary). News failure still returns analysis + a structure-only integratedEssay.
 6. **W6** structure guidance (`/api/structure` -> ideal outline + per-part status).
 
 Do P2 (W7-W9) only after P1 review.
