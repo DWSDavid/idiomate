@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { VocabularyPanel } from '../src/components/VocabularyPanel';
 
@@ -42,10 +42,14 @@ it('renders a priority-sorted vocabulary list with capture and usage counts', as
   render(<VocabularyPanel />);
 
   expect(await screen.findByText('My vocabulary (2)')).toBeInTheDocument();
+  expect(screen.queryByText('well worn phrase')).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Open vocabulary' }));
+
   expect(screen.getByText('well worn phrase')).toBeInTheDocument();
   expect(screen.getByText('seen many times')).toBeInTheDocument();
   expect(screen.getByText('met 5x')).toBeInTheDocument();
   expect(screen.getByText('used 1 / suggested 3')).toBeInTheDocument();
   expect(screen.getByText('fresh word')).toBeInTheDocument();
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vocab/list?limit=200'));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vocab/list?limit=30'));
 });

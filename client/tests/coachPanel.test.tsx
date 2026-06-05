@@ -95,12 +95,14 @@ it('offers content research only after the user submits a rewrite', async () => 
 
   render(<CoachPanel paragraph="We did X in order to Y" annotations={ann as any} onSubmit={() => {}} />);
 
-  expect(screen.queryByRole('button', { name: 'Content check' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Evidence check' })).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'We did X to Y.' } });
   fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Content check' }));
+  expect(screen.getByText('After-rewrite lab')).toBeInTheDocument();
+  expect(screen.getByText('Check evidence, structure, and the source slots before you turn this into a final draft.')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Evidence check' }));
 
   expect(await screen.findByText('The argument needs fresher evidence.')).toBeInTheDocument();
   expect(screen.getByText('Cloud firms raise AI spending')).toBeInTheDocument();
@@ -126,12 +128,13 @@ it('offers structure guidance only after the user submits a rewrite', async () =
 
   render(<CoachPanel paragraph="We did X in order to Y" annotations={ann as any} onSubmit={() => {}} />);
 
-  expect(screen.queryByRole('button', { name: 'Structure' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Structure check' })).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'We did X to Y.' } });
   fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Structure' }));
+  expect(screen.getByText('After-rewrite lab')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Structure check' }));
 
   expect(await screen.findByText('State the central claim.')).toBeInTheDocument();
   expect(screen.getByText('Support the claim with specifics.')).toBeInTheDocument();

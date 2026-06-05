@@ -18,6 +18,16 @@ function defaultErrorType(deps: AppDependencies): ErrorType {
     .filter(item => item.errorType !== 'vocab_suggestion')[0]?.errorType ?? 'small_grammar';
 }
 
+function bookReferenceFor(principle: string, example?: LessonComparisonPair) {
+  return {
+    source: "The Translator's Guide to Chinglish",
+    pattern: principle,
+    quoteStatus: 'Attach the PDF to show exact source quotes.',
+    exampleBefore: example?.before,
+    exampleAfter: example?.after,
+  };
+}
+
 function lessonRules(errorType: ErrorType) {
   const grammarRules = rulesForTypes([errorType]);
   if (grammarRules.length) {
@@ -26,18 +36,21 @@ function lessonRules(errorType: ErrorType) {
       principle: rule.principle,
       mindset: rule.mindset,
       example: rule.example,
+      bookReference: bookReferenceFor(rule.principle, rule.example),
     }));
   }
 
   const taxonomy = ERROR_TAXONOMY[errorType];
+  const example = taxonomy.examples[0] ? {
+    before: taxonomy.examples[0].before,
+    after: taxonomy.examples[0].after,
+    note: taxonomy.examples[0].note,
+  } : undefined;
   return [{
     name: taxonomy.name,
     principle: taxonomy.whatItIs,
-    example: taxonomy.examples[0] ? {
-      before: taxonomy.examples[0].before,
-      after: taxonomy.examples[0].after,
-      note: taxonomy.examples[0].note,
-    } : undefined,
+    example,
+    bookReference: bookReferenceFor(taxonomy.whatItIs, example),
   }];
 }
 

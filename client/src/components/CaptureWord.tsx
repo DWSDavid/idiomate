@@ -67,7 +67,7 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
   return (
     <section className="surface" aria-label="quick capture">
       <span className="section-label">Add a word you met today</span>
-      <div className="mt-4 grid gap-3 md:grid-cols-[minmax(9rem,13rem)_1fr_auto]">
+      <div className="mt-4 grid gap-3">
         <label className="field-label">
           Word or phrase
           <input className="field mt-1" value={word} onChange={event => setWord(event.target.value)} />
@@ -83,7 +83,7 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
         </label>
         <button
           type="button"
-          className="btn-primary self-end"
+          className="btn-primary"
           disabled={!word.trim() || status === 'capturing'}
           onClick={handleCapture}
         >

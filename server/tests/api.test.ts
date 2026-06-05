@@ -645,6 +645,13 @@ it('GET /api/lesson returns a systematic lesson for a requested mistake type', a
     expect(json.rules[0]).toEqual(expect.objectContaining({
       name: 'Prefer a verb over a noun string',
       principle: expect.any(String),
+      bookReference: {
+        source: "The Translator's Guide to Chinglish",
+        pattern: expect.stringContaining('noun'),
+        quoteStatus: 'Attach the PDF to show exact source quotes.',
+        exampleBefore: 'carried out the implementation of the policy',
+        exampleAfter: 'implemented the policy',
+      },
     }));
     expect(json.pastInstances).toEqual([
       {

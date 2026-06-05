@@ -3,45 +3,200 @@
 @tailwind utilities;
 
 @layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
   html {
     -webkit-font-smoothing: antialiased;
+    max-width: 100%;
+    overflow-x: hidden;
     text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
   }
   body {
-    @apply bg-stone-50 text-stone-900;
+    font-family: "Aptos", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    max-width: 100%;
+    overflow-x: hidden;
+    @apply bg-slate-50 text-slate-950;
+  }
+  #root {
+    max-width: 100%;
+    overflow-x: hidden;
   }
   ::selection {
-    @apply bg-emerald-100 text-emerald-950;
+    @apply bg-indigo-100 text-indigo-950;
   }
 }
 
 @layer components {
-  /* One surface, one radius scale, one accent. */
+  .app-shell {
+    @apply w-full max-w-full;
+    background:
+      radial-gradient(circle at 8% 0%, rgba(191, 219, 254, 0.82), transparent 34rem),
+      radial-gradient(circle at 92% 8%, rgba(221, 214, 254, 0.78), transparent 30rem),
+      linear-gradient(180deg, #f8fbff 0%, #f6f7fb 46%, #eef4fb 100%);
+  }
+
+  .desk-header {
+    @apply flex min-w-0 flex-col justify-between gap-4 rounded-[1.75rem] border border-white/70 bg-white/75 px-5 py-5 shadow-[0_24px_80px_rgba(30,41,59,0.08)] backdrop-blur-xl sm:flex-row sm:items-end lg:px-7;
+  }
+
+  .desk-header > * {
+    min-width: 0;
+  }
+
+  .desk-kicker {
+    @apply text-xs font-semibold uppercase tracking-[0.18em] text-indigo-500;
+  }
+
+  .desk-title {
+    @apply mt-1 text-4xl font-semibold leading-none tracking-tight text-slate-950 sm:text-5xl;
+  }
+
+  .desk-subtitle {
+    @apply mt-2 max-w-2xl text-sm leading-6 text-slate-500;
+    overflow-wrap: anywhere;
+  }
+
+  .desk-grid {
+    @apply grid min-w-0 gap-5 lg:grid-cols-[18rem_minmax(0,1fr)_23rem] lg:items-start;
+  }
+
+  .desk-rail {
+    @apply flex min-w-0 flex-col gap-4 lg:sticky lg:top-5;
+  }
+
+  .desk-center {
+    @apply flex min-w-0 flex-col gap-5;
+  }
+
+  .notice {
+    @apply rounded-2xl border px-4 py-3 text-sm;
+  }
+
+  .notice-success {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-800;
+  }
+
+  .notice-error {
+    @apply border-red-200 bg-red-50 text-red-700;
+  }
+
   .surface {
-    @apply rounded-2xl border border-stone-200 bg-white p-6 shadow-[0_1px_2px_rgba(28,25,23,0.04)];
+    @apply min-w-0 rounded-[1.5rem] border border-white/80 bg-white/80 p-5 shadow-[0_18px_60px_rgba(30,41,59,0.08)] backdrop-blur-xl transition duration-300 hover:shadow-[0_22px_70px_rgba(79,70,229,0.12)];
   }
+
   .section-label {
-    @apply text-xs font-semibold uppercase tracking-wide text-stone-400;
+    @apply text-xs font-semibold uppercase tracking-[0.16em] text-slate-400;
   }
+
   .prose {
-    @apply font-serif leading-8 text-stone-900;
+    font-family: "Georgia", "Times New Roman", serif;
+    @apply leading-8 text-slate-900;
   }
 
   .btn-primary {
-    @apply rounded-lg bg-emerald-700 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-600 active:translate-y-px disabled:cursor-not-allowed disabled:bg-stone-300;
+    @apply max-w-full rounded-xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-indigo-800 active:translate-y-px disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none;
   }
+
   .btn-ghost {
-    @apply rounded-lg border border-stone-300 px-4 py-2 text-sm font-medium text-stone-700 transition hover:bg-stone-100 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+    @apply max-w-full rounded-xl border border-slate-200 bg-white/70 px-4 py-2 text-sm font-semibold text-slate-700 transition duration-200 hover:-translate-y-0.5 hover:border-indigo-200 hover:bg-indigo-50 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .btn-secondary {
+    @apply rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-800 transition duration-200 hover:-translate-y-0.5 hover:bg-indigo-100 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-60;
   }
 
   .field {
-    @apply w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100;
+    @apply w-full rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100;
   }
+
   .field-label {
-    @apply block text-xs font-medium text-stone-500;
+    @apply block text-xs font-semibold text-slate-500;
   }
 
   .chip {
-    @apply rounded-md bg-stone-100 px-2 py-0.5 text-xs font-medium text-stone-500;
+    @apply rounded-lg bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500;
+  }
+
+  .chip-blue {
+    @apply bg-sky-100 text-sky-700;
+  }
+
+  .vocab-row {
+    @apply rounded-2xl border border-slate-100 bg-white/70 p-3 transition duration-200 hover:-translate-y-0.5 hover:border-indigo-100 hover:bg-indigo-50/50;
+  }
+
+  .lab-panel {
+    @apply rounded-[1.35rem] border border-indigo-100 bg-gradient-to-br from-white via-indigo-50/70 to-sky-50/70 p-4;
+  }
+
+  .mini-brief {
+    @apply rounded-2xl border border-white/80 bg-white/70 p-3;
+  }
+
+  .result-block {
+    @apply rounded-2xl border border-slate-100 bg-white/80 p-4;
+  }
+
+  .result-block-strong {
+    @apply border-indigo-100 bg-indigo-50/60;
+  }
+
+  .mistake-row {
+    @apply rounded-2xl border border-slate-100 bg-white/70 p-3 transition duration-200 hover:border-indigo-100 hover:bg-white;
+  }
+
+  .recent-example-card {
+    @apply rounded-lg bg-white/70 p-2;
+    display: -webkit-box;
+    max-height: 6.25rem;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 5;
+  }
+
+  .lesson-panel {
+    @apply space-y-3 rounded-2xl border border-indigo-100 bg-gradient-to-br from-white via-white to-violet-50/70 p-3 text-sm;
+  }
+
+  .lesson-card {
+    @apply rounded-2xl border border-slate-100 bg-white/80 p-3;
+  }
+
+  .lesson-card-accent {
+    @apply border-indigo-100 bg-gradient-to-br from-indigo-50 to-sky-50;
+  }
+
+  .lesson-heading {
+    @apply text-xs font-semibold uppercase tracking-[0.16em] text-indigo-500;
+  }
+
+  .repair-step {
+    @apply grid gap-1 rounded-xl bg-slate-50 p-3 text-sm sm:grid-cols-[8rem_1fr];
+  }
+
+  .repair-label {
+    @apply font-semibold text-slate-900;
+  }
+
+  .sentence-pair {
+    @apply rounded-xl bg-slate-50 p-3 text-sm leading-6;
+  }
+
+  @media (max-width: 640px) {
+    .desk-header,
+    .surface {
+      width: calc(100vw - 3rem);
+      max-width: calc(100vw - 3rem);
+    }
+
+    .desk-subtitle {
+      max-width: 30ch;
+    }
   }
 }

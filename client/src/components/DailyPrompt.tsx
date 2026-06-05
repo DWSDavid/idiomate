@@ -28,8 +28,8 @@ export function DailyPrompt({ onPrompt }: DailyPromptProps) {
 
   return (
     <section className="surface" aria-label="daily prompt">
-      <div className="flex items-center justify-between gap-3">
-        <span className="section-label">Today's prompt{prompt?.theme ? ` · ${prompt.theme}` : ''}</span>
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
+        <span className="section-label">Today's prompt{prompt?.theme ? ` - ${prompt.theme}` : ''}</span>
         <button type="button" className="btn-ghost" onClick={loadPrompt} disabled={status === 'loading'}>
           {status === 'loading' ? 'Loading' : 'New prompt'}
         </button>

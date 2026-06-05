@@ -59,7 +59,7 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
     setResearchError('');
     void researchEssay(rewrite)
       .then(result => setResearch(result))
-      .catch(() => setResearchError('Content check is unavailable right now.'))
+      .catch(() => setResearchError('Evidence check is unavailable right now.'))
       .finally(() => setIsResearching(false));
   };
 
@@ -76,21 +76,42 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
     return (
       <section className="surface" aria-label="coaching result">
         <CompareView original={paragraph} rewrite={rewrite} nativeVersion={nativeVersion} annotations={accepted} />
-        <div className="mt-5 border-t border-stone-200 pt-4">
-          <div className="flex flex-wrap gap-2">
-            <button type="button" className="btn-secondary" onClick={runContentCheck} disabled={isResearching}>
-              {isResearching ? 'Checking content' : 'Content check'}
-            </button>
-            <button type="button" className="btn-secondary" onClick={runStructureCheck} disabled={isStructuring}>
-              {isStructuring ? 'Checking structure' : 'Structure'}
-            </button>
+        <div className="lab-panel mt-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="section-label">After-rewrite lab</p>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-600">
+                Check evidence, structure, and the source slots before you turn this into a final draft.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="btn-secondary" onClick={runContentCheck} disabled={isResearching}>
+                {isResearching ? 'Checking evidence' : 'Evidence check'}
+              </button>
+              <button type="button" className="btn-secondary" onClick={runStructureCheck} disabled={isStructuring}>
+                {isStructuring ? 'Checking structure' : 'Structure check'}
+              </button>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <div className="mini-brief">
+              <p className="font-medium text-slate-900">Evidence mode</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">Sources, other angles, and an integrated essay with where, what, and why notes.</p>
+            </div>
+            <div className="mini-brief">
+              <p className="font-medium text-slate-900">Structure mode</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">Topic sentence, claim, evidence, and commentary status for the draft.</p>
+            </div>
           </div>
           {researchError ? <p className="mt-3 text-sm text-red-700">{researchError}</p> : null}
           {research ? (
-            <div className="mt-4 space-y-4 text-sm leading-6 text-stone-700">
-              <p>{research.analysis}</p>
+            <div className="mt-4 space-y-4 text-sm leading-6 text-slate-700">
+              <div className="result-block">
+                <div className="section-label">Analysis</div>
+                <p className="mt-2">{research.analysis}</p>
+              </div>
               {research.otherAngles.length ? (
-                <div>
+                <div className="result-block">
                   <div className="section-label">Other angles</div>
                   <ul className="mt-2 list-disc space-y-1 pl-5">
                     {research.otherAngles.map(angle => <li key={angle}>{angle}</li>)}
@@ -98,7 +119,7 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
                 </div>
               ) : null}
               {research.sources.length ? (
-                <div>
+                <div className="result-block">
                   <div className="section-label">Sources</div>
                   <ul className="mt-2 space-y-2">
                     {research.sources.map(source => (
@@ -112,12 +133,12 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
                   </ul>
                 </div>
               ) : null}
-              <div>
+              <div className="result-block result-block-strong">
                 <div className="section-label">Evidence-integrated essay</div>
                 <p className="mt-2 whitespace-pre-wrap text-stone-900">{research.integratedEssay}</p>
               </div>
               {research.integrationNotes.length ? (
-                <div>
+                <div className="result-block">
                   <div className="section-label">Integration notes</div>
                   <ul className="mt-2 space-y-2">
                     {research.integrationNotes.map(note => (
@@ -133,8 +154,8 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
           ) : null}
           {structureError ? <p className="mt-3 text-sm text-red-700">{structureError}</p> : null}
           {structure ? (
-            <div className="mt-4 space-y-4 text-sm leading-6 text-stone-700">
-              <div>
+            <div className="mt-4 grid gap-4 text-sm leading-6 text-slate-700 md:grid-cols-2">
+              <div className="result-block">
                 <div className="section-label">Ideal outline</div>
                 <ol className="mt-2 list-decimal space-y-2 pl-5">
                   {structure.idealOutline.map(item => (
@@ -145,7 +166,7 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
                   ))}
                 </ol>
               </div>
-              <div>
+              <div className="result-block">
                 <div className="section-label">Draft status</div>
                 <ul className="mt-2 space-y-2">
                   {structure.observations.map(item => (

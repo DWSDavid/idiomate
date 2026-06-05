@@ -91,6 +91,14 @@ export interface LessonRule {
   name: string;
   principle: string;
   mindset?: string;
+  bookReference?: {
+    source: string;
+    pattern: string;
+    quote?: string;
+    quoteStatus?: string;
+    exampleBefore?: string;
+    exampleAfter?: string;
+  };
 }
 
 export interface LessonComparisonPair {

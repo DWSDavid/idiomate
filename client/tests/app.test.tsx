@@ -33,6 +33,10 @@ it('renders the single-page writing workspace', async () => {
 
   render(<App />);
 
+  expect(await screen.findByRole('banner', { name: 'Writing desk header' })).toBeInTheDocument();
+  expect(screen.getByLabelText('daily desk')).toBeInTheDocument();
+  expect(screen.getByLabelText('writing canvas')).toBeInTheDocument();
+  expect(screen.getByLabelText('companion rail')).toBeInTheDocument();
   expect(await screen.findByText(/Today's prompt/)).toBeInTheDocument();
   expect(screen.getByLabelText('Draft')).toBeInTheDocument();
   expect(screen.getByText('Your patterns')).toBeInTheDocument();

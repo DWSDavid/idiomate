@@ -10,22 +10,22 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('shows ranked mistakes and expands a row into stored examples', async () => {
+it('shows ranked mistakes and renders a structured teaching lesson with book linkage', async () => {
   const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes('/api/profile')) {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
-          tallies: [{ errorType: 'redundancy', count: 2, lastSeen: '2026-06-05' }],
+          tallies: [{ errorType: 'tense', count: 2, lastSeen: '2026-06-05' }],
           ranking: [{
-            errorType: 'redundancy',
+            errorType: 'tense',
             count: 2,
             lastSeen: '2026-06-05',
             recentExamples: [{
-              span: 'in order to',
-              userRewrite: 'to',
-              rule: 'Drop empty category nouns',
+              span: 'Over time, robots are more humanized than before.',
+              userRewrite: 'Over time, robots will be more humanized than before.',
+              rule: 'Keep one time frame',
               date: '2026-06-05',
             }],
           }],
@@ -38,10 +38,10 @@ it('shows ranked mistakes and expands a row into stored examples', async () => {
         ok: true,
         json: () => Promise.resolve({
           mistakes: [{
-            errorType: 'redundancy',
-            span: 'in a state of rapid growth',
-            userRewrite: 'growing rapidly',
-            rule: 'Drop empty category nouns',
+            errorType: 'tense',
+            span: 'Yesterday I go to the meeting',
+            userRewrite: 'Yesterday I went to the meeting',
+            rule: 'Keep one time frame',
             date: '2026-06-01',
           }],
         }),
@@ -51,26 +51,31 @@ it('shows ranked mistakes and expands a row into stored examples', async () => {
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
-          errorType: 'redundancy',
+          errorType: 'tense',
           rules: [{
-            name: 'Drop empty category nouns',
-            principle: 'Cut filler category nouns that add no meaning.',
-            mindset: '中文里重复和铺垫有时显得完整, 英文读者更期待每个词增加新信息.',
+            name: 'Keep one time frame',
+            principle: 'Hold one tense unless the time anchor changes.',
+            mindset: 'Ask what time frame the reader is standing in.',
+            bookReference: {
+              source: "The Translator's Guide to Chinglish",
+              pattern: 'Unnecessary shifts in verb time weaken the reader timeline.',
+              quoteStatus: 'Attach the PDF to show exact source quotes.',
+              exampleBefore: 'Yesterday I go to the meeting.',
+              exampleAfter: 'Yesterday I went to the meeting.',
+            },
           }],
-          principle: '删掉没有新信息的铺垫词。',
-          mindset: '先问每个词是否增加新信息。',
+          principle: 'Keep the time anchor stable before choosing verb forms.',
+          mindset: 'First locate the timeline, then choose the verb form.',
           pastInstances: [{
-            errorType: 'redundancy',
-            span: 'in order to',
-            userRewrite: 'to',
-            rule: 'Drop empty category nouns',
+            errorType: 'tense',
+            span: 'Over time, robots are more humanized than before.',
+            userRewrite: 'Over time, robots will be more humanized than before.',
+            rule: 'Keep one time frame',
             date: '2026-06-05',
           }],
           comparisonPairs: [
-            { before: 'in a state of rapid growth', after: 'growing rapidly' },
-            { before: 'in order to', after: 'to' },
-            { before: 'made an improvement', after: 'improved' },
-            { before: 'help and assistance', after: 'help' },
+            { before: 'Over time, robots are more humanized than before.', after: 'Over time, robots will be more humanized than before.', note: 'future projection' },
+            { before: 'Yesterday I go to the meeting.', after: 'Yesterday I went to the meeting.', note: 'past time anchor' },
           ],
         }),
       } as Response);
@@ -81,21 +86,29 @@ it('shows ranked mistakes and expands a row into stored examples', async () => {
 
   render(<ProfileDashboard />);
 
-  expect(await screen.findByText('redundancy')).toBeInTheDocument();
-  expect(screen.getByText('in order to')).toBeInTheDocument();
+  expect(await screen.findByText('tense')).toBeInTheDocument();
+  expect(screen.getByText('Over time, robots are more humanized than before.')).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole('button', { name: /Open redundancy mistakes/ }));
-
-  await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith('/api/mistakes?type=redundancy&limit=50');
-    expect(screen.getByText('in a state of rapid growth')).toBeInTheDocument();
-  });
-
-  fireEvent.click(screen.getByRole('button', { name: /Learn redundancy/ }));
+  fireEvent.click(screen.getByRole('button', { name: /Open tense mistakes/ }));
 
   await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith('/api/lesson?type=redundancy');
-    expect(screen.getByText('删掉没有新信息的铺垫词。')).toBeInTheDocument();
-    expect(screen.getByText((_, node) => node?.textContent === 'in a state of rapid growth to growing rapidly')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith('/api/mistakes?type=tense&limit=50');
+    expect(screen.getByText('Yesterday I go to the meeting')).toBeInTheDocument();
   });
+
+  fireEvent.click(screen.getByRole('button', { name: /Learn tense/ }));
+
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith('/api/lesson?type=tense');
+    expect(screen.getByText('What is the pattern?')).toBeInTheDocument();
+    expect(screen.getByText('Why it feels unnatural')).toBeInTheDocument();
+    expect(screen.getByText('How to repair it')).toBeInTheDocument();
+    expect(screen.getByText('Book connection')).toBeInTheDocument();
+    expect(screen.getByText("The Translator's Guide to Chinglish")).toBeInTheDocument();
+    expect(screen.getByText('Attach the PDF to show exact source quotes.')).toBeInTheDocument();
+    expect(screen.getByText('Before')).toBeInTheDocument();
+    expect(screen.getByText('After')).toBeInTheDocument();
+  });
+
+  expect(screen.queryByText('Yesterday I go to the meeting. to Yesterday I went to the meeting.')).not.toBeInTheDocument();
 });
