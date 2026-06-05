@@ -107,3 +107,34 @@ it('offers content research only after the user submits a rewrite', async () => 
   expect(screen.getByText('We did X to Y. Current evidence would make the claim stronger.')).toBeInTheDocument();
   expect(fetchMock).toHaveBeenCalledWith('/api/research', expect.objectContaining({ method: 'POST' }));
 });
+
+it('offers structure guidance only after the user submits a rewrite', async () => {
+  const fetchMock = vi.fn(() => Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({
+      idealOutline: [
+        { part: 'Topic sentence', purpose: 'State the central claim.' },
+        { part: 'Evidence', purpose: 'Support the claim with specifics.' },
+      ],
+      observations: [
+        { part: 'Topic sentence', status: 'present', note: 'The claim appears early.' },
+        { part: 'Evidence', status: 'weak', note: 'The draft needs a concrete fact.' },
+      ],
+    }),
+  } as Response));
+  vi.stubGlobal('fetch', fetchMock);
+
+  render(<CoachPanel paragraph="We did X in order to Y" annotations={ann as any} onSubmit={() => {}} />);
+
+  expect(screen.queryByRole('button', { name: 'Structure' })).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'We did X to Y.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Structure' }));
+
+  expect(await screen.findByText('State the central claim.')).toBeInTheDocument();
+  expect(screen.getByText('Support the claim with specifics.')).toBeInTheDocument();
+  expect(screen.getByText('The draft needs a concrete fact.')).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith('/api/structure', expect.objectContaining({ method: 'POST' }));
+});

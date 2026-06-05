@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import type { Annotation, ResearchResponse } from '../../../shared/types';
-import { recordParagraph, researchEssay } from '../api';
+import type { Annotation, ResearchResponse, StructureResponse } from '../../../shared/types';
+import { recordParagraph, researchEssay, structureDraft } from '../api';
 import { CompareView, type ComparedAnnotation } from './CompareView';
 
 type CoachPhase = 'review' | 'rewriting' | 'compared';
@@ -27,6 +27,9 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
   const [research, setResearch] = useState<ResearchResponse | null>(null);
   const [researchError, setResearchError] = useState('');
   const [isResearching, setIsResearching] = useState(false);
+  const [structure, setStructure] = useState<StructureResponse | null>(null);
+  const [structureError, setStructureError] = useState('');
+  const [isStructuring, setIsStructuring] = useState(false);
 
   const submitRewrite = () => {
     const lower = rewrite.toLowerCase();
@@ -60,14 +63,28 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
       .finally(() => setIsResearching(false));
   };
 
+  const runStructureCheck = () => {
+    setIsStructuring(true);
+    setStructureError('');
+    void structureDraft(rewrite)
+      .then(result => setStructure(result))
+      .catch(() => setStructureError('Structure guidance is unavailable right now.'))
+      .finally(() => setIsStructuring(false));
+  };
+
   if (phase === 'compared') {
     return (
       <section className="surface" aria-label="coaching result">
         <CompareView original={paragraph} rewrite={rewrite} nativeVersion={nativeVersion} annotations={accepted} />
         <div className="mt-5 border-t border-stone-200 pt-4">
-          <button type="button" className="btn-secondary" onClick={runContentCheck} disabled={isResearching}>
-            {isResearching ? 'Checking content' : 'Content check'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="btn-secondary" onClick={runContentCheck} disabled={isResearching}>
+              {isResearching ? 'Checking content' : 'Content check'}
+            </button>
+            <button type="button" className="btn-secondary" onClick={runStructureCheck} disabled={isStructuring}>
+              {isStructuring ? 'Checking structure' : 'Structure'}
+            </button>
+          </div>
           {researchError ? <p className="mt-3 text-sm text-red-700">{researchError}</p> : null}
           {research ? (
             <div className="mt-4 space-y-4 text-sm leading-6 text-stone-700">
@@ -112,6 +129,34 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
                   </ul>
                 </div>
               ) : null}
+            </div>
+          ) : null}
+          {structureError ? <p className="mt-3 text-sm text-red-700">{structureError}</p> : null}
+          {structure ? (
+            <div className="mt-4 space-y-4 text-sm leading-6 text-stone-700">
+              <div>
+                <div className="section-label">Ideal outline</div>
+                <ol className="mt-2 list-decimal space-y-2 pl-5">
+                  {structure.idealOutline.map(item => (
+                    <li key={`${item.part}-${item.purpose}`}>
+                      <span className="font-medium text-stone-900">{item.part}</span>
+                      <span className="ml-2 text-stone-500">{item.purpose}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+              <div>
+                <div className="section-label">Draft status</div>
+                <ul className="mt-2 space-y-2">
+                  {structure.observations.map(item => (
+                    <li key={`${item.part}-${item.status}-${item.note}`}>
+                      <span className="chip">{item.status}</span>
+                      <span className="ml-2 font-medium text-stone-900">{item.part}</span>
+                      <span className="ml-2 text-stone-500">{item.note}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           ) : null}
         </div>

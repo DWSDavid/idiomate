@@ -12,6 +12,7 @@ import { createProfileRouter } from './routes/profile.js';
 import { createPromptsRouter } from './routes/prompts.js';
 import { createResearchRouter } from './routes/research.js';
 import { createSessionsRouter } from './routes/sessions.js';
+import { createStructureRouter } from './routes/structure.js';
 import { createVocabRouter } from './routes/vocab.js';
 
 export function createApp(overrides: Partial<AppDependencies> = {}) {
@@ -34,6 +35,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   app.use('/api/paragraph-result', createParagraphsRouter(deps));
   app.use('/api/prompt', createPromptsRouter(deps));
   app.use('/api/sessions', createSessionsRouter(deps));
+  app.use('/api/structure', createStructureRouter(deps));
   app.use('/api/vocab', createVocabRouter(deps));
   app.use('/api/profile', createProfileRouter(deps));
   app.use('/api/research', createResearchRouter(deps));

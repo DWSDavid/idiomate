@@ -91,3 +91,21 @@ export const researchIntegrationZ = z.object({
   integratedEssay: z.string().min(1),
   integrationNotes: z.array(integrationNoteZ).default([]),
 });
+
+export const structureOutlinePartZ = z.object({
+  part: z.string().min(1),
+  purpose: z.string().min(1),
+});
+
+export const structureStatusZ = z.enum(['present', 'weak', 'missing']);
+
+export const structureObservationZ = z.object({
+  part: z.string().min(1),
+  status: structureStatusZ,
+  note: z.string().min(1),
+});
+
+export const structureResponseZ = z.object({
+  idealOutline: z.array(structureOutlinePartZ).default([]),
+  observations: z.array(structureObservationZ).default([]),
+});

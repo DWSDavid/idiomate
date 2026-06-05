@@ -47,6 +47,10 @@ export interface ResearchIntegrationPromptContext {
   sources: ResearchSource[];
 }
 
+export interface StructurePromptContext {
+  draft: string;
+}
+
 function taxonomyReferenceSnippet(types: ErrorType[]): string {
   const seen = new Set<ErrorType>();
   const lines: string[] = [];
@@ -205,6 +209,25 @@ export function assembleResearchIntegrationPrompt(ctx: ResearchIntegrationPrompt
       `Essay:\n${ctx.essay}`,
       `Sources:\n${sources}`,
       'Produce the integrated essay and explain each insertion with where, what, why, and structural slot.',
+    ].join('\n\n'),
+  };
+}
+
+export function assembleStructurePrompt(ctx: StructurePromptContext): { system: string; user: string } {
+  return {
+    system: [
+      'You are a writing structure coach for Idiomate.',
+      'Diagnose the organization of the draft without rewriting it.',
+      'Suggest an ideal outline for this draft, then assess how the current draft matches each part.',
+      'The ideal outline should usually include topic sentence, claim or explanation, evidence, commentary, and optional conclusion when useful.',
+      'Return ONLY JSON matching: {idealOutline:[{part,purpose}],observations:[{part,status,note}]}.',
+      'status MUST be exactly one of: present, weak, missing.',
+      'Use concise notes that help the writer see what to add, remove, or move.',
+    ].join(' '),
+    user: [
+      'Draft:',
+      ctx.draft,
+      'Assess the draft against a clear topic sentence, explanation, evidence, and commentary structure.',
     ].join('\n\n'),
   };
 }

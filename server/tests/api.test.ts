@@ -687,3 +687,50 @@ it('POST /api/research survives news failure with analysis and a structure-only 
     expect(summaryCalls).toBe(0);
   });
 });
+
+it('POST /api/structure returns an ideal outline and per-part draft observations', async () => {
+  let captured: { system: string; user: string; model: string } | undefined;
+  const utilityProvider: LLMProvider = {
+    async complete(opts) {
+      captured = opts;
+      return JSON.stringify({
+        idealOutline: [
+          { part: 'Topic sentence', purpose: 'State the central claim in one clear sentence.' },
+          { part: 'Evidence', purpose: 'Use specific facts or examples to support the claim.' },
+          { part: 'Commentary', purpose: 'Explain why the evidence changes the reader conclusion.' },
+        ],
+        observations: [
+          { part: 'Topic sentence', status: 'present', note: 'The draft opens with a claim.' },
+          { part: 'Evidence', status: 'weak', note: 'The draft gestures at spending but gives no concrete evidence.' },
+          { part: 'Commentary', status: 'missing', note: 'The draft needs a sentence explaining the implication.' },
+        ],
+      });
+    },
+  };
+
+  await withServer(createApp({ db, utilityProvider }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/structure`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        draft: 'AI capex may hurt margins. Companies are spending a lot. Therefore it is risky.',
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.idealOutline).toEqual([
+      { part: 'Topic sentence', purpose: 'State the central claim in one clear sentence.' },
+      { part: 'Evidence', purpose: 'Use specific facts or examples to support the claim.' },
+      { part: 'Commentary', purpose: 'Explain why the evidence changes the reader conclusion.' },
+    ]);
+    expect(json.observations).toEqual([
+      { part: 'Topic sentence', status: 'present', note: 'The draft opens with a claim.' },
+      { part: 'Evidence', status: 'weak', note: 'The draft gestures at spending but gives no concrete evidence.' },
+      { part: 'Commentary', status: 'missing', note: 'The draft needs a sentence explaining the implication.' },
+    ]);
+    expect(captured!.model).toBe('gpt-4o');
+    expect(captured!.system).toContain('writing structure coach');
+    expect(captured!.user).toContain('AI capex may hurt margins');
+  });
+});

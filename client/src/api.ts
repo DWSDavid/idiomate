@@ -8,6 +8,7 @@ import type {
   MistakeRankingItem,
   Prompt,
   ResearchResponse,
+  StructureResponse,
   Vocab,
 } from '../../shared/types';
 
@@ -100,6 +101,10 @@ export function getLesson(errorType?: ErrorType): Promise<LessonResponse> {
 
 export function researchEssay(essay: string): Promise<ResearchResponse> {
   return postJson<ResearchResponse>('/api/research', { essay });
+}
+
+export function structureDraft(draft: string): Promise<StructureResponse> {
+  return postJson<StructureResponse>('/api/structure', { draft });
 }
 
 export function importVocab(file: File): Promise<{ count: number }> {

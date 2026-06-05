@@ -115,3 +115,21 @@ export interface ResearchResponse {
   integratedEssay: string;
   integrationNotes: IntegrationNote[];
 }
+
+export interface StructureOutlinePart {
+  part: string;
+  purpose: string;
+}
+
+export type StructureStatus = 'present' | 'weak' | 'missing';
+
+export interface StructureObservation {
+  part: string;
+  status: StructureStatus;
+  note: string;
+}
+
+export interface StructureResponse {
+  idealOutline: StructureOutlinePart[];
+  observations: StructureObservation[];
+}

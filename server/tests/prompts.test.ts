@@ -8,6 +8,7 @@ import {
   assembleResearchIntegrationPrompt,
   assembleResearchPrompt,
   assembleSourceSummaryPrompt,
+  assembleStructurePrompt,
   generateNewsPrompt,
   generateDailyPrompt,
   selectPrimeWords,
@@ -248,4 +249,20 @@ it('assembles research prompts for analysis, source summaries, and evidence inte
   expect(integration.system).toContain('integratedEssay');
   expect(integration.system).toContain('topic sentence / claim / evidence / commentary');
   expect(integration.user).toContain('Cloud providers are increasing AI infrastructure budgets');
+});
+
+it('assembles a structure guidance prompt with outline and draft observations', () => {
+  const prompt = assembleStructurePrompt({
+    draft: 'AI capex may hurt margins. Companies are spending a lot. Therefore it is risky.',
+  });
+
+  expect(prompt.system).toContain('writing structure coach');
+  expect(prompt.system).toContain('idealOutline');
+  expect(prompt.system).toContain('present');
+  expect(prompt.system).toContain('weak');
+  expect(prompt.system).toContain('missing');
+  expect(prompt.user).toContain('AI capex may hurt margins');
+  expect(prompt.user).toContain('topic sentence');
+  expect(prompt.user).toContain('evidence');
+  expect(prompt.user).toContain('commentary');
 });
