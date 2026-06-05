@@ -1,4 +1,5 @@
 import type { ErrorType, Vocab } from '../../../shared/types.js';
+import { ERROR_TYPES } from '../../../shared/types.js';
 import { ALL_ERROR_TYPES, taxonomySnippet } from './taxonomy.js';
 import { rulesForTypes, rulesSnippet } from './rules.js';
 import type { LLMProvider } from './provider.js';
@@ -25,6 +26,7 @@ export function assembleCoachPrompt(ctx: CoachPromptContext): { system: string; 
       'You are a writing coach for an advanced Chinese-L1 writer.',
       'NEVER rewrite the whole text for them as the primary output.',
       'Identify issues, name each by errorType, set the most specific named rule, give a one-line hint that does NOT reveal the fix, a one-line explanation of why, a short ruleExample, and a separate modelRewrite that the UI will hide until the user has tried.',
+      `The errorType field MUST be EXACTLY one of: ${ERROR_TYPES.join(', ')}. Put the specific principle name (for example "Gerund after certain verbs") in the "rule" field, never in errorType.`,
       'Also produce nativeVersion: a fully natural version of the whole paragraph. The UI hides both modelRewrite and nativeVersion until the user submits their own rewrite.',
       'Use vocab_suggestion only for optional vocabulary opportunities. Suggest, never force.',
       'Return ONLY JSON matching: {paragraphIndex,nativeVersion,annotations:[{span,errorType,rule,ruleExample:{before,after},hint,explanation,modelRewrite,vocabWord?}]}.',

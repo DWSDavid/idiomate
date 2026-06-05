@@ -8,7 +8,8 @@ const ruleExampleZ = z.object({
 
 export const annotationZ = z.object({
   span: z.string().min(1),
-  errorType: z.enum(ERROR_TYPES),
+  // Tolerant: if the model invents an out-of-enum errorType, fall back rather than 500 the whole response.
+  errorType: z.enum(ERROR_TYPES).catch('small_grammar'),
   hint: z.string().min(1),
   explanation: z.string().min(1),
   rule: z.string().min(1).optional(),
