@@ -1,7 +1,7 @@
 import type { ErrorType, Vocab } from '../../../shared/types.js';
 import { ERROR_TYPES } from '../../../shared/types.js';
-import { ALL_ERROR_TYPES, taxonomySnippet } from './taxonomy.js';
-import { rulesForTypes, rulesSnippet } from './rules.js';
+import { ALL_ERROR_TYPES, ERROR_TAXONOMY } from './taxonomy.js';
+import { GRAMMAR_RULES, type GrammarRule, rulesForTypes } from './rules.js';
 import type { LLMProvider } from './provider.js';
 import { dailyPromptZ, primeWordsZ } from './schema.js';
 
@@ -12,10 +12,29 @@ export interface CoachPromptContext {
   vocabCandidates: Pick<Vocab, 'word' | 'defCn'>[];
 }
 
+function taxonomyReferenceSnippet(types: ErrorType[]): string {
+  const seen = new Set<ErrorType>();
+  const lines: string[] = [];
+  for (const type of types) {
+    if (seen.has(type)) continue;
+    seen.add(type);
+    const entry = ERROR_TAXONOMY[type];
+    if (!entry) continue;
+    lines.push(`- [${type}] ${entry.name}: ${entry.whatItIs}`);
+  }
+  return lines.join('\n');
+}
+
+function rulesReferenceSnippet(rules: GrammarRule[] = GRAMMAR_RULES): string {
+  return rules
+    .map(rule => `- ${rule.name}: ${rule.principle}`)
+    .join('\n');
+}
+
 export function assembleCoachPrompt(ctx: CoachPromptContext): { system: string; user: string } {
-  const snippet = taxonomySnippet(ALL_ERROR_TYPES);
+  const snippet = taxonomyReferenceSnippet(ALL_ERROR_TYPES);
   const focusedRules = rulesForTypes(ctx.topErrors);
-  const ruleSnippet = rulesSnippet(focusedRules.length ? focusedRules : undefined);
+  const ruleSnippet = rulesReferenceSnippet(focusedRules.length ? focusedRules : undefined);
   const vocab = ctx.vocabCandidates.length
     ? ctx.vocabCandidates.map(v => `- ${v.word}${v.defCn ? `: ${v.defCn}` : ''}`).join('\n')
     : '- none';
@@ -26,6 +45,7 @@ export function assembleCoachPrompt(ctx: CoachPromptContext): { system: string; 
       'You are a writing coach for an advanced Chinese-L1 writer.',
       'NEVER rewrite the whole text for them as the primary output.',
       'Identify issues, name each by errorType, set the most specific named rule, give a one-line hint that does NOT reveal the fix, a one-line explanation of why, a short ruleExample, and a separate modelRewrite that the UI will hide until the user has tried.',
+      "For ruleExample, ruleExample.before MUST come from the user's own text for this exact issue, or be closely based on that text. ruleExample.after MUST be the corrected form of that same minimal pair. NEVER copy the example sentences from the Taxonomy or Rules sections; those references are for classification only, not output. If no faithful minimal pair fits, generate a fresh pair specific to this user's error and do not reuse a reference example.",
       `The errorType field MUST be EXACTLY one of: ${ERROR_TYPES.join(', ')}. Put the specific principle name (for example "Gerund after certain verbs") in the "rule" field, never in errorType.`,
       'Also produce nativeVersion: a fully natural version of the whole paragraph. The UI hides both modelRewrite and nativeVersion until the user submits their own rewrite.',
       'Use vocab_suggestion only for optional vocabulary opportunities. Suggest, never force.',

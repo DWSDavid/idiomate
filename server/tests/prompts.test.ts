@@ -43,9 +43,25 @@ it('injects focused named grammar rules for recurring errors', () => {
 
   expect(prompt.user).toContain('Named grammar and Chinglish rules');
   expect(prompt.user).toContain('Prefer a verb over a noun string');
-  expect(prompt.user).toContain('implemented the policy');
   expect(prompt.system).toContain('nativeVersion');
   expect(prompt.system).toContain('ruleExample');
+});
+
+it('requires ruleExample to be contextual and keeps reference examples out of coach snippets', () => {
+  const prompt = assembleCoachPrompt({
+    paragraph: 'The rain made a huge effect on our sales and we discussed about it.',
+    paragraphIndex: 1,
+    topErrors: ['word_choice', 'small_grammar'],
+    vocabCandidates: [],
+  });
+
+  expect(prompt.system).toContain('ruleExample.before MUST come from the user');
+  expect(prompt.system).toContain('NEVER copy the example sentences from the Taxonomy or Rules sections');
+  expect(prompt.user).not.toContain('Heavy rain made a big influence on sales');
+  expect(prompt.user).not.toContain('She is teacher.');
+  expect(prompt.user).not.toContain('discussed the plan');
+  expect(prompt.user).toContain('Word choice / collocation');
+  expect(prompt.user).toContain('Singular count noun needs an article');
 });
 
 it('falls back to the full named rule set when recurring errors are sparse', () => {
