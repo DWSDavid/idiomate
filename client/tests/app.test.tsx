@@ -22,6 +22,9 @@ it('renders the single-page writing workspace', async () => {
     if (url.includes('/api/profile')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ tallies: [], activation: { suggested: 0, used: 0 } }) } as Response);
     }
+    if (url.includes('/api/progress')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ daily: [], trend: [] }) } as Response);
+    }
     return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
   }));
 
@@ -30,6 +33,7 @@ it('renders the single-page writing workspace', async () => {
   expect(await screen.findByText(/Today's prompt/)).toBeInTheDocument();
   expect(screen.getByLabelText('Draft')).toBeInTheDocument();
   expect(screen.getByText('Your patterns')).toBeInTheDocument();
+  expect(screen.getByText('Progress')).toBeInTheDocument();
 });
 
 it('records a paragraph result and refetches the profile after rewrite submit', async () => {
@@ -53,6 +57,9 @@ it('records a paragraph result and refetches the profile after rewrite submit', 
     if (url.includes('/api/profile')) {
       profileCalls += 1;
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ tallies: [], activation: { suggested: 0, used: 0 } }) } as Response);
+    }
+    if (url.includes('/api/progress')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ daily: [], trend: [] }) } as Response);
     }
     if (url.includes('/api/coach')) {
       return Promise.resolve({

@@ -6,6 +6,7 @@ import {
   getMistakes,
   getLesson,
   getTodayPrompt,
+  getProgress,
   importVocab,
   primeVocab,
   recordParagraph,
@@ -31,6 +32,7 @@ describe('client api', () => {
       if (url.includes('/api/prompt/today')) return jsonResponse({ date: '2026-06-04', theme: 'tech', text: 'Write.' });
       if (url.includes('/api/vocab/prime')) return jsonResponse({ topic: 'tech', vocab: [] });
       if (url.includes('/api/profile')) return jsonResponse({ tallies: [], activation: { suggested: 0, used: 0 } });
+      if (url.includes('/api/progress')) return jsonResponse({ daily: [], trend: [] });
       if (url.includes('/api/mistakes')) return jsonResponse({ mistakes: [] });
       if (url.includes('/api/lesson')) return jsonResponse({ errorType: 'redundancy', rules: [], principle: 'p', mindset: 'm', pastInstances: [], comparisonPairs: [] });
       if (url.includes('/api/research')) return jsonResponse({ analysis: 'a', otherAngles: [], sources: [], integratedEssay: 'e', integrationNotes: [] });
@@ -48,6 +50,7 @@ describe('client api', () => {
     await getTodayPrompt();
     await primeVocab('tech risk');
     await getProfile();
+    await getProgress();
     await getMistakes('redundancy');
     await getLesson('redundancy');
     await researchEssay('AI capex may pressure margins.');
@@ -68,15 +71,16 @@ describe('client api', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/prompt/today');
     expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/vocab/prime?promptText=tech+risk&limit=10');
     expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/profile');
-    expect(fetchMock).toHaveBeenNthCalledWith(4, '/api/mistakes?type=redundancy&limit=50');
-    expect(fetchMock).toHaveBeenNthCalledWith(5, '/api/lesson?type=redundancy');
-    expect(fetchMock).toHaveBeenNthCalledWith(6, '/api/research', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(7, '/api/structure', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(8, '/api/coach', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(9, '/api/paragraph-result', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(10, '/api/sessions', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(11, '/api/vocab/import', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(12, '/api/vocab/capture', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(13, '/api/vocab/save', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(4, '/api/progress');
+    expect(fetchMock).toHaveBeenNthCalledWith(5, '/api/mistakes?type=redundancy&limit=50');
+    expect(fetchMock).toHaveBeenNthCalledWith(6, '/api/lesson?type=redundancy');
+    expect(fetchMock).toHaveBeenNthCalledWith(7, '/api/research', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(8, '/api/structure', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(9, '/api/coach', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(10, '/api/paragraph-result', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(11, '/api/sessions', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(12, '/api/vocab/import', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(13, '/api/vocab/capture', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(14, '/api/vocab/save', expect.objectContaining({ method: 'POST' }));
   });
 });

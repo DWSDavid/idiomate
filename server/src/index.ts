@@ -9,6 +9,7 @@ import { createLessonsRouter } from './routes/lessons.js';
 import { createMistakesRouter } from './routes/mistakes.js';
 import { createParagraphsRouter } from './routes/paragraphs.js';
 import { createProfileRouter } from './routes/profile.js';
+import { createProgressRouter } from './routes/progress.js';
 import { createPromptsRouter } from './routes/prompts.js';
 import { createResearchRouter } from './routes/research.js';
 import { createSessionsRouter } from './routes/sessions.js';
@@ -34,6 +35,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   app.use('/api/mistakes', createMistakesRouter(deps));
   app.use('/api/paragraph-result', createParagraphsRouter(deps));
   app.use('/api/prompt', createPromptsRouter(deps));
+  app.use('/api/progress', createProgressRouter(deps));
   app.use('/api/sessions', createSessionsRouter(deps));
   app.use('/api/structure', createStructureRouter(deps));
   app.use('/api/vocab', createVocabRouter(deps));

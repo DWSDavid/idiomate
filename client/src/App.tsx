@@ -6,6 +6,7 @@ import type { ComparedAnnotation } from './components/CompareView';
 import { CaptureWord } from './components/CaptureWord';
 import { DailyPrompt } from './components/DailyPrompt';
 import { ProfileDashboard } from './components/ProfileDashboard';
+import { ProgressPanel } from './components/ProgressPanel';
 import { VocabPrime } from './components/VocabPrime';
 import { WriteSurface } from './components/WriteSurface';
 
@@ -107,6 +108,7 @@ export function App() {
         ))}
 
         <ProfileDashboard refreshKey={profileKey} />
+        <ProgressPanel refreshKey={profileKey} />
         <CaptureWord onSaved={() => setVocabKey(key => key + 1)} />
 
         <footer className="pb-2 text-center text-xs text-stone-400">Local-first. Your words stay on your machine.</footer>

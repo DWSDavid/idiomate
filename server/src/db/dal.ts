@@ -6,6 +6,8 @@ import type {
   MistakeExample,
   MistakeLogItem,
   MistakeRankingItem,
+  MistakeTrendSeries,
+  ProgressDailyPoint,
   Vocab,
   VocabKind,
 } from '../../../shared/types.js';
@@ -49,6 +51,16 @@ interface MistakeLogRow {
   rule: string | null;
   date: string | null;
   annotation_id: number;
+}
+
+interface DailyMistakeCountRow {
+  date: string;
+  count: number;
+}
+
+interface TrendTypeRow {
+  error_type: ErrorType;
+  count: number;
 }
 
 export interface InsertSessionInput {
@@ -406,6 +418,68 @@ export function getMistakeRanking(db: Database.Database): MistakeRankingItem[] {
       recentExamples,
     };
   });
+}
+
+function boundedPositiveInt(value: number, fallback: number, max: number): number {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.min(Math.trunc(value), max));
+}
+
+function daysParam(days: number): { startOffset: string } {
+  const safeDays = boundedPositiveInt(days, 30, 365);
+  return { startOffset: `-${safeDays - 1} days` };
+}
+
+export function getDailyMistakeCounts(db: Database.Database, days = 30): ProgressDailyPoint[] {
+  const rows = db.prepare(`
+    SELECT date(sessions.date) AS date, COUNT(*) AS count
+    FROM annotations
+    JOIN sessions ON sessions.id = annotations.session_id
+    WHERE annotations.error_type != 'vocab_suggestion'
+      AND date(sessions.date) >= date('now', @startOffset)
+    GROUP BY date(sessions.date)
+    ORDER BY date ASC
+  `).all(daysParam(days)) as DailyMistakeCountRow[];
+  return rows.map(row => ({
+    date: row.date,
+    count: row.count,
+  }));
+}
+
+export function getMistakeTrend(db: Database.Database, days = 30, topN = 3): MistakeTrendSeries[] {
+  const window = daysParam(days);
+  const safeTopN = boundedPositiveInt(topN, 3, 10);
+  const topTypes = db.prepare(`
+    SELECT annotations.error_type, COUNT(*) AS count
+    FROM annotations
+    JOIN sessions ON sessions.id = annotations.session_id
+    WHERE annotations.error_type != 'vocab_suggestion'
+      AND date(sessions.date) >= date('now', @startOffset)
+    GROUP BY annotations.error_type
+    ORDER BY count DESC, annotations.error_type ASC
+    LIMIT @limit
+  `).all({ ...window, limit: safeTopN }) as TrendTypeRow[];
+
+  const pointsForType = db.prepare(`
+    SELECT date(sessions.date) AS date, COUNT(*) AS count
+    FROM annotations
+    JOIN sessions ON sessions.id = annotations.session_id
+    WHERE annotations.error_type = @errorType
+      AND date(sessions.date) >= date('now', @startOffset)
+    GROUP BY date(sessions.date)
+    ORDER BY date ASC
+  `);
+
+  return topTypes.map(type => ({
+    errorType: type.error_type,
+    points: (pointsForType.all({
+      errorType: type.error_type,
+      ...window,
+    }) as DailyMistakeCountRow[]).map(row => ({
+      date: row.date,
+      count: row.count,
+    })),
+  }));
 }
 
 export function getActivationStats(db: Database.Database): { suggested: number; used: number } {

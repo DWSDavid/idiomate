@@ -401,6 +401,81 @@ it('GET /api/profile returns error tallies, ranking, and activation stats', asyn
   });
 });
 
+it('GET /api/progress returns daily mistake counts and top-type trends', async () => {
+  const first = insertSession(db, { date: '2026-06-03', draftText: 'first' });
+  const second = insertSession(db, { date: '2026-06-04', draftText: 'second' });
+  insertAnnotations(db, first, [
+    {
+      paragraphIdx: 0,
+      span: 'in order to',
+      errorType: 'redundancy',
+      hint: 'Use fewer words.',
+      explanation: 'Redundancy.',
+      modelRewrite: 'to',
+    },
+    {
+      paragraphIdx: 0,
+      span: 'support to',
+      errorType: 'word_choice',
+      hint: 'Check the preposition.',
+      explanation: 'Collocation.',
+      modelRewrite: 'support for',
+    },
+  ]);
+  insertAnnotations(db, second, [
+    {
+      paragraphIdx: 0,
+      span: 'in a state of growth',
+      errorType: 'redundancy',
+      hint: 'Cut filler.',
+      explanation: 'Redundancy.',
+      modelRewrite: 'growing',
+    },
+    {
+      paragraphIdx: 0,
+      span: 'literal phrase',
+      errorType: 'calque',
+      hint: 'Check the idiom.',
+      explanation: 'Direct translation.',
+      modelRewrite: 'natural phrase',
+    },
+    {
+      paragraphIdx: 0,
+      span: 'shore up',
+      errorType: 'vocab_suggestion',
+      hint: 'Use your vocab.',
+      explanation: 'Vocab opportunity.',
+      modelRewrite: 'shore up',
+    },
+  ]);
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/progress?days=30&topN=2`);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.daily).toEqual([
+      { date: '2026-06-03', count: 2 },
+      { date: '2026-06-04', count: 2 },
+    ]);
+    expect(json.trend).toEqual([
+      {
+        errorType: 'redundancy',
+        points: [
+          { date: '2026-06-03', count: 1 },
+          { date: '2026-06-04', count: 1 },
+        ],
+      },
+      {
+        errorType: 'calque',
+        points: [
+          { date: '2026-06-04', count: 1 },
+        ],
+      },
+    ]);
+  });
+});
+
 it('GET /api/mistakes returns a drill-down log optionally filtered by type', async () => {
   const older = insertSession(db, { date: '2026-06-01', draftText: 'older' });
   const newer = insertSession(db, { date: '2026-06-05', draftText: 'newer' });

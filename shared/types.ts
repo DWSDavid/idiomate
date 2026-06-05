@@ -133,3 +133,18 @@ export interface StructureResponse {
   idealOutline: StructureOutlinePart[];
   observations: StructureObservation[];
 }
+
+export interface ProgressDailyPoint {
+  date: string;
+  count: number;
+}
+
+export interface MistakeTrendSeries {
+  errorType: ErrorType;
+  points: ProgressDailyPoint[];
+}
+
+export interface ProgressResponse {
+  daily: ProgressDailyPoint[];
+  trend: MistakeTrendSeries[];
+}

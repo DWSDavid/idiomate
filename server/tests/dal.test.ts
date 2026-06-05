@@ -3,9 +3,11 @@ import { openDb, migrate } from '../src/db/db.js';
 import {
   getPrimeCandidates,
   getPrimeCandidatePool,
+  getDailyMistakeCounts,
   getVocabSample,
   getMistakeLog,
   getMistakeRanking,
+  getMistakeTrend,
   incrementVocabUsed,
   insertAnnotations,
   insertSession,
@@ -232,6 +234,145 @@ it('returns a filterable mistake log ordered by recent occurrence', () => {
       userRewrite: 'support for',
       rule: 'Fixed preposition collocations',
       date: '2026-06-04',
+    },
+  ]);
+});
+
+it('buckets daily mistake counts by session date and excludes vocab suggestions', () => {
+  const first = insertSession(db, { date: '2026-06-03T09:00:00.000Z', draftText: 'first' });
+  const second = insertSession(db, { date: '2026-06-04', draftText: 'second' });
+  insertAnnotations(db, first, [
+    {
+      paragraphIdx: 0,
+      span: 'in order to',
+      errorType: 'redundancy',
+      hint: 'Use fewer words.',
+      explanation: 'Redundancy.',
+      modelRewrite: 'to',
+    },
+    {
+      paragraphIdx: 0,
+      span: 'support to',
+      errorType: 'word_choice',
+      hint: 'Check the preposition.',
+      explanation: 'Collocation.',
+      modelRewrite: 'support for',
+    },
+    {
+      paragraphIdx: 0,
+      span: 'support',
+      errorType: 'vocab_suggestion',
+      hint: 'Use your vocab.',
+      explanation: 'Vocab opportunity.',
+      modelRewrite: 'shore up',
+    },
+  ]);
+  insertAnnotations(db, second, [
+    {
+      paragraphIdx: 0,
+      span: 'implementation of',
+      errorType: 'noun_plague',
+      hint: 'Use a verb.',
+      explanation: 'Noun string.',
+      modelRewrite: 'implemented',
+    },
+  ]);
+
+  expect(getDailyMistakeCounts(db, 30)).toEqual([
+    { date: '2026-06-03', count: 2 },
+    { date: '2026-06-04', count: 1 },
+  ]);
+});
+
+it('returns mistake trends for the top error types by overall count', () => {
+  const first = insertSession(db, { date: '2026-06-01', draftText: 'first' });
+  const second = insertSession(db, { date: '2026-06-02', draftText: 'second' });
+  const third = insertSession(db, { date: '2026-06-03', draftText: 'third' });
+  insertAnnotations(db, first, [
+    {
+      paragraphIdx: 0,
+      span: 'in order to',
+      errorType: 'redundancy',
+      hint: 'Use fewer words.',
+      explanation: 'Redundancy.',
+      modelRewrite: 'to',
+    },
+    {
+      paragraphIdx: 0,
+      span: 'support to',
+      errorType: 'word_choice',
+      hint: 'Check the preposition.',
+      explanation: 'Collocation.',
+      modelRewrite: 'support for',
+    },
+  ]);
+  insertAnnotations(db, second, [
+    {
+      paragraphIdx: 0,
+      span: 'in a state of growth',
+      errorType: 'redundancy',
+      hint: 'Cut filler.',
+      explanation: 'Redundancy.',
+      modelRewrite: 'growing',
+    },
+    {
+      paragraphIdx: 1,
+      span: 'in order to',
+      errorType: 'redundancy',
+      hint: 'Use fewer words.',
+      explanation: 'Redundancy.',
+      modelRewrite: 'to',
+    },
+    {
+      paragraphIdx: 1,
+      span: 'literal phrase',
+      errorType: 'calque',
+      hint: 'Check the idiom.',
+      explanation: 'Direct translation.',
+      modelRewrite: 'natural phrase',
+    },
+  ]);
+  insertAnnotations(db, third, [
+    {
+      paragraphIdx: 0,
+      span: 'support to',
+      errorType: 'word_choice',
+      hint: 'Check the preposition.',
+      explanation: 'Collocation.',
+      modelRewrite: 'support for',
+    },
+    {
+      paragraphIdx: 1,
+      span: 'discuss about',
+      errorType: 'word_choice',
+      hint: 'Drop the preposition.',
+      explanation: 'Collocation.',
+      modelRewrite: 'discuss',
+    },
+    {
+      paragraphIdx: 1,
+      span: 'shore up',
+      errorType: 'vocab_suggestion',
+      hint: 'Use your vocab.',
+      explanation: 'Vocab opportunity.',
+      modelRewrite: 'shore up',
+    },
+  ]);
+
+  expect(getMistakeTrend(db, 30, 2)).toEqual([
+    {
+      errorType: 'redundancy',
+      points: [
+        { date: '2026-06-01', count: 1 },
+        { date: '2026-06-02', count: 2 },
+      ],
+    },
+    {
+      errorType: 'word_choice',
+      points: [
+        { date: '2026-06-01', count: 1 },
+        { date: '2026-06-03', count: 2 },
+      ],
     },
   ]);
 });

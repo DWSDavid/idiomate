@@ -7,6 +7,7 @@ import type {
   MistakeLogItem,
   MistakeRankingItem,
   Prompt,
+  ProgressResponse,
   ResearchResponse,
   StructureResponse,
   Vocab,
@@ -83,6 +84,10 @@ export function recordParagraph(payload: ParagraphResultPayload): Promise<{ id: 
 
 export function getProfile(): Promise<ProfileResponse> {
   return fetch('/api/profile').then(readJson<ProfileResponse>);
+}
+
+export function getProgress(): Promise<ProgressResponse> {
+  return fetch('/api/progress').then(readJson<ProgressResponse>);
 }
 
 export function getMistakes(errorType?: ErrorType, limit = 50): Promise<{ mistakes: MistakeLogItem[] }> {
