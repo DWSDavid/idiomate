@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import type {
   Annotation,
+  CoachResponse,
   ErrorTally,
   ErrorType,
   MistakeExample,
@@ -64,6 +65,14 @@ interface TrendTypeRow {
   count: number;
 }
 
+interface SentenceLabDraftRow {
+  id: number;
+  date: string | null;
+  sentence: string;
+  context: string | null;
+  response_json: string;
+}
+
 export interface InsertSessionInput {
   date?: string;
   promptId?: number;
@@ -93,6 +102,14 @@ export interface ParagraphResultInput {
 export interface ParagraphResultRecord {
   sessionId: number;
   created: boolean;
+}
+
+export interface SentenceLabDraft {
+  id: number;
+  date: string;
+  sentence: string;
+  context?: string;
+  response: CoachResponse;
 }
 
 export function normalizeVocabWord(word: string): string {
@@ -561,6 +578,56 @@ export function insertSession(db: Database.Database, input: InsertSessionInput):
 
 function sessionDay(date?: string): string {
   return date?.trim() || new Date().toISOString().slice(0, 10);
+}
+
+const SENTENCE_LAB_PARAGRAPH_OFFSET = 1_000_000;
+
+export function insertSentenceLabDraft(
+  db: Database.Database,
+  input: { date?: string; sentence: string; context?: string; response: CoachResponse },
+): number {
+  const result = db.prepare(`
+    INSERT INTO sentence_lab_drafts (date, sentence, context, response_json)
+    VALUES (@date, @sentence, @context, @responseJson)
+  `).run({
+    date: sessionDay(input.date),
+    sentence: input.sentence,
+    context: input.context?.trim() || null,
+    responseJson: JSON.stringify(input.response),
+  });
+  return Number(result.lastInsertRowid);
+}
+
+export function getSentenceLabDraft(db: Database.Database, id: number): SentenceLabDraft | undefined {
+  const row = db.prepare(`
+    SELECT id, date, sentence, context, response_json
+    FROM sentence_lab_drafts
+    WHERE id = ?
+  `).get(id) as SentenceLabDraftRow | undefined;
+  if (!row) return undefined;
+  return {
+    id: row.id,
+    date: row.date ?? sessionDay(),
+    sentence: row.sentence,
+    context: row.context ?? undefined,
+    response: JSON.parse(row.response_json) as CoachResponse,
+  };
+}
+
+export function recordSentenceLabResult(
+  db: Database.Database,
+  input: { id: number; rewrite: string },
+): ParagraphResultRecord {
+  const draft = getSentenceLabDraft(db, input.id);
+  if (!draft) throw new Error('Sentence Lab diagnosis not found.');
+
+  return recordParagraphResult(db, {
+    date: draft.date,
+    paragraphIdx: SENTENCE_LAB_PARAGRAPH_OFFSET + draft.id,
+    paragraph: draft.sentence,
+    rewrite: input.rewrite,
+    annotations: draft.response.annotations,
+  });
 }
 
 function findSessionForDay(db: Database.Database, date: string, promptId?: number): number | undefined {

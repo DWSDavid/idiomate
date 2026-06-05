@@ -16,3 +16,6 @@ CREATE TABLE IF NOT EXISTS annotations (
   rule TEXT, rule_example TEXT, user_rewrite TEXT, accepted INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS error_tally (
   error_type TEXT PRIMARY KEY, count INTEGER DEFAULT 0, last_seen TEXT);
+CREATE TABLE IF NOT EXISTS sentence_lab_drafts (
+  id INTEGER PRIMARY KEY, date TEXT, sentence TEXT NOT NULL, context TEXT,
+  response_json TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')));

@@ -4,6 +4,7 @@ import { createApp } from '../src/index.js';
 import { openDb, migrate } from '../src/db/db.js';
 import {
   getPrimeCandidates,
+  getMistakeLog,
   getTallies,
   insertAnnotations,
   insertSession,
@@ -59,6 +60,145 @@ it('POST /api/coach returns annotations without updating error tallies', async (
     const json = await res.json();
     expect(json.annotations[0].errorType).toBe('redundancy');
     expect(getTallies(db)).toEqual([]);
+  });
+});
+
+it('POST /api/coach attaches local Chinglish book references to annotations', async () => {
+  const coachProvider: LLMProvider = {
+    async complete() {
+      return JSON.stringify({
+        paragraphIndex: 0,
+        annotations: [{
+          span: 'implementation of the policy',
+          errorType: 'noun_plague',
+          hint: 'Turn the heavy noun phrase into a verb.',
+          explanation: 'Noun plague: the noun is carrying the action.',
+          rule: 'Prefer a verb over a noun string',
+          ruleExample: {
+            before: 'implementation of the policy',
+            after: 'implemented the policy',
+          },
+          modelRewrite: 'implemented the policy',
+        }],
+        nativeVersion: 'We implemented the policy.',
+      });
+    },
+  };
+
+  await withServer(createApp({ db, coachProvider }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/coach`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paragraphIndex: 0, paragraph: 'We carried out the implementation of the policy.' }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.annotations[0].bookReference).toEqual(expect.objectContaining({
+      source: "The Translator's Guide to Chinglish",
+      pattern: expect.stringContaining('Noun Plague'),
+      quote: expect.stringContaining('real action'),
+    }));
+    expect(getTallies(db)).toEqual([]);
+  });
+});
+
+it('POST /api/sentence-lab diagnoses without revealing fixes, then records after user rewrite', async () => {
+  const coachProvider: LLMProvider = {
+    async complete(opts) {
+      expect(opts.system).toContain('Sentence Lab');
+      expect(opts.user).toContain('Context: Slack update to my manager');
+      return JSON.stringify({
+        paragraphIndex: 0,
+        annotations: [{
+          span: 'made the implementation',
+          errorType: 'noun_plague',
+          hint: 'Find the action and make it the verb.',
+          explanation: 'Noun plague: the sentence hides the action inside an abstract noun.',
+          rule: 'Prefer a verb over a noun string',
+          ruleExample: {
+            before: 'made the implementation',
+            after: 'implemented',
+          },
+          modelRewrite: 'implemented',
+        }],
+        nativeVersion: 'We implemented the policy yesterday.',
+      });
+    },
+  };
+
+  await withServer(createApp({ db, coachProvider }), async baseUrl => {
+    const diagnose = await fetch(`${baseUrl}/api/sentence-lab/diagnose`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sentence: 'We made the implementation of the policy yesterday.',
+        context: 'Slack update to my manager',
+      }),
+    });
+
+    expect(diagnose.status).toBe(201);
+    const diagnosis = await diagnose.json();
+    expect(diagnosis).toEqual(expect.objectContaining({
+      id: expect.any(Number),
+      sentence: 'We made the implementation of the policy yesterday.',
+      context: 'Slack update to my manager',
+      notes: [
+        expect.objectContaining({
+          span: 'made the implementation',
+          errorType: 'noun_plague',
+          hint: 'Find the action and make it the verb.',
+          bookReference: expect.objectContaining({
+            source: "The Translator's Guide to Chinglish",
+          }),
+        }),
+      ],
+    }));
+    expect(JSON.stringify(diagnosis)).not.toContain('We implemented the policy yesterday');
+    expect(JSON.stringify(diagnosis)).not.toContain('modelRewrite');
+    expect(JSON.stringify(diagnosis)).not.toContain('"after"');
+
+    const result = await fetch(`${baseUrl}/api/sentence-lab/result`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: diagnosis.id,
+        rewrite: 'We implemented the policy yesterday.',
+      }),
+    });
+
+    expect(result.status).toBe(200);
+    const revealed = await result.json();
+    expect(revealed.nativeVersion).toBe('We implemented the policy yesterday.');
+    expect(revealed.annotations[0]).toEqual(expect.objectContaining({
+      modelRewrite: 'implemented',
+      userRewrite: 'We implemented the policy yesterday.',
+      bookReference: expect.objectContaining({
+        pattern: expect.stringContaining('Noun Plague'),
+      }),
+    }));
+    expect(getTallies(db)).toEqual([
+      expect.objectContaining({ errorType: 'noun_plague', count: 1 }),
+    ]);
+    expect(getMistakeLog(db, 'noun_plague', 1)).toEqual([
+      expect.objectContaining({
+        span: 'made the implementation',
+        userRewrite: 'We implemented the policy yesterday.',
+      }),
+    ]);
+
+    const duplicate = await fetch(`${baseUrl}/api/sentence-lab/result`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: diagnosis.id,
+        rewrite: 'We implemented the policy yesterday.',
+      }),
+    });
+    expect(duplicate.status).toBe(200);
+    expect(getTallies(db)).toEqual([
+      expect.objectContaining({ errorType: 'noun_plague', count: 1 }),
+    ]);
   });
 });
 
@@ -647,8 +787,8 @@ it('GET /api/lesson returns a systematic lesson for a requested mistake type', a
       principle: expect.any(String),
       bookReference: {
         source: "The Translator's Guide to Chinglish",
-        pattern: expect.stringContaining('noun'),
-        quoteStatus: 'Attach the PDF to show exact source quotes.',
+        pattern: expect.stringContaining('Noun Plague'),
+        quote: expect.stringContaining('real action'),
         exampleBefore: 'carried out the implementation of the policy',
         exampleAfter: 'implemented the policy',
       },

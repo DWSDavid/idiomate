@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { ErrorType, LessonComparisonPair } from '../../../shared/types.js';
 import { ERROR_TYPES } from '../../../shared/types.js';
+import { findChinglishBookReference } from '../brain/chinglishBook.js';
 import { generateLesson } from '../brain/lessons.js';
 import { ERROR_TAXONOMY } from '../brain/taxonomy.js';
 import { rulesForTypes } from '../brain/rules.js';
@@ -18,11 +19,10 @@ function defaultErrorType(deps: AppDependencies): ErrorType {
     .filter(item => item.errorType !== 'vocab_suggestion')[0]?.errorType ?? 'small_grammar';
 }
 
-function bookReferenceFor(principle: string, example?: LessonComparisonPair) {
+function bookReferenceFor(errorType: ErrorType, ruleName: string, example?: LessonComparisonPair) {
+  const reference = findChinglishBookReference(errorType, ruleName);
   return {
-    source: "The Translator's Guide to Chinglish",
-    pattern: principle,
-    quoteStatus: 'Attach the PDF to show exact source quotes.',
+    ...reference,
     exampleBefore: example?.before,
     exampleAfter: example?.after,
   };
@@ -36,7 +36,7 @@ function lessonRules(errorType: ErrorType) {
       principle: rule.principle,
       mindset: rule.mindset,
       example: rule.example,
-      bookReference: bookReferenceFor(rule.principle, rule.example),
+      bookReference: bookReferenceFor(errorType, rule.name, rule.example),
     }));
   }
 
@@ -50,7 +50,7 @@ function lessonRules(errorType: ErrorType) {
     name: taxonomy.name,
     principle: taxonomy.whatItIs,
     example,
-    bookReference: bookReferenceFor(taxonomy.whatItIs, example),
+    bookReference: bookReferenceFor(errorType, taxonomy.name, example),
   }];
 }
 

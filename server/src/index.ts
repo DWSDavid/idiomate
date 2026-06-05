@@ -12,6 +12,7 @@ import { createProfileRouter } from './routes/profile.js';
 import { createProgressRouter } from './routes/progress.js';
 import { createPromptsRouter } from './routes/prompts.js';
 import { createResearchRouter } from './routes/research.js';
+import { createSentenceLabRouter } from './routes/sentenceLab.js';
 import { createSessionsRouter } from './routes/sessions.js';
 import { createStructureRouter } from './routes/structure.js';
 import { createVocabRouter } from './routes/vocab.js';
@@ -41,6 +42,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   app.use('/api/vocab', createVocabRouter(deps));
   app.use('/api/profile', createProfileRouter(deps));
   app.use('/api/research', createResearchRouter(deps));
+  app.use('/api/sentence-lab', createSentenceLabRouter(deps));
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const message = err instanceof Error ? err.message : 'Unknown server error';
     res.status(400).json({ error: message });

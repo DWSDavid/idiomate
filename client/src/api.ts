@@ -9,6 +9,8 @@ import type {
   Prompt,
   ProgressResponse,
   ResearchResponse,
+  SentenceLabDiagnosisResponse,
+  SentenceLabResultResponse,
   StructureResponse,
   Vocab,
   VocabListResponse,
@@ -117,6 +119,23 @@ export function researchEssay(essay: string): Promise<ResearchResponse> {
 
 export function structureDraft(draft: string): Promise<StructureResponse> {
   return postJson<StructureResponse>('/api/structure', { draft });
+}
+
+export function diagnoseSentenceLab(
+  sentence: string,
+  context?: string,
+): Promise<SentenceLabDiagnosisResponse> {
+  return postJson<SentenceLabDiagnosisResponse>('/api/sentence-lab/diagnose', {
+    sentence,
+    context: context?.trim() || undefined,
+  });
+}
+
+export function revealSentenceLabResult(
+  id: number,
+  rewrite: string,
+): Promise<SentenceLabResultResponse> {
+  return postJson<SentenceLabResultResponse>('/api/sentence-lab/result', { id, rewrite });
 }
 
 export function importVocab(file: File): Promise<{ count: number }> {

@@ -93,6 +93,18 @@ export function CompareView({ original, rewrite, nativeVersion, annotations }: C
                 <span className="font-medium text-stone-900">{annotation.ruleExample.after}</span>
               </p>
             ) : null}
+            {annotation.bookReference ? (
+              <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-xs leading-5 text-slate-600">
+                <p className="section-label text-indigo-500">Book connection</p>
+                <p className="mt-1 font-semibold text-indigo-800">{annotation.bookReference.source}</p>
+                <p className="mt-1">{annotation.bookReference.pattern}</p>
+                {annotation.bookReference.quote ? (
+                  <p className="mt-1 text-slate-500">"{annotation.bookReference.quote}"</p>
+                ) : (
+                  <p className="mt-1 text-slate-400">{annotation.bookReference.quoteStatus}</p>
+                )}
+              </div>
+            ) : null}
             {annotation.modelRewrite ? (
               <p className="mt-3 text-sm">
                 <span className="text-stone-400">Suggested: </span>

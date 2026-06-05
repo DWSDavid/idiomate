@@ -12,6 +12,11 @@ const ann = [{
   explanation: 'Redundancy.',
   rule: 'Drop empty category nouns',
   ruleExample: { before: 'in order to', after: 'to' },
+  bookReference: {
+    source: "The Translator's Guide to Chinglish",
+    pattern: 'Unnecessary Words',
+    quote: 'A sentence should contain no unnecessary words',
+  },
   modelRewrite: 'to',
 }];
 
@@ -65,6 +70,8 @@ it('hides nativeVersion until the user submits a rewrite', () => {
   expect(screen.getByText((_, node) => node?.textContent === 'We did X to Y.')).toBeInTheDocument();
   expect(screen.getByText('Drop empty category nouns')).toBeInTheDocument();
   expect(screen.getAllByText('in order to').length).toBeGreaterThan(0);
+  expect(screen.getByText("The Translator's Guide to Chinglish")).toBeInTheDocument();
+  expect(screen.getByText(/A sentence should contain no unnecessary words/)).toBeInTheDocument();
 });
 
 it('offers content research only after the user submits a rewrite', async () => {

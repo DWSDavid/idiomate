@@ -7,6 +7,7 @@ import { CaptureWord } from './components/CaptureWord';
 import { DailyPrompt } from './components/DailyPrompt';
 import { ProfileDashboard } from './components/ProfileDashboard';
 import { ProgressPanel } from './components/ProgressPanel';
+import { SentenceLab } from './components/SentenceLab';
 import { VocabPrime } from './components/VocabPrime';
 import { VocabularyPanel } from './components/VocabularyPanel';
 import { WriteSurface } from './components/WriteSurface';
@@ -117,6 +118,7 @@ export function App() {
           </section>
 
           <aside className="desk-rail desk-rail-right" aria-label="companion rail">
+            <SentenceLab onRecorded={() => setProfileKey(key => key + 1)} />
             <VocabPrime promptText={prompt?.text ?? ''} refreshKey={vocabKey} />
             <CaptureWord onSaved={() => setVocabKey(key => key + 1)} />
             <VocabularyPanel refreshKey={vocabKey + profileKey} />

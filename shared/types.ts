@@ -7,6 +7,15 @@ export type ErrorType = typeof ERROR_TYPES[number];
 export type VocabKind = 'word' | 'phrase' | 'collocation';
 export type YoudaoDirection = string;
 
+export interface BookReference {
+  source: string;
+  pattern: string;
+  quote?: string;
+  quoteStatus?: string;
+  exampleBefore?: string;
+  exampleAfter?: string;
+}
+
 export interface Annotation {
   span: string;            // exact substring of the paragraph
   errorType: ErrorType;
@@ -14,6 +23,7 @@ export interface Annotation {
   explanation: string;     // shown AFTER, names the error + why
   rule?: string;            // named grammar or Chinglish principle
   ruleExample?: { before: string; after: string };
+  bookReference?: BookReference;
   modelRewrite: string;    // hidden until user submits their rewrite
   vocabWord?: string;      // set when errorType === 'vocab_suggestion'
 }
@@ -91,14 +101,7 @@ export interface LessonRule {
   name: string;
   principle: string;
   mindset?: string;
-  bookReference?: {
-    source: string;
-    pattern: string;
-    quote?: string;
-    quoteStatus?: string;
-    exampleBefore?: string;
-    exampleAfter?: string;
-  };
+  bookReference?: BookReference;
 }
 
 export interface LessonComparisonPair {
@@ -176,4 +179,22 @@ export interface MistakeTrendSeries {
 export interface ProgressResponse {
   daily: ProgressDailyPoint[];
   trend: MistakeTrendSeries[];
+}
+
+export type SentenceLabNote = Pick<Annotation, 'span' | 'errorType' | 'hint' | 'explanation' | 'rule' | 'bookReference'>;
+
+export interface SentenceLabDiagnosisResponse {
+  id: number;
+  sentence: string;
+  context?: string;
+  notes: SentenceLabNote[];
+}
+
+export interface SentenceLabResultResponse {
+  id: number;
+  sentence: string;
+  context?: string;
+  rewrite: string;
+  nativeVersion?: string;
+  annotations: Array<Annotation & { userRewrite?: string; accepted?: boolean }>;
 }

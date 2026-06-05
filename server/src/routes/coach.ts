@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import type { AppDependencies } from '../appContext.js';
 import { config } from '../config.js';
+import { attachBookReferences } from '../brain/chinglishBook.js';
 import { coachParagraph } from '../brain/coach.js';
 import { getPrimeCandidates, getTallies } from '../db/dal.js';
 
@@ -33,7 +34,10 @@ export function createCoachRouter(deps: AppDependencies): Router {
         model: config.modelCoach,
       });
 
-      res.json(response);
+      res.json({
+        ...response,
+        annotations: attachBookReferences(response.annotations),
+      });
     } catch (err) {
       next(err);
     }

@@ -59,7 +59,7 @@ it('shows ranked mistakes and renders a structured teaching lesson with book lin
             bookReference: {
               source: "The Translator's Guide to Chinglish",
               pattern: 'Unnecessary shifts in verb time weaken the reader timeline.',
-              quoteStatus: 'Attach the PDF to show exact source quotes.',
+              quote: 'their function is served by the tense of the verb',
               exampleBefore: 'Yesterday I go to the meeting.',
               exampleAfter: 'Yesterday I went to the meeting.',
             },
@@ -105,7 +105,7 @@ it('shows ranked mistakes and renders a structured teaching lesson with book lin
     expect(screen.getByText('How to repair it')).toBeInTheDocument();
     expect(screen.getByText('Book connection')).toBeInTheDocument();
     expect(screen.getByText("The Translator's Guide to Chinglish")).toBeInTheDocument();
-    expect(screen.getByText('Attach the PDF to show exact source quotes.')).toBeInTheDocument();
+    expect(screen.getByText(/their function is served by the tense of the verb/)).toBeInTheDocument();
     expect(screen.getByText('Before')).toBeInTheDocument();
     expect(screen.getByText('After')).toBeInTheDocument();
   });

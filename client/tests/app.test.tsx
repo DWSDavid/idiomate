@@ -41,6 +41,7 @@ it('renders the single-page writing workspace', async () => {
   expect(screen.getByLabelText('Draft')).toBeInTheDocument();
   expect(screen.getByText('Your patterns')).toBeInTheDocument();
   expect(screen.getByText('Progress')).toBeInTheDocument();
+  expect(screen.getByText('Sentence Lab')).toBeInTheDocument();
   expect(screen.getByText('My vocabulary (0)')).toBeInTheDocument();
 });
 

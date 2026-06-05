@@ -51,6 +51,12 @@ export interface StructurePromptContext {
   draft: string;
 }
 
+export interface SentenceLabPromptContext {
+  sentence: string;
+  context?: string;
+  topErrors: ErrorType[];
+}
+
 function taxonomyReferenceSnippet(types: ErrorType[]): string {
   const seen = new Set<ErrorType>();
   const lines: string[] = [];
@@ -228,6 +234,35 @@ export function assembleStructurePrompt(ctx: StructurePromptContext): { system: 
       'Draft:',
       ctx.draft,
       'Assess the draft against a clear topic sentence, explanation, evidence, and commentary structure.',
+    ].join('\n\n'),
+  };
+}
+
+export function assembleSentenceLabPrompt(ctx: SentenceLabPromptContext): { system: string; user: string } {
+  const snippet = taxonomyReferenceSnippet(ALL_ERROR_TYPES);
+  const focusedRules = rulesForTypes(ctx.topErrors);
+  const ruleSnippet = rulesReferenceSnippet(focusedRules.length ? focusedRules : undefined);
+  const topErrors = ctx.topErrors.length ? ctx.topErrors.join(', ') : 'none yet';
+
+  return {
+    system: [
+      'You are the Idiomate Sentence Lab coach for an advanced Chinese-L1 writer.',
+      'Judge whether one sentence sounds natural in the stated context.',
+      'If it is natural, return no annotations and a nativeVersion that may match the original.',
+      'If it is unnatural, identify the smallest useful spans, name the specific grammar or Chinglish pattern, and give hints that do NOT reveal the fix.',
+      'The explanation should name what is wrong, why it feels unnatural, and the grammar or mindset involved.',
+      'For ruleExample, ruleExample.before MUST come from the user sentence for this exact issue, and ruleExample.after MUST be the corrected minimal pair. The API will hide ruleExample and all rewrites until the user submits their own rewrite.',
+      `The errorType field MUST be EXACTLY one of: ${ERROR_TYPES.join(', ')}. Put the specific principle name in the "rule" field, never in errorType.`,
+      'Also produce nativeVersion: a natural version of the whole sentence for the provided context.',
+      'Return ONLY JSON matching: {paragraphIndex,nativeVersion,annotations:[{span,errorType,rule,ruleExample:{before,after},hint,explanation,modelRewrite,vocabWord?}]}.',
+    ].join(' '),
+    user: [
+      'Sentence Lab input:',
+      ctx.sentence,
+      `Context: ${ctx.context?.trim() || 'none provided'}`,
+      `Prioritize these recurring error types when relevant: ${topErrors}`,
+      `Taxonomy:\n${snippet}`,
+      `Named grammar and Chinglish rules:\n${ruleSnippet}`,
     ].join('\n\n'),
   };
 }
