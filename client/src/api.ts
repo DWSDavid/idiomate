@@ -3,6 +3,7 @@ import type {
   CoachResponse,
   ErrorTally,
   ErrorType,
+  LessonResponse,
   MistakeLogItem,
   MistakeRankingItem,
   Prompt,
@@ -87,6 +88,13 @@ export function getMistakes(errorType?: ErrorType, limit = 50): Promise<{ mistak
   if (errorType) params.set('type', errorType);
   params.set('limit', String(limit));
   return fetch(`/api/mistakes?${params.toString()}`).then(readJson<{ mistakes: MistakeLogItem[] }>);
+}
+
+export function getLesson(errorType?: ErrorType): Promise<LessonResponse> {
+  const params = new URLSearchParams();
+  if (errorType) params.set('type', errorType);
+  const query = params.toString();
+  return fetch(`/api/lesson${query ? `?${query}` : ''}`).then(readJson<LessonResponse>);
 }
 
 export function importVocab(file: File): Promise<{ count: number }> {

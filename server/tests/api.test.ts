@@ -458,3 +458,93 @@ it('GET /api/mistakes returns a drill-down log optionally filtered by type', asy
     ]);
   });
 });
+
+it('GET /api/lesson returns a systematic lesson for a requested mistake type', async () => {
+  const sessionId = insertSession(db, { date: '2026-06-05', draftText: 'draft' });
+  insertAnnotations(db, sessionId, [
+    {
+      paragraphIdx: 0,
+      span: 'implementation of the policy',
+      errorType: 'noun_plague',
+      hint: 'Use a verb.',
+      explanation: 'Noun string.',
+      modelRewrite: 'implemented the policy',
+      rule: 'Prefer a verb over a noun string',
+      userRewrite: 'implemented the policy',
+    },
+  ]);
+  recordErrors(db, ['noun_plague']);
+  let captured: { system: string; user: string; model: string } | undefined;
+  const utilityProvider: LLMProvider = {
+    async complete(opts) {
+      captured = opts;
+      return JSON.stringify({
+        principle: '把抽象名词链改成更有动作感的英文动词结构。',
+        mindset: '先问 who does what, 再决定名词是否真的需要。',
+        extraPairs: [
+          { before: 'made a decision on the issue', after: 'decided the issue' },
+          { before: 'conducted an analysis of demand', after: 'analyzed demand' },
+          { before: 'achieved the reduction of costs', after: 'reduced costs' },
+        ],
+      });
+    },
+  };
+
+  await withServer(createApp({ db, utilityProvider }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/lesson?type=noun_plague`);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json).toEqual(expect.objectContaining({
+      errorType: 'noun_plague',
+      principle: '把抽象名词链改成更有动作感的英文动词结构。',
+      mindset: '先问 who does what, 再决定名词是否真的需要。',
+    }));
+    expect(json.rules[0]).toEqual(expect.objectContaining({
+      name: 'Prefer a verb over a noun string',
+      principle: expect.any(String),
+    }));
+    expect(json.pastInstances).toEqual([
+      {
+        errorType: 'noun_plague',
+        span: 'implementation of the policy',
+        userRewrite: 'implemented the policy',
+        rule: 'Prefer a verb over a noun string',
+        date: '2026-06-05',
+      },
+    ]);
+    expect(json.comparisonPairs).toHaveLength(4);
+    expect(json.comparisonPairs[0]).toEqual({
+      before: 'carried out the implementation of the policy',
+      after: 'implemented the policy',
+    });
+    expect(captured!.model).toBe('gpt-4o');
+    expect(captured!.user).toContain('implementation of the policy');
+    expect(captured!.system).toContain('before/after pairs must stay in English');
+  });
+});
+
+it('GET /api/lesson defaults to the top recurring mistake type', async () => {
+  recordErrors(db, ['word_choice', 'noun_plague', 'noun_plague']);
+  const utilityProvider: LLMProvider = {
+    async complete() {
+      return JSON.stringify({
+        principle: 'Use a stronger verb when the noun phrase is doing the work.',
+        mindset: 'Start from the action.',
+        extraPairs: [
+          { before: 'made an implementation of the plan', after: 'implemented the plan' },
+          { before: 'made an improvement to the process', after: 'improved the process' },
+          { before: 'conducted a review of the memo', after: 'reviewed the memo' },
+        ],
+      });
+    },
+  };
+
+  await withServer(createApp({ db, utilityProvider }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/lesson`);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.errorType).toBe('noun_plague');
+  });
+});

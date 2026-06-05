@@ -16,9 +16,19 @@ export interface GrammarRule {
   id: string;
   name: string;                       // short nameable handle, shown to the user
   principle: string;                  // the "why", one line
+  mindset?: string;                   // reviewer-authored Chinglish thinking note
   example: { before: string; after: string };
   relates: ErrorType[];               // taxonomy categories this rule serves
 }
+
+// REVIEWER MINDSET SEAM:
+// Claude can replace these original mindset notes without changing the lesson API.
+const CHINGLISH_MINDSET = {
+  calque: '不要先找中文短语的一一对应。先问英语里这个场景通常怎么搭配。',
+  nounPlague: '中文里常先搭一个抽象名词框架, 英文更常直接让动词承担动作。先问 who does what。',
+  redundancy: '中文里重复和铺垫有时显得完整, 英文读者更期待每个词增加新信息。',
+  overExplanation: '中文论述常用背景和限定来显得周全, 英文更看重主张是否直接。',
+} as const;
 
 export const GRAMMAR_RULES: GrammarRule[] = [
   {
@@ -74,6 +84,7 @@ export const GRAMMAR_RULES: GrammarRule[] = [
     id: 'start-with-or-by',
     name: 'start with / start by doing',
     principle: 'Use "start with + noun" or "start by + -ing"; not "start by a noun".',
+    mindset: CHINGLISH_MINDSET.calque,
     example: { before: 'start by a common problem', after: 'start with a common problem' },
     relates: ['calque', 'word_choice'],
   },
@@ -95,6 +106,7 @@ export const GRAMMAR_RULES: GrammarRule[] = [
     id: 'nominalization-to-verb',
     name: 'Prefer a verb over a noun string',
     principle: 'Replace an abstract noun phrase propped up by an empty verb with a single strong verb.',
+    mindset: CHINGLISH_MINDSET.nounPlague,
     example: { before: 'carried out the implementation of the policy', after: 'implemented the policy' },
     relates: ['noun_plague'],
   },
@@ -102,6 +114,7 @@ export const GRAMMAR_RULES: GrammarRule[] = [
     id: 'category-noun-drop',
     name: 'Drop empty category nouns',
     principle: 'Cut filler category nouns ("a state of", "the work of", "the problem of") that add no meaning.',
+    mindset: CHINGLISH_MINDSET.redundancy,
     example: { before: 'in a state of rapid growth', after: 'growing rapidly' },
     relates: ['redundancy'],
   },
@@ -109,8 +122,17 @@ export const GRAMMAR_RULES: GrammarRule[] = [
     id: 'redundant-twins',
     name: 'Avoid redundant twins',
     principle: 'Two near-synonyms joined by "and" usually say one thing; keep the stronger word.',
+    mindset: CHINGLISH_MINDSET.redundancy,
     example: { before: 'help and assistance', after: 'help' },
     relates: ['redundancy'],
+  },
+  {
+    id: 'state-core-claim-once',
+    name: 'State the core claim once',
+    principle: 'Say the main point once, then add only the qualification that changes the meaning.',
+    mindset: CHINGLISH_MINDSET.overExplanation,
+    example: { before: 'In my personal opinion, I think that we should wait.', after: 'We should wait.' },
+    relates: ['over_explanation'],
   },
   {
     id: 'one-idea-per-sentence',

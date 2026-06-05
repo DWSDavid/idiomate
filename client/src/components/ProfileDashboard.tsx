@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import type { ErrorTally, ErrorType, MistakeLogItem, MistakeRankingItem } from '../../../shared/types';
+import type { ErrorTally, ErrorType, LessonResponse, MistakeLogItem, MistakeRankingItem } from '../../../shared/types';
 import type { ProfileResponse } from '../api';
-import { getMistakes, getProfile } from '../api';
+import { getLesson, getMistakes, getProfile } from '../api';
 
 interface ProfileDashboardProps {
   refreshKey?: number;
@@ -11,8 +11,11 @@ export function ProfileDashboard({ refreshKey = 0 }: ProfileDashboardProps) {
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('loading');
   const [expanded, setExpanded] = useState<ErrorType | null>(null);
+  const [lessonOpen, setLessonOpen] = useState<ErrorType | null>(null);
   const [mistakeLogs, setMistakeLogs] = useState<Partial<Record<ErrorType, MistakeLogItem[]>>>({});
+  const [lessons, setLessons] = useState<Partial<Record<ErrorType, LessonResponse>>>({});
   const [logStatus, setLogStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [lessonStatus, setLessonStatus] = useState<'idle' | 'loading' | 'error'>('idle');
 
   useEffect(() => {
     let alive = true;
@@ -43,6 +46,21 @@ export function ProfileDashboard({ refreshKey = 0 }: ProfileDashboardProps) {
       setLogStatus('idle');
     } catch {
       setLogStatus('error');
+    }
+  };
+
+  const openLesson = async (errorType: ErrorType) => {
+    const nextOpen = lessonOpen === errorType ? null : errorType;
+    setLessonOpen(nextOpen);
+    if (!nextOpen || lessons[errorType]) return;
+
+    setLessonStatus('loading');
+    try {
+      const result = await getLesson(errorType);
+      setLessons(current => ({ ...current, [errorType]: result }));
+      setLessonStatus('idle');
+    } catch {
+      setLessonStatus('error');
     }
   };
 
@@ -94,6 +112,13 @@ export function ProfileDashboard({ refreshKey = 0 }: ProfileDashboardProps) {
                   ))}
                 </div>
               ) : null}
+              <button
+                type="button"
+                className="btn-ghost text-xs"
+                onClick={() => void openLesson(item.errorType)}
+              >
+                Learn {item.errorType.replace(/_/g, ' ')}
+              </button>
               {expanded === item.errorType ? (
                 <div className="space-y-2 rounded-lg border border-stone-200 p-3 text-xs text-stone-600">
                   <p className="font-medium text-stone-700">Where it happened</p>
@@ -109,6 +134,41 @@ export function ProfileDashboard({ refreshKey = 0 }: ProfileDashboardProps) {
                       {example.rule ? <p>Rule: {example.rule}</p> : null}
                     </div>
                   ))}
+                </div>
+              ) : null}
+              {lessonOpen === item.errorType ? (
+                <div className="space-y-3 rounded-lg border border-stone-200 p-3 text-xs text-stone-600">
+                  <p className="font-medium text-stone-700">Lesson</p>
+                  {lessonStatus === 'loading' ? <p>Loading lesson.</p> : null}
+                  {lessonStatus === 'error' ? <p className="text-red-700">Could not load lesson.</p> : null}
+                  {lessons[item.errorType] ? (
+                    <>
+                      <div>
+                        <p className="font-medium text-stone-900">Principle</p>
+                        <p>{lessons[item.errorType]!.principle}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-stone-900">Mindset</p>
+                        <p>{lessons[item.errorType]!.mindset}</p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-stone-900">Your past instances</p>
+                        {lessons[item.errorType]!.pastInstances.map(instance => (
+                          <p key={`${instance.date}-${instance.span}`}>
+                            {instance.span}{instance.userRewrite ? ` to ${instance.userRewrite}` : ''}
+                          </p>
+                        ))}
+                      </div>
+                      <div>
+                        <p className="font-medium text-stone-900">Comparison pairs</p>
+                        {lessons[item.errorType]!.comparisonPairs.map(pair => (
+                          <p key={`${pair.before}-${pair.after}`}>
+                            {pair.before} to {pair.after}
+                          </p>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
                 </div>
               ) : null}
             </div>

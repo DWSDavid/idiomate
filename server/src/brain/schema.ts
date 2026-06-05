@@ -47,3 +47,17 @@ export const enrichedVocabZ = z.object({
   collocations: z.array(z.string()).optional(),
   register: z.string().optional(),
 });
+
+export const lessonComparisonPairZ = z.object({
+  before: z.string().min(1),
+  after: z.string().min(1),
+  note: z.string().optional(),
+});
+
+export const lessonGeneratedZ = z.object({
+  principle: z.string().min(1),
+  mindset: z.string().min(1),
+  extraPairs: z.array(lessonComparisonPairZ).min(1).max(6),
+});
+
+export const lessonComparisonPairsZ = z.array(lessonComparisonPairZ).min(4).max(6);

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   assembleCoachPrompt,
   assembleDailyPrompt,
+  assembleLessonPrompt,
   assembleNewsPrompt,
   assemblePrimePrompt,
   generateNewsPrompt,
@@ -62,6 +63,36 @@ it('requires ruleExample to be contextual and keeps reference examples out of co
   expect(prompt.user).not.toContain('discussed the plan');
   expect(prompt.user).toContain('Word choice / collocation');
   expect(prompt.user).toContain('Singular count noun needs an article');
+});
+
+it('assembles a bilingual lesson prompt from rules and the user past instances', () => {
+  const prompt = assembleLessonPrompt({
+    errorType: 'noun_plague',
+    rules: [{
+      name: 'Prefer a verb over a noun string',
+      principle: 'Replace an abstract noun phrase propped up by an empty verb with a single strong verb.',
+      mindset: '中文里常先搭一个抽象名词框架, 英文更常直接让动词承担动作.',
+      example: { before: 'carried out the implementation of the policy', after: 'implemented the policy' },
+    }],
+    pastInstances: [{
+      errorType: 'noun_plague',
+      span: 'implementation of the policy',
+      userRewrite: 'implemented the policy',
+      rule: 'Prefer a verb over a noun string',
+      date: '2026-06-05',
+    }],
+    seedPairs: [
+      { before: 'carried out the implementation of the policy', after: 'implemented the policy' },
+    ],
+  });
+
+  expect(prompt.system).toContain('explanations, principle, and mindset may be in Chinese');
+  expect(prompt.system).toContain('before/after pairs must stay in English');
+  expect(prompt.user).toContain('noun_plague');
+  expect(prompt.user).toContain('implementation of the policy');
+  expect(prompt.user).toContain('Prefer a verb over a noun string');
+  expect(prompt.user).toContain('中文里常先搭一个抽象名词框架');
+  expect(prompt.user).toContain('Return additional comparison pairs');
 });
 
 it('falls back to the full named rule set when recurring errors are sparse', () => {

@@ -1,4 +1,4 @@
-import type { ErrorType, Vocab } from '../../../shared/types.js';
+import type { ErrorType, LessonComparisonPair, MistakeLogItem, Vocab } from '../../../shared/types.js';
 import { ERROR_TYPES } from '../../../shared/types.js';
 import { ALL_ERROR_TYPES, ERROR_TAXONOMY } from './taxonomy.js';
 import { GRAMMAR_RULES, type GrammarRule, rulesForTypes } from './rules.js';
@@ -10,6 +10,20 @@ export interface CoachPromptContext {
   paragraphIndex: number;
   topErrors: ErrorType[];
   vocabCandidates: Pick<Vocab, 'word' | 'defCn'>[];
+}
+
+export interface LessonPromptRule {
+  name: string;
+  principle: string;
+  mindset?: string;
+  example?: LessonComparisonPair;
+}
+
+export interface LessonPromptContext {
+  errorType: ErrorType;
+  rules: LessonPromptRule[];
+  pastInstances: MistakeLogItem[];
+  seedPairs: LessonComparisonPair[];
 }
 
 function taxonomyReferenceSnippet(types: ErrorType[]): string {
@@ -58,6 +72,47 @@ export function assembleCoachPrompt(ctx: CoachPromptContext): { system: string; 
       `Vocabulary candidates:\n${vocab}`,
       `Taxonomy:\n${snippet}`,
       `Named grammar and Chinglish rules:\n${ruleSnippet}`,
+    ].join('\n\n'),
+  };
+}
+
+export function assembleLessonPrompt(ctx: LessonPromptContext): { system: string; user: string } {
+  const rules = ctx.rules.length
+    ? ctx.rules.map(rule => [
+        `- ${rule.name}: ${rule.principle}`,
+        rule.mindset ? `  mindset: ${rule.mindset}` : undefined,
+        rule.example ? `  seed pair: "${rule.example.before}" -> "${rule.example.after}"` : undefined,
+      ].filter(Boolean).join('\n')).join('\n')
+    : '- none';
+  const instances = ctx.pastInstances.length
+    ? ctx.pastInstances.map(instance => [
+        `- span: ${instance.span}`,
+        instance.userRewrite ? `  user rewrite: ${instance.userRewrite}` : undefined,
+        instance.rule ? `  rule: ${instance.rule}` : undefined,
+        instance.date ? `  date: ${instance.date}` : undefined,
+      ].filter(Boolean).join('\n')).join('\n')
+    : '- none yet';
+  const seedPairs = ctx.seedPairs.length
+    ? ctx.seedPairs.map(pair => `- "${pair.before}" -> "${pair.after}"`).join('\n')
+    : '- none';
+
+  return {
+    system: [
+      'You create one systematic grammar lesson for Idiomate.',
+      'The learner is an advanced Chinese-L1 English writer.',
+      'The explanations, principle, and mindset may be in Chinese for clarity.',
+      'The before/after pairs must stay in English.',
+      'Use the learner past instances to tailor the lesson.',
+      'Return ONLY JSON matching: {principle,mindset,extraPairs:[{before,after,note?}]}.',
+      'Return additional comparison pairs, not repeats of the seed pairs.',
+      'The final lesson will combine seed pairs with your extraPairs, so provide enough extraPairs to reach 4 to 6 total pairs.',
+    ].join(' '),
+    user: [
+      `Error type: ${ctx.errorType}`,
+      `Rules:\n${rules}`,
+      `Past instances:\n${instances}`,
+      `Seed comparison pairs:\n${seedPairs}`,
+      'Return additional comparison pairs tailored to the past instances.',
     ].join('\n\n'),
   };
 }

@@ -65,3 +65,24 @@ export interface MistakeRankingItem {
 export interface MistakeLogItem extends MistakeExample {
   errorType: ErrorType;
 }
+
+export interface LessonRule {
+  name: string;
+  principle: string;
+  mindset?: string;
+}
+
+export interface LessonComparisonPair {
+  before: string;
+  after: string;
+  note?: string;
+}
+
+export interface LessonResponse {
+  errorType: ErrorType;
+  rules: LessonRule[];
+  principle: string;
+  mindset: string;
+  pastInstances: MistakeLogItem[];
+  comparisonPairs: LessonComparisonPair[];
+}
