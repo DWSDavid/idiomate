@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
 
 afterEach(() => {
+  cleanup();
   vi.unstubAllGlobals();
 });
 
@@ -29,4 +30,67 @@ it('renders the single-page writing workspace', async () => {
   expect(await screen.findByText(/Today's prompt/)).toBeInTheDocument();
   expect(screen.getByLabelText('Draft')).toBeInTheDocument();
   expect(screen.getByText('Your patterns')).toBeInTheDocument();
+});
+
+it('records a paragraph result and refetches the profile after rewrite submit', async () => {
+  let profileCalls = 0;
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes('/api/prompt/today')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 4,
+          date: '2026-06-05',
+          theme: 'finance',
+          text: 'Write one paragraph.',
+        }),
+      } as Response);
+    }
+    if (url.includes('/api/vocab/prime')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ topic: 'finance', vocab: [] }) } as Response);
+    }
+    if (url.includes('/api/profile')) {
+      profileCalls += 1;
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ tallies: [], activation: { suggested: 0, used: 0 } }) } as Response);
+    }
+    if (url.includes('/api/coach')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          paragraphIndex: 0,
+          nativeVersion: 'We need to shore up margins to calm investors.',
+          annotations: [{
+            span: 'in order to',
+            errorType: 'redundancy',
+            hint: 'Use fewer words.',
+            explanation: 'Redundancy.',
+            modelRewrite: 'to',
+          }],
+        }),
+      } as Response);
+    }
+    if (url.includes('/api/paragraph-result')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 10 }) } as Response);
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+
+  render(<App />);
+
+  fireEvent.change(await screen.findByLabelText('Draft'), {
+    target: { value: 'We need support margins in order to calm investors.' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: /^Coach$/ }));
+  fireEvent.click(await screen.findByRole('button', { name: 'Try the rewrite' }));
+  fireEvent.change(screen.getByRole('textbox', { name: '' }), {
+    target: { value: 'We need to shore up margins to calm investors.' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
+
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith('/api/paragraph-result', expect.objectContaining({ method: 'POST' }));
+    expect(profileCalls).toBeGreaterThanOrEqual(2);
+  });
 });

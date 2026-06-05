@@ -6,6 +6,7 @@ import {
   getTodayPrompt,
   importVocab,
   primeVocab,
+  recordParagraph,
   saveVocab,
   submitSession,
 } from '../src/api';
@@ -27,6 +28,7 @@ describe('client api', () => {
       if (url.includes('/api/vocab/prime')) return jsonResponse({ topic: 'tech', vocab: [] });
       if (url.includes('/api/profile')) return jsonResponse({ tallies: [], activation: { suggested: 0, used: 0 } });
       if (url.includes('/api/coach')) return jsonResponse({ paragraphIndex: 2, annotations: [] });
+      if (url.includes('/api/paragraph-result')) return jsonResponse({ id: 9 });
       if (url.includes('/api/sessions')) return jsonResponse({ id: 7 });
       if (url.includes('/api/vocab/import')) return jsonResponse({ count: 1 });
       if (url.includes('/api/vocab/capture')) return jsonResponse({ word: 'shore up' });
@@ -39,6 +41,13 @@ describe('client api', () => {
     await primeVocab('tech risk');
     await getProfile();
     await coach('A paragraph.', 2);
+    await recordParagraph({
+      date: '2026-06-05',
+      paragraphIdx: 2,
+      paragraph: 'A paragraph.',
+      rewrite: 'A clearer paragraph.',
+      annotations: [],
+    });
     await submitSession({ draftText: 'A paragraph.', annotations: [] });
     await importVocab(new File(['word'], 'vocabs.txt', { type: 'text/plain' }));
     await captureWord('shore up', 'We need to shore up margins.');
@@ -48,9 +57,10 @@ describe('client api', () => {
     expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/vocab/prime?promptText=tech+risk&limit=10');
     expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/profile');
     expect(fetchMock).toHaveBeenNthCalledWith(4, '/api/coach', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(5, '/api/sessions', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(6, '/api/vocab/import', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(7, '/api/vocab/capture', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(8, '/api/vocab/save', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(5, '/api/paragraph-result', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(6, '/api/sessions', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(7, '/api/vocab/import', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(8, '/api/vocab/capture', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock).toHaveBeenNthCalledWith(9, '/api/vocab/save', expect.objectContaining({ method: 'POST' }));
   });
 });

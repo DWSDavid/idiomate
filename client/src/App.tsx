@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { CoachResponse, Prompt } from '../../shared/types';
-import { coach, submitSession as postSession, type SubmittedAnnotation } from './api';
+import { coach, submitSession as postSession } from './api';
 import { CoachPanel } from './components/CoachPanel';
 import type { ComparedAnnotation } from './components/CompareView';
 import { CaptureWord } from './components/CaptureWord';
@@ -19,7 +19,6 @@ export function App() {
   const [draft, setDraft] = useState('');
   const [coachingIndex, setCoachingIndex] = useState<number | undefined>();
   const [coachPanels, setCoachPanels] = useState<Record<number, CoachPanelState>>({});
-  const [submittedAnnotations, setSubmittedAnnotations] = useState<SubmittedAnnotation[]>([]);
   const [sessionStatus, setSessionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [profileKey, setProfileKey] = useState(0);
   const [vocabKey, setVocabKey] = useState(0);
@@ -34,13 +33,7 @@ export function App() {
     }
   };
 
-  const handleCoachSubmit = (paragraphIndex: number) => (rewrite: string, accepted: ComparedAnnotation[]) => {
-    const next = accepted.map(annotation => ({ ...annotation, paragraphIdx: paragraphIndex, userRewrite: rewrite }));
-    setSubmittedAnnotations(current => [
-      ...current.filter(annotation => annotation.paragraphIdx !== paragraphIndex),
-      ...next,
-    ]);
-  };
+  const handleCoachSubmit = (_paragraphIndex: number) => (_rewrite: string, _accepted: ComparedAnnotation[]) => {};
 
   const handleSubmitSession = async () => {
     if (!draft.trim()) return;
@@ -51,7 +44,6 @@ export function App() {
         promptId: prompt?.id,
         draftText: draft,
         finalText: draft,
-        annotations: submittedAnnotations,
       });
       setSessionStatus('saved');
       setProfileKey(key => key + 1); // refetch profile so tallies + activation update after submit
@@ -104,6 +96,12 @@ export function App() {
             paragraph={item.paragraph}
             nativeVersion={item.response.nativeVersion}
             annotations={item.response.annotations}
+            recordContext={{
+              date: prompt?.date,
+              promptId: prompt?.id,
+              paragraphIdx: Number(paragraphIndex),
+            }}
+            onRecorded={() => setProfileKey(key => key + 1)}
             onSubmit={handleCoachSubmit(Number(paragraphIndex))}
           />
         ))}

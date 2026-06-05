@@ -23,6 +23,15 @@ export interface SessionSubmitPayload {
   annotations?: SubmittedAnnotation[];
 }
 
+export interface ParagraphResultPayload {
+  date?: string;
+  promptId?: number;
+  paragraphIdx: number;
+  paragraph: string;
+  rewrite: string;
+  annotations?: Omit<SubmittedAnnotation, 'paragraphIdx' | 'userRewrite'>[];
+}
+
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
@@ -53,6 +62,10 @@ export function coach(paragraph: string, paragraphIndex: number): Promise<CoachR
 
 export function submitSession(payload: SessionSubmitPayload): Promise<{ id: number }> {
   return postJson<{ id: number }>('/api/sessions', payload);
+}
+
+export function recordParagraph(payload: ParagraphResultPayload): Promise<{ id: number }> {
+  return postJson<{ id: number }>('/api/paragraph-result', payload);
 }
 
 export function getProfile(): Promise<ProfileResponse> {

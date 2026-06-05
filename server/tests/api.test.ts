@@ -110,6 +110,96 @@ it('POST /api/sessions records errors and increments accepted vocab suggestions'
   });
 });
 
+it('POST /api/paragraph-result records a paragraph rewrite idempotently', async () => {
+  insertVocab(db, [{ word: 'shore up', kind: 'phrase', timesSuggested: 0, timesUsed: 0 }]);
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const body = {
+      date: '2026-06-05',
+      promptId: 1,
+      paragraphIdx: 0,
+      paragraph: 'We need support margins in order to calm investors.',
+      rewrite: 'We need to shore up margins to calm investors.',
+      annotations: [
+        {
+          span: 'in order to',
+          errorType: 'redundancy',
+          hint: 'Use fewer words.',
+          explanation: 'Redundancy.',
+          rule: 'Drop empty category nouns',
+          ruleExample: { before: 'in order to', after: 'to' },
+          modelRewrite: 'to',
+        },
+        {
+          span: 'support',
+          errorType: 'vocab_suggestion',
+          hint: 'A phrase from your vocab fits here.',
+          explanation: 'Vocab opportunity.',
+          modelRewrite: 'shore up',
+          vocabWord: 'shore up',
+          accepted: true,
+        },
+      ],
+    };
+
+    const first = await fetch(`${baseUrl}/api/paragraph-result`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const duplicate = await fetch(`${baseUrl}/api/paragraph-result`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    expect(first.status).toBe(201);
+    expect(duplicate.status).toBe(200);
+    expect(getTallies(db)).toEqual([
+      expect.objectContaining({ errorType: 'redundancy', count: 1 }),
+    ]);
+    expect(getPrimeCandidates(db, 1)[0].timesUsed).toBe(1);
+
+    const replacement = await fetch(`${baseUrl}/api/paragraph-result`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...body,
+        rewrite: 'We need to shore up margins to calm investors quickly.',
+        annotations: [
+          {
+            span: 'support',
+            errorType: 'vocab_suggestion',
+            hint: 'A phrase from your vocab fits here.',
+            explanation: 'Vocab opportunity.',
+            modelRewrite: 'shore up',
+            vocabWord: 'shore up',
+            accepted: true,
+          },
+        ],
+      }),
+    });
+
+    expect(replacement.status).toBe(200);
+    expect(getTallies(db)).toEqual([]);
+    expect(getPrimeCandidates(db, 1)[0].timesUsed).toBe(1);
+    const sessions = db.prepare('SELECT id FROM sessions').all() as { id: number }[];
+    expect(sessions).toHaveLength(1);
+    const rows = db.prepare(`
+      SELECT paragraph_idx, span_text, user_rewrite
+      FROM annotations
+      ORDER BY id
+    `).all() as { paragraph_idx: number; span_text: string; user_rewrite: string }[];
+    expect(rows).toEqual([
+      {
+        paragraph_idx: 0,
+        span_text: 'support',
+        user_rewrite: 'We need to shore up margins to calm investors quickly.',
+      },
+    ]);
+  });
+});
+
 it('POST /api/vocab/save upserts and GET /api/vocab/prime returns LLM-selected topic-fit candidates', async () => {
   upsertVocab(db, { word: 'plain', kind: 'word', captureCount: 1, timesSuggested: 0, timesUsed: 0 });
   upsertVocab(db, { word: 'overused', kind: 'word', captureCount: 9, timesSuggested: 0, timesUsed: 12 });

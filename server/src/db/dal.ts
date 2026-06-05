@@ -27,6 +27,12 @@ interface ErrorTallyRow {
   last_seen: string;
 }
 
+interface StoredAnnotationRow {
+  error_type: ErrorType;
+  model_rewrite: string | null;
+  accepted: number;
+}
+
 export interface InsertSessionInput {
   date?: string;
   promptId?: number;
@@ -39,6 +45,23 @@ export interface InsertAnnotationInput extends Annotation {
   paragraphIdx: number;
   userRewrite?: string;
   accepted?: boolean;
+}
+
+export interface ParagraphResultInput {
+  date?: string;
+  promptId?: number;
+  paragraphIdx: number;
+  paragraph: string;
+  rewrite: string;
+  annotations: Array<Omit<InsertAnnotationInput, 'paragraphIdx' | 'userRewrite'> & {
+    paragraphIdx?: number;
+    userRewrite?: string;
+  }>;
+}
+
+export interface ParagraphResultRecord {
+  sessionId: number;
+  created: boolean;
 }
 
 export function normalizeVocabWord(word: string): string {
@@ -255,6 +278,14 @@ export function incrementVocabUsed(db: Database.Database, word: string) {
   `).run(normalizeVocabWord(word));
 }
 
+export function decrementVocabUsed(db: Database.Database, word: string) {
+  db.prepare(`
+    UPDATE vocab
+    SET times_used = CASE WHEN times_used > 0 THEN times_used - 1 ELSE 0 END
+    WHERE normalized = ?
+  `).run(normalizeVocabWord(word));
+}
+
 export function incrementVocabSuggested(db: Database.Database, words: string[]) {
   const stmt = db.prepare(`
     UPDATE vocab
@@ -283,6 +314,22 @@ export function recordErrors(db: Database.Database, types: ErrorType[]) {
     }
   });
   recordMany(types);
+}
+
+function decrementErrors(db: Database.Database, types: ErrorType[]) {
+  const decrement = db.prepare(`
+    UPDATE error_tally
+    SET count = CASE WHEN count > 0 THEN count - 1 ELSE 0 END
+    WHERE error_type = ?
+  `);
+  const deleteEmpty = db.prepare('DELETE FROM error_tally WHERE count <= 0');
+  const decrementMany = db.transaction((items: ErrorType[]) => {
+    for (const type of items) {
+      decrement.run(type);
+    }
+    deleteEmpty.run();
+  });
+  decrementMany(types);
 }
 
 export function getTallies(db: Database.Database): ErrorTally[] {
@@ -320,6 +367,74 @@ export function insertSession(db: Database.Database, input: InsertSessionInput):
   return Number(result.lastInsertRowid);
 }
 
+function sessionDay(date?: string): string {
+  return date?.trim() || new Date().toISOString().slice(0, 10);
+}
+
+function findSessionForDay(db: Database.Database, date: string, promptId?: number): number | undefined {
+  const row = db.prepare(`
+    SELECT id
+    FROM sessions
+    WHERE date = @date
+      AND (
+        (@promptId IS NULL AND prompt_id IS NULL)
+        OR prompt_id = @promptId
+      )
+    ORDER BY id ASC
+    LIMIT 1
+  `).get({ date, promptId: promptId ?? null }) as { id: number } | undefined;
+  return row?.id;
+}
+
+function getOrCreateParagraphSession(db: Database.Database, input: ParagraphResultInput): ParagraphResultRecord {
+  const date = sessionDay(input.date);
+  const existing = findSessionForDay(db, date, input.promptId);
+  if (existing) {
+    db.prepare(`
+      UPDATE sessions
+      SET draft_text = CASE
+          WHEN draft_text IS NULL OR draft_text = '' THEN @paragraph
+          ELSE draft_text
+        END
+      WHERE id = @id
+    `).run({ id: existing, paragraph: input.paragraph });
+    return { sessionId: existing, created: false };
+  }
+
+  const sessionId = insertSession(db, {
+    date,
+    promptId: input.promptId,
+    draftText: input.paragraph,
+  });
+  return { sessionId, created: true };
+}
+
+function tallyErrorTypes(rows: StoredAnnotationRow[]): ErrorType[] {
+  return rows
+    .map(row => row.error_type)
+    .filter(errorType => errorType !== 'vocab_suggestion');
+}
+
+function acceptedVocabWords(rows: StoredAnnotationRow[]): string[] {
+  return rows
+    .filter(row => row.error_type === 'vocab_suggestion' && row.accepted === 1)
+    .map(row => row.model_rewrite)
+    .filter((word): word is string => Boolean(word?.trim()));
+}
+
+function submittedErrorTypes(annotations: InsertAnnotationInput[]): ErrorType[] {
+  return annotations
+    .map(annotation => annotation.errorType)
+    .filter(errorType => errorType !== 'vocab_suggestion');
+}
+
+function submittedVocabWords(annotations: InsertAnnotationInput[]): string[] {
+  return annotations
+    .filter(annotation => annotation.errorType === 'vocab_suggestion' && annotation.accepted)
+    .map(annotation => annotation.vocabWord ?? annotation.modelRewrite)
+    .filter((word): word is string => Boolean(word?.trim()));
+}
+
 export function insertAnnotations(
   db: Database.Database,
   sessionId: number,
@@ -353,4 +468,42 @@ export function insertAnnotations(
     }
   });
   insertMany(annotations);
+}
+
+export function recordParagraphResult(
+  db: Database.Database,
+  input: ParagraphResultInput,
+): ParagraphResultRecord {
+  const applyResult = db.transaction(() => {
+    const session = getOrCreateParagraphSession(db, input);
+    const previous = db.prepare(`
+      SELECT error_type, model_rewrite, accepted
+      FROM annotations
+      WHERE session_id = ? AND paragraph_idx = ?
+    `).all(session.sessionId, input.paragraphIdx) as StoredAnnotationRow[];
+
+    db.prepare('DELETE FROM annotations WHERE session_id = ? AND paragraph_idx = ?')
+      .run(session.sessionId, input.paragraphIdx);
+
+    const nextAnnotations: InsertAnnotationInput[] = input.annotations.map(annotation => ({
+      ...annotation,
+      paragraphIdx: input.paragraphIdx,
+      userRewrite: input.rewrite,
+    }));
+    insertAnnotations(db, session.sessionId, nextAnnotations);
+
+    decrementErrors(db, tallyErrorTypes(previous));
+    recordErrors(db, submittedErrorTypes(nextAnnotations));
+
+    for (const word of acceptedVocabWords(previous)) {
+      decrementVocabUsed(db, word);
+    }
+    for (const word of submittedVocabWords(nextAnnotations)) {
+      incrementVocabUsed(db, word);
+    }
+
+    return session;
+  });
+
+  return applyResult();
 }

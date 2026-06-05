@@ -1,17 +1,26 @@
 import React, { useState } from 'react';
 import type { Annotation } from '../../../shared/types';
+import { recordParagraph } from '../api';
 import { CompareView, type ComparedAnnotation } from './CompareView';
 
 type CoachPhase = 'review' | 'rewriting' | 'compared';
+
+interface RecordContext {
+  date?: string;
+  promptId?: number;
+  paragraphIdx: number;
+}
 
 interface CoachPanelProps {
   paragraph: string;
   nativeVersion?: string;
   annotations: Annotation[];
+  recordContext?: RecordContext;
+  onRecorded?: () => void;
   onSubmit: (rewrite: string, accepted: ComparedAnnotation[]) => void;
 }
 
-export function CoachPanel({ paragraph, nativeVersion, annotations, onSubmit }: CoachPanelProps) {
+export function CoachPanel({ paragraph, nativeVersion, annotations, recordContext, onRecorded, onSubmit }: CoachPanelProps) {
   const [phase, setPhase] = useState<CoachPhase>('review');
   const [rewrite, setRewrite] = useState(paragraph);
   const [accepted, setAccepted] = useState<ComparedAnnotation[]>([]);
@@ -29,6 +38,14 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, onSubmit }: 
     setAccepted(compared);
     setPhase('compared');
     onSubmit(rewrite, compared);
+    if (recordContext) {
+      void recordParagraph({
+        ...recordContext,
+        paragraph,
+        rewrite,
+        annotations: compared.map(({ userRewrite: _userRewrite, ...annotation }) => annotation),
+      }).then(onRecorded).catch(() => undefined);
+    }
   };
 
   if (phase === 'compared') {
