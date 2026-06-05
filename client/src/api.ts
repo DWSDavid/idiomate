@@ -7,6 +7,7 @@ import type {
   MistakeLogItem,
   MistakeRankingItem,
   Prompt,
+  ResearchResponse,
   Vocab,
 } from '../../shared/types';
 
@@ -95,6 +96,10 @@ export function getLesson(errorType?: ErrorType): Promise<LessonResponse> {
   if (errorType) params.set('type', errorType);
   const query = params.toString();
   return fetch(`/api/lesson${query ? `?${query}` : ''}`).then(readJson<LessonResponse>);
+}
+
+export function researchEssay(essay: string): Promise<ResearchResponse> {
+  return postJson<ResearchResponse>('/api/research', { essay });
 }
 
 export function importVocab(file: File): Promise<{ count: number }> {

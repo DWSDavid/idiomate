@@ -86,3 +86,32 @@ export interface LessonResponse {
   pastInstances: MistakeLogItem[];
   comparisonPairs: LessonComparisonPair[];
 }
+
+export interface NewsItem {
+  title: string;
+  link: string;
+  source?: string;
+}
+
+export interface ResearchSource {
+  title: string;
+  link: string;
+  summary: string;
+}
+
+export type IntegrationStructurePart = 'topic sentence' | 'claim' | 'evidence' | 'commentary';
+
+export interface IntegrationNote {
+  insertedAfter: string;
+  what: string;
+  why: string;
+  structurePart: IntegrationStructurePart;
+}
+
+export interface ResearchResponse {
+  analysis: string;
+  otherAngles: string[];
+  sources: ResearchSource[];
+  integratedEssay: string;
+  integrationNotes: IntegrationNote[];
+}

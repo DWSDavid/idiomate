@@ -1,3 +1,5 @@
+import type { NewsItem } from '../../shared/types.js';
+
 export const NEWS_TOPICS = [
   'private equity',
   'humanoid robotics',
@@ -18,7 +20,7 @@ export async function fetchHeadlines(
   fetchImpl: FetchLike = fetch,
 ): Promise<string[]> {
   try {
-    const url = `https://news.google.com/rss/search?q=${encodeURIComponent(topic)}&hl=en-US&gl=US&ceid=US:en`;
+    const url = googleNewsUrl(topic);
     const response = await fetchImpl(url);
     if (response.ok === false) return [];
     const xml = await response.text();
@@ -26,6 +28,24 @@ export async function fetchHeadlines(
   } catch {
     return [];
   }
+}
+
+export async function fetchNews(
+  query: string,
+  fetchImpl: FetchLike = fetch,
+): Promise<NewsItem[]> {
+  try {
+    const response = await fetchImpl(googleNewsUrl(query));
+    if (response.ok === false) return [];
+    const xml = await response.text();
+    return parseNewsItems(xml).slice(0, 6);
+  } catch {
+    return [];
+  }
+}
+
+function googleNewsUrl(query: string): string {
+  return `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=en-US&gl=US&ceid=US:en`;
 }
 
 function parseTitles(xml: string): string[] {
@@ -37,6 +57,32 @@ function parseTitles(xml: string): string[] {
     if (title) titles.push(decodeXml(title));
   }
   return titles;
+}
+
+function parseNewsItems(xml: string): NewsItem[] {
+  const items: NewsItem[] = [];
+  const itemRe = /<item\b[\s\S]*?<\/item>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = itemRe.exec(xml)) !== null) {
+    const block = match[0];
+    const title = readTag(block, 'title');
+    const link = readTag(block, 'link');
+    if (!title || !link) continue;
+    items.push({
+      title,
+      link,
+      source: readTag(block, 'source') || undefined,
+    });
+  }
+  return items;
+}
+
+function readTag(xml: string, tag: string): string | undefined {
+  const re = new RegExp(`<${tag}\\b[^>]*>([\\s\\S]*?)<\\/${tag}>`, 'i');
+  const match = re.exec(xml);
+  const value = match?.[1];
+  if (!value) return undefined;
+  return decodeXml(stripCdata(value).trim());
 }
 
 function stripCdata(value: string): string {

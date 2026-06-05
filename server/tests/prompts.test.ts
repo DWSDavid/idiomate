@@ -5,6 +5,9 @@ import {
   assembleLessonPrompt,
   assembleNewsPrompt,
   assemblePrimePrompt,
+  assembleResearchIntegrationPrompt,
+  assembleResearchPrompt,
+  assembleSourceSummaryPrompt,
   generateNewsPrompt,
   generateDailyPrompt,
   selectPrimeWords,
@@ -215,4 +218,34 @@ it('validates generated news prompt JSON and sends headlines to the provider', a
   expect(prompt.text).toContain('humanoid robots');
   expect(captured!.model).toBe('utility-test');
   expect(captured!.user).toContain('Humanoid robots enter warehouses');
+});
+
+it('assembles research prompts for analysis, source summaries, and evidence integration', () => {
+  const essay = 'AI capex may pressure margins, but it can also deepen cloud moats.';
+  const analysis = assembleResearchPrompt({ essay });
+  const summaries = assembleSourceSummaryPrompt({
+    essay,
+    sources: [
+      { title: 'Cloud firms raise AI spending', link: 'https://example.com/ai-capex', source: 'Example Wire' },
+    ],
+  });
+  const integration = assembleResearchIntegrationPrompt({
+    essay,
+    sources: [
+      {
+        title: 'Cloud firms raise AI spending',
+        link: 'https://example.com/ai-capex',
+        summary: 'Cloud providers are increasing AI infrastructure budgets.',
+      },
+    ],
+  });
+
+  expect(analysis.system).toContain('argument analyst');
+  expect(analysis.system).toContain('searchQueries');
+  expect(analysis.user).toContain('AI capex may pressure margins');
+  expect(summaries.system).toContain('one-sentence summaries');
+  expect(summaries.user).toContain('https://example.com/ai-capex');
+  expect(integration.system).toContain('integratedEssay');
+  expect(integration.system).toContain('topic sentence / claim / evidence / commentary');
+  expect(integration.user).toContain('Cloud providers are increasing AI infrastructure budgets');
 });

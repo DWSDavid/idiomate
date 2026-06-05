@@ -17,6 +17,7 @@ const ann = [{
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
 });
 
 it('hides modelRewrite until submit', () => {
@@ -64,4 +65,45 @@ it('hides nativeVersion until the user submits a rewrite', () => {
   expect(screen.getByText((_, node) => node?.textContent === 'We did X to Y.')).toBeInTheDocument();
   expect(screen.getByText('Drop empty category nouns')).toBeInTheDocument();
   expect(screen.getAllByText('in order to').length).toBeGreaterThan(0);
+});
+
+it('offers content research only after the user submits a rewrite', async () => {
+  const fetchMock = vi.fn(() => Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({
+      analysis: 'The argument needs fresher evidence.',
+      otherAngles: ['Supplier constraints'],
+      sources: [
+        {
+          title: 'Cloud firms raise AI spending',
+          link: 'https://example.com/ai-capex',
+          summary: 'Cloud providers are raising AI infrastructure budgets.',
+        },
+      ],
+      integratedEssay: 'We did X to Y. Current evidence would make the claim stronger.',
+      integrationNotes: [
+        {
+          insertedAfter: 'We did X to Y.',
+          what: 'Added evidence slot.',
+          why: 'It supports the claim.',
+          structurePart: 'evidence',
+        },
+      ],
+    }),
+  } as Response));
+  vi.stubGlobal('fetch', fetchMock);
+
+  render(<CoachPanel paragraph="We did X in order to Y" annotations={ann as any} onSubmit={() => {}} />);
+
+  expect(screen.queryByRole('button', { name: 'Content check' })).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'We did X to Y.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Content check' }));
+
+  expect(await screen.findByText('The argument needs fresher evidence.')).toBeInTheDocument();
+  expect(screen.getByText('Cloud firms raise AI spending')).toBeInTheDocument();
+  expect(screen.getByText('We did X to Y. Current evidence would make the claim stronger.')).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith('/api/research', expect.objectContaining({ method: 'POST' }));
 });

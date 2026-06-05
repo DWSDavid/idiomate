@@ -61,3 +61,33 @@ export const lessonGeneratedZ = z.object({
 });
 
 export const lessonComparisonPairsZ = z.array(lessonComparisonPairZ).min(4).max(6);
+
+export const researchAnalysisZ = z.object({
+  analysis: z.string().min(1),
+  otherAngles: z.array(z.string().min(1)).default([]),
+  searchQueries: z.array(z.string().min(1)).default([]),
+});
+
+export const researchSourceSummaryZ = z.object({
+  title: z.string().min(1),
+  link: z.string().min(1),
+  summary: z.string().min(1),
+});
+
+export const researchSourceSummariesZ = z.object({
+  sources: z.array(researchSourceSummaryZ).default([]),
+});
+
+export const integrationStructurePartZ = z.enum(['topic sentence', 'claim', 'evidence', 'commentary']);
+
+export const integrationNoteZ = z.object({
+  insertedAfter: z.string().min(1),
+  what: z.string().min(1),
+  why: z.string().min(1),
+  structurePart: integrationStructurePartZ,
+});
+
+export const researchIntegrationZ = z.object({
+  integratedEssay: z.string().min(1),
+  integrationNotes: z.array(integrationNoteZ).default([]),
+});

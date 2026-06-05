@@ -10,6 +10,7 @@ import { createMistakesRouter } from './routes/mistakes.js';
 import { createParagraphsRouter } from './routes/paragraphs.js';
 import { createProfileRouter } from './routes/profile.js';
 import { createPromptsRouter } from './routes/prompts.js';
+import { createResearchRouter } from './routes/research.js';
 import { createSessionsRouter } from './routes/sessions.js';
 import { createVocabRouter } from './routes/vocab.js';
 
@@ -22,6 +23,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
     coachProvider: overrides.coachProvider ?? new OpenAIProvider(config.apiKey),
     utilityProvider: overrides.utilityProvider ?? new OpenAIProvider(config.apiKey),
     headlineFetcher: overrides.headlineFetcher,
+    newsFetcher: overrides.newsFetcher,
   };
 
   const app = express();
@@ -34,6 +36,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   app.use('/api/sessions', createSessionsRouter(deps));
   app.use('/api/vocab', createVocabRouter(deps));
   app.use('/api/profile', createProfileRouter(deps));
+  app.use('/api/research', createResearchRouter(deps));
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const message = err instanceof Error ? err.message : 'Unknown server error';
     res.status(400).json({ error: message });

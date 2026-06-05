@@ -548,3 +548,142 @@ it('GET /api/lesson defaults to the top recurring mistake type', async () => {
     expect(json.errorType).toBe('noun_plague');
   });
 });
+
+it('POST /api/research returns sourced analysis and an evidence-integrated essay', async () => {
+  const calls: string[] = [];
+  const utilityProvider: LLMProvider = {
+    async complete(opts) {
+      calls.push(opts.system);
+      if (opts.system.includes('argument analyst')) {
+        return JSON.stringify({
+          analysis: 'The claim is plausible, but it needs current evidence on spending and margins.',
+          otherAngles: ['Supplier concentration', 'Depreciation pressure'],
+          searchQueries: ['AI capex cloud margins', 'AI chip supply constraints'],
+        });
+      }
+      if (opts.system.includes('one-sentence summaries')) {
+        return JSON.stringify({
+          sources: [
+            {
+              title: 'Cloud firms raise AI spending',
+              link: 'https://example.com/ai-capex',
+              summary: 'Cloud providers are increasing AI infrastructure budgets despite margin concerns.',
+            },
+            {
+              title: 'Chip supply remains tight',
+              link: 'https://example.com/chip-supply',
+              summary: 'Advanced chip supply remains a bottleneck for AI infrastructure expansion.',
+            },
+          ],
+        });
+      }
+      return JSON.stringify({
+        integratedEssay: 'AI capex may pressure margins in the short term. Evidence from Example Wire shows that cloud providers are increasing AI infrastructure budgets despite margin concerns. That makes the margin risk concrete, while tight chip supply also suggests the spending cycle may remain supply constrained.',
+        integrationNotes: [
+          {
+            insertedAfter: 'AI capex may pressure margins in the short term.',
+            what: 'Added current AI infrastructure spending evidence from Example Wire.',
+            why: 'It turns a broad claim about margin pressure into a supported evidence point.',
+            structurePart: 'evidence',
+          },
+          {
+            insertedAfter: 'spending cycle',
+            what: 'Added the chip supply constraint angle.',
+            why: 'It broadens the argument beyond demand and valuation.',
+            structurePart: 'commentary',
+          },
+        ],
+      });
+    },
+  };
+
+  await withServer(createApp({
+    db,
+    utilityProvider,
+    newsFetcher: async query => query.includes('chip')
+      ? [{ title: 'Chip supply remains tight', link: 'https://example.com/chip-supply', source: 'Example Markets' }]
+      : [{ title: 'Cloud firms raise AI spending', link: 'https://example.com/ai-capex', source: 'Example Wire' }],
+  }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/research`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        essay: 'AI capex may pressure margins in the short term, but it can also deepen cloud moats.',
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.analysis).toContain('needs current evidence');
+    expect(json.otherAngles).toEqual(['Supplier concentration', 'Depreciation pressure']);
+    expect(json.sources).toEqual([
+      {
+        title: 'Cloud firms raise AI spending',
+        link: 'https://example.com/ai-capex',
+        summary: 'Cloud providers are increasing AI infrastructure budgets despite margin concerns.',
+      },
+      {
+        title: 'Chip supply remains tight',
+        link: 'https://example.com/chip-supply',
+        summary: 'Advanced chip supply remains a bottleneck for AI infrastructure expansion.',
+      },
+    ]);
+    expect(json.integratedEssay).toContain('Evidence from Example Wire');
+    expect(json.integrationNotes[0]).toEqual(expect.objectContaining({
+      structurePart: 'evidence',
+      why: expect.stringContaining('supported evidence point'),
+    }));
+    expect(calls).toHaveLength(3);
+  });
+});
+
+it('POST /api/research survives news failure with analysis and a structure-only integrated essay', async () => {
+  let summaryCalls = 0;
+  const utilityProvider: LLMProvider = {
+    async complete(opts) {
+      if (opts.system.includes('argument analyst')) {
+        return JSON.stringify({
+          analysis: 'The draft has a usable claim but needs a clearer evidence slot.',
+          otherAngles: ['Regulation risk'],
+          searchQueries: ['AI regulation investment'],
+        });
+      }
+      if (opts.system.includes('one-sentence summaries')) {
+        summaryCalls += 1;
+      }
+      return JSON.stringify({
+        integratedEssay: 'AI investment may deepen cloud moats. A stronger version would state the claim first, add an evidence slot, then explain why the evidence changes the conclusion.',
+        integrationNotes: [
+          {
+            insertedAfter: 'AI investment may deepen cloud moats.',
+            what: 'Added a structure-only evidence slot because live sources were unavailable.',
+            why: 'It shows where evidence should support the claim without inventing a citation.',
+            structurePart: 'claim',
+          },
+        ],
+      });
+    },
+  };
+
+  await withServer(createApp({
+    db,
+    utilityProvider,
+    newsFetcher: async () => {
+      throw new Error('offline');
+    },
+  }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/research`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ essay: 'AI investment may deepen cloud moats.' }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.analysis).toContain('usable claim');
+    expect(json.sources).toEqual([]);
+    expect(json.integratedEssay).toContain('A stronger version would state the claim first');
+    expect(json.integrationNotes[0].what).toContain('structure-only evidence slot');
+    expect(summaryCalls).toBe(0);
+  });
+});

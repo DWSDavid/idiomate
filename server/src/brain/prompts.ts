@@ -1,4 +1,11 @@
-import type { ErrorType, LessonComparisonPair, MistakeLogItem, Vocab } from '../../../shared/types.js';
+import type {
+  ErrorType,
+  LessonComparisonPair,
+  MistakeLogItem,
+  NewsItem,
+  ResearchSource,
+  Vocab,
+} from '../../../shared/types.js';
 import { ERROR_TYPES } from '../../../shared/types.js';
 import { ALL_ERROR_TYPES, ERROR_TAXONOMY } from './taxonomy.js';
 import { GRAMMAR_RULES, type GrammarRule, rulesForTypes } from './rules.js';
@@ -24,6 +31,20 @@ export interface LessonPromptContext {
   rules: LessonPromptRule[];
   pastInstances: MistakeLogItem[];
   seedPairs: LessonComparisonPair[];
+}
+
+export interface ResearchPromptContext {
+  essay: string;
+}
+
+export interface SourceSummaryPromptContext {
+  essay: string;
+  sources: NewsItem[];
+}
+
+export interface ResearchIntegrationPromptContext {
+  essay: string;
+  sources: ResearchSource[];
 }
 
 function taxonomyReferenceSnippet(types: ErrorType[]): string {
@@ -113,6 +134,77 @@ export function assembleLessonPrompt(ctx: LessonPromptContext): { system: string
       `Past instances:\n${instances}`,
       `Seed comparison pairs:\n${seedPairs}`,
       'Return additional comparison pairs tailored to the past instances.',
+    ].join('\n\n'),
+  };
+}
+
+export function assembleResearchPrompt(ctx: ResearchPromptContext): { system: string; user: string } {
+  return {
+    system: [
+      'You are an argument analyst for Idiomate.',
+      'Evaluate the content after the learner has already polished language.',
+      'Analyze whether the argument is correct, convincing, sufficiently supported, and structurally clear.',
+      'Return ONLY JSON matching: {analysis,otherAngles,searchQueries}.',
+      'analysis should cover strengths and gaps in one concise paragraph.',
+      'otherAngles should list angles the writer may want to consider.',
+      'searchQueries should be 2 to 4 concrete news queries likely to find current evidence with links.',
+    ].join(' '),
+    user: [
+      'Essay:',
+      ctx.essay,
+      'Analyze the content and propose search queries for sourced research.',
+    ].join('\n\n'),
+  };
+}
+
+export function assembleSourceSummaryPrompt(ctx: SourceSummaryPromptContext): { system: string; user: string } {
+  const sources = ctx.sources.length
+    ? ctx.sources.map((source, index) => [
+        `${index + 1}. ${source.title}`,
+        `link: ${source.link}`,
+        source.source ? `source: ${source.source}` : undefined,
+      ].filter(Boolean).join('\n')).join('\n\n')
+    : 'No sources.';
+
+  return {
+    system: [
+      'You write one-sentence summaries of news sources for Idiomate research.',
+      'Use only the title, link, and source name provided.',
+      'Do not invent facts beyond the visible source metadata.',
+      'Return ONLY JSON matching: {sources:[{title,link,summary}]}.',
+    ].join(' '),
+    user: [
+      `Essay:\n${ctx.essay}`,
+      `Sources:\n${sources}`,
+      'Summarize each source in one sentence for a writer deciding whether to cite it.',
+    ].join('\n\n'),
+  };
+}
+
+export function assembleResearchIntegrationPrompt(ctx: ResearchIntegrationPromptContext): { system: string; user: string } {
+  const sources = ctx.sources.length
+    ? ctx.sources.map((source, index) => [
+        `${index + 1}. ${source.title}`,
+        `link: ${source.link}`,
+        `summary: ${source.summary}`,
+      ].join('\n')).join('\n\n')
+    : 'No external sources were available. Create a structure-only integrated essay without inventing citations.';
+
+  return {
+    system: [
+      'You create an evidence-integrated rewrite for Idiomate.',
+      'Preserve the learner argument and voice while modeling stronger content structure.',
+      'Weave relevant evidence into appropriate positions instead of appending a source dump.',
+      'Use citations by source title or link only when sources are provided.',
+      'When no sources are provided, improve the structure without inventing outside evidence.',
+      'Model a clear sequence: topic sentence / claim / evidence / commentary.',
+      'Return ONLY JSON matching: {integratedEssay,integrationNotes:[{insertedAfter,what,why,structurePart}]}.',
+      'structurePart MUST be one of: topic sentence, claim, evidence, commentary.',
+    ].join(' '),
+    user: [
+      `Essay:\n${ctx.essay}`,
+      `Sources:\n${sources}`,
+      'Produce the integrated essay and explain each insertion with where, what, why, and structural slot.',
     ].join('\n\n'),
   };
 }
