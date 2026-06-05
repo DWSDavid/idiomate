@@ -2,7 +2,15 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type { Server } from 'node:http';
 import { createApp } from '../src/index.js';
 import { openDb, migrate } from '../src/db/db.js';
-import { getPrimeCandidates, getTallies, insertVocab, recordErrors, upsertVocab } from '../src/db/dal.js';
+import {
+  getPrimeCandidates,
+  getTallies,
+  insertAnnotations,
+  insertSession,
+  insertVocab,
+  recordErrors,
+  upsertVocab,
+} from '../src/db/dal.js';
 import type { LLMProvider } from '../src/brain/provider.js';
 
 let db: ReturnType<typeof openDb>;
@@ -349,7 +357,20 @@ it('GET /api/prompt/today falls back to LLM-only generation when news fetch fail
   });
 });
 
-it('GET /api/profile returns error tallies and activation stats', async () => {
+it('GET /api/profile returns error tallies, ranking, and activation stats', async () => {
+  const sessionId = insertSession(db, { date: '2026-06-05', draftText: 'draft' });
+  insertAnnotations(db, sessionId, [
+    {
+      paragraphIdx: 0,
+      span: 'carried out the implementation',
+      errorType: 'noun_plague',
+      hint: 'Use a verb.',
+      explanation: 'Noun string.',
+      modelRewrite: 'implemented',
+      rule: 'Prefer a verb over a noun string',
+      userRewrite: 'implemented',
+    },
+  ]);
   recordErrors(db, ['noun_plague', 'noun_plague', 'redundancy']);
   upsertVocab(db, {
     word: 'shore up',
@@ -364,6 +385,76 @@ it('GET /api/profile returns error tallies and activation stats', async () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.tallies[0]).toEqual(expect.objectContaining({ errorType: 'noun_plague', count: 2 }));
+    expect(json.ranking[0]).toEqual(expect.objectContaining({
+      errorType: 'noun_plague',
+      count: 2,
+      recentExamples: [
+        {
+          span: 'carried out the implementation',
+          userRewrite: 'implemented',
+          rule: 'Prefer a verb over a noun string',
+          date: '2026-06-05',
+        },
+      ],
+    }));
     expect(json.activation).toEqual({ suggested: 3, used: 1 });
+  });
+});
+
+it('GET /api/mistakes returns a drill-down log optionally filtered by type', async () => {
+  const older = insertSession(db, { date: '2026-06-01', draftText: 'older' });
+  const newer = insertSession(db, { date: '2026-06-05', draftText: 'newer' });
+  insertAnnotations(db, older, [
+    {
+      paragraphIdx: 0,
+      span: 'in order to',
+      errorType: 'redundancy',
+      hint: 'Use fewer words.',
+      explanation: 'Redundancy.',
+      modelRewrite: 'to',
+      rule: 'Drop empty category nouns',
+      userRewrite: 'to',
+    },
+  ]);
+  insertAnnotations(db, newer, [
+    {
+      paragraphIdx: 0,
+      span: 'support to our peer',
+      errorType: 'word_choice',
+      hint: 'Check the preposition.',
+      explanation: 'Collocation.',
+      modelRewrite: 'support for our peer',
+      rule: 'Fixed preposition collocations',
+      userRewrite: 'support for our peer',
+    },
+  ]);
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const all = await fetch(`${baseUrl}/api/mistakes?limit=1`);
+    expect(all.status).toBe(200);
+    await expect(all.json()).resolves.toEqual({
+      mistakes: [
+        {
+          errorType: 'word_choice',
+          span: 'support to our peer',
+          userRewrite: 'support for our peer',
+          rule: 'Fixed preposition collocations',
+          date: '2026-06-05',
+        },
+      ],
+    });
+
+    const filtered = await fetch(`${baseUrl}/api/mistakes?type=redundancy`);
+    expect(filtered.status).toBe(200);
+    const json = await filtered.json();
+    expect(json.mistakes).toEqual([
+      {
+        errorType: 'redundancy',
+        span: 'in order to',
+        userRewrite: 'to',
+        rule: 'Drop empty category nouns',
+        date: '2026-06-01',
+      },
+    ]);
   });
 });

@@ -1,7 +1,17 @@
-import type { Annotation, CoachResponse, ErrorTally, Prompt, Vocab } from '../../shared/types';
+import type {
+  Annotation,
+  CoachResponse,
+  ErrorTally,
+  ErrorType,
+  MistakeLogItem,
+  MistakeRankingItem,
+  Prompt,
+  Vocab,
+} from '../../shared/types';
 
 export interface ProfileResponse {
   tallies: ErrorTally[];
+  ranking?: MistakeRankingItem[];
   activation: {
     suggested: number;
     used: number;
@@ -70,6 +80,13 @@ export function recordParagraph(payload: ParagraphResultPayload): Promise<{ id: 
 
 export function getProfile(): Promise<ProfileResponse> {
   return fetch('/api/profile').then(readJson<ProfileResponse>);
+}
+
+export function getMistakes(errorType?: ErrorType, limit = 50): Promise<{ mistakes: MistakeLogItem[] }> {
+  const params = new URLSearchParams();
+  if (errorType) params.set('type', errorType);
+  params.set('limit', String(limit));
+  return fetch(`/api/mistakes?${params.toString()}`).then(readJson<{ mistakes: MistakeLogItem[] }>);
 }
 
 export function importVocab(file: File): Promise<{ count: number }> {

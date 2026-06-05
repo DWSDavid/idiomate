@@ -47,3 +47,21 @@ export interface Vocab {
 
 export interface Prompt { id?: number; date: string; theme: string; text: string; sourceUrl?: string; }
 export interface ErrorTally { errorType: ErrorType; count: number; lastSeen: string; }
+
+export interface MistakeExample {
+  span: string;
+  userRewrite?: string;
+  rule?: string;
+  date?: string;
+}
+
+export interface MistakeRankingItem {
+  errorType: ErrorType;
+  count: number;
+  lastSeen: string;
+  recentExamples: MistakeExample[];
+}
+
+export interface MistakeLogItem extends MistakeExample {
+  errorType: ErrorType;
+}

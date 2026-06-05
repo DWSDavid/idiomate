@@ -1,5 +1,14 @@
 import type Database from 'better-sqlite3';
-import type { Annotation, ErrorTally, ErrorType, Vocab, VocabKind } from '../../../shared/types.js';
+import type {
+  Annotation,
+  ErrorTally,
+  ErrorType,
+  MistakeExample,
+  MistakeLogItem,
+  MistakeRankingItem,
+  Vocab,
+  VocabKind,
+} from '../../../shared/types.js';
 
 interface VocabRow {
   id: number;
@@ -31,6 +40,15 @@ interface StoredAnnotationRow {
   error_type: ErrorType;
   model_rewrite: string | null;
   accepted: number;
+}
+
+interface MistakeLogRow {
+  error_type: ErrorType;
+  span_text: string;
+  user_rewrite: string | null;
+  rule: string | null;
+  date: string | null;
+  annotation_id: number;
 }
 
 export interface InsertSessionInput {
@@ -341,6 +359,53 @@ export function getTallies(db: Database.Database): ErrorTally[] {
     count: row.count,
     lastSeen: row.last_seen,
   }));
+}
+
+function mapMistakeRow(row: MistakeLogRow): MistakeLogItem {
+  return {
+    errorType: row.error_type,
+    span: row.span_text,
+    userRewrite: row.user_rewrite ?? undefined,
+    rule: row.rule ?? undefined,
+    date: row.date ?? undefined,
+  };
+}
+
+export function getMistakeLog(
+  db: Database.Database,
+  errorType?: ErrorType,
+  limit = 50,
+): MistakeLogItem[] {
+  const safeLimit = Math.max(1, Math.min(Math.trunc(limit), 200));
+  const rows = db.prepare(`
+    SELECT
+      annotations.id AS annotation_id,
+      annotations.error_type,
+      annotations.span_text,
+      annotations.user_rewrite,
+      annotations.rule,
+      sessions.date
+    FROM annotations
+    JOIN sessions ON sessions.id = annotations.session_id
+    WHERE annotations.error_type != 'vocab_suggestion'
+      AND (@errorType IS NULL OR annotations.error_type = @errorType)
+    ORDER BY sessions.date DESC, annotations.id DESC
+    LIMIT @limit
+  `).all({ errorType: errorType ?? null, limit: safeLimit }) as MistakeLogRow[];
+  return rows.map(mapMistakeRow);
+}
+
+export function getMistakeRanking(db: Database.Database): MistakeRankingItem[] {
+  return getTallies(db).map(tally => {
+    const recentExamples: MistakeExample[] = getMistakeLog(db, tally.errorType, 3)
+      .map(({ errorType: _errorType, ...example }) => example);
+    return {
+      errorType: tally.errorType,
+      count: tally.count,
+      lastSeen: tally.lastSeen,
+      recentExamples,
+    };
+  });
 }
 
 export function getActivationStats(db: Database.Database): { suggested: number; used: number } {
