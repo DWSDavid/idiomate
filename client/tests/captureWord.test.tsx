@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, expect, it, vi } from 'vitest';
 import { captureWord, saveVocab } from '../src/api';
 import { CaptureWord } from '../src/components/CaptureWord';
 
@@ -19,8 +19,13 @@ vi.mock('../src/api', () => ({
     timesSuggested: 0,
     timesUsed: 0,
   })),
-  saveVocab: vi.fn(async () => ({ id: 9 })),
+  saveVocab: vi.fn(async () => ({ id: 9, captureCount: 1, existed: false })),
 }));
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 it('captures a word, lets the user edit enrichment, and saves it', async () => {
   render(<CaptureWord onSaved={() => {}} />);
@@ -42,4 +47,18 @@ it('captures a word, lets the user edit enrichment, and saves it', async () => {
     }));
   });
   expect(captureWord).toHaveBeenCalledWith('shore up', 'We need to shore up margins.');
+});
+
+it('shows a priority-raised note when saving an existing word', async () => {
+  vi.mocked(saveVocab).mockResolvedValueOnce({ id: 9, captureCount: 2, existed: true });
+
+  render(<CaptureWord onSaved={() => {}} />);
+
+  fireEvent.change(screen.getByLabelText('Word or phrase'), { target: { value: 'shore up' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enrich' }));
+
+  expect(await screen.findByDisplayValue('support')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Save to my words' }));
+
+  expect(await screen.findByText('Already in your list - met 2 times, priority raised.')).toBeInTheDocument();
 });

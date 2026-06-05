@@ -11,6 +11,8 @@ import type {
   ResearchResponse,
   StructureResponse,
   Vocab,
+  VocabListResponse,
+  SaveVocabResponse,
 } from '../../shared/types';
 
 export interface ProfileResponse {
@@ -68,6 +70,11 @@ export function getTodayPrompt(): Promise<Prompt> {
 export function primeVocab(promptText: string, limit = 10): Promise<{ topic: string; vocab: Vocab[] }> {
   const params = new URLSearchParams({ promptText, limit: String(limit) });
   return fetch(`/api/vocab/prime?${params.toString()}`).then(readJson<{ topic: string; vocab: Vocab[] }>);
+}
+
+export function getVocabList(limit = 200): Promise<VocabListResponse> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return fetch(`/api/vocab/list?${params.toString()}`).then(readJson<VocabListResponse>);
 }
 
 export function coach(paragraph: string, paragraphIndex: number): Promise<CoachResponse> {
@@ -129,6 +136,6 @@ export function captureWord(word: string, contextSentence?: string): Promise<Voc
   });
 }
 
-export function saveVocab(vocab: Vocab): Promise<{ id: number }> {
-  return postJson<{ id: number }>('/api/vocab/save', vocab);
+export function saveVocab(vocab: Vocab): Promise<SaveVocabResponse> {
+  return postJson<SaveVocabResponse>('/api/vocab/save', vocab);
 }

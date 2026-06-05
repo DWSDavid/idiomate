@@ -10,6 +10,7 @@ import type {
   ProgressDailyPoint,
   Vocab,
   VocabKind,
+  VocabListItem,
 } from '../../../shared/types.js';
 
 interface VocabRow {
@@ -138,6 +139,18 @@ function mapVocab(row: VocabRow): Vocab {
   };
 }
 
+function mapVocabListItem(row: VocabRow): VocabListItem {
+  return {
+    word: row.word,
+    kind: row.kind,
+    defCn: row.def_cn ?? undefined,
+    captureCount: row.capture_count,
+    timesSuggested: row.times_suggested,
+    timesUsed: row.times_used,
+    lastCaptured: row.last_captured ?? undefined,
+  };
+}
+
 function vocabParams(item: Vocab) {
   const normalized = normalizeVocabWord(item.normalized ?? item.word);
   return {
@@ -208,29 +221,69 @@ export function getVocabSample(db: Database.Database, n: number): Vocab[] {
   return getPrimeCandidates(db, n);
 }
 
+const VOCAB_PRIORITY_SCORE_SQL = `
+  (
+    capture_count * 10
+    - times_used * 12
+    - times_suggested * 2
+    + CASE kind
+      WHEN 'collocation' THEN 14
+      WHEN 'phrase' THEN 10
+      ELSE 0
+    END
+    + CASE
+      WHEN julianday('now') - julianday(last_captured) <= 7 THEN 6
+      WHEN julianday('now') - julianday(last_captured) <= 30 THEN 3
+      ELSE 0
+    END
+  )
+`;
+
+const VOCAB_PRIORITY_ORDER_SQL = `
+  priority_score DESC,
+  capture_count DESC,
+  times_used ASC,
+  last_captured DESC,
+  normalized ASC
+`;
+
 export function getPrimeCandidates(db: Database.Database, n: number): Vocab[] {
   const rows = db.prepare(`
-    SELECT *,
-      (
-        capture_count * 10
-        - times_used * 12
-        - times_suggested * 2
-        + CASE kind
-          WHEN 'collocation' THEN 14
-          WHEN 'phrase' THEN 10
-          ELSE 0
-        END
-        + CASE
-          WHEN julianday('now') - julianday(last_captured) <= 7 THEN 6
-          WHEN julianday('now') - julianday(last_captured) <= 30 THEN 3
-          ELSE 0
-        END
-      ) AS priority_score
+    SELECT *, ${VOCAB_PRIORITY_SCORE_SQL} AS priority_score
     FROM vocab
-    ORDER BY priority_score DESC, capture_count DESC, times_used ASC, last_captured DESC, normalized ASC
+    ORDER BY ${VOCAB_PRIORITY_ORDER_SQL}
     LIMIT ?
   `).all(n) as VocabRow[];
   return rows.map(mapVocab);
+}
+
+export function getVocabList(db: Database.Database, limit = 200): VocabListItem[] {
+  const safeLimit = boundedPositiveInt(limit, 200, 500);
+  const rows = db.prepare(`
+    SELECT *, ${VOCAB_PRIORITY_SCORE_SQL} AS priority_score
+    FROM vocab
+    ORDER BY ${VOCAB_PRIORITY_ORDER_SQL}
+    LIMIT ?
+  `).all(safeLimit) as VocabRow[];
+  return rows.map(mapVocabListItem);
+}
+
+export function getVocabCount(db: Database.Database): number {
+  const row = db.prepare('SELECT COUNT(*) AS count FROM vocab').get() as { count: number };
+  return row.count;
+}
+
+export function getVocabCaptureMeta(
+  db: Database.Database,
+  wordOrNormalized: string,
+): { id: number; captureCount: number } | undefined {
+  const row = db.prepare(`
+    SELECT id, capture_count
+    FROM vocab
+    WHERE normalized = ?
+  `).get(normalizeVocabWord(wordOrNormalized)) as { id: number; capture_count: number } | undefined;
+  if (!row) return undefined;
+  return { id: row.id, captureCount: row.capture_count };
 }
 
 const PRIME_STOPWORDS = new Set([

@@ -24,10 +24,12 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
   const [examplesText, setExamplesText] = useState('');
   const [collocationsText, setCollocationsText] = useState('');
   const [status, setStatus] = useState<'idle' | 'capturing' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveNote, setSaveNote] = useState('');
 
   const handleCapture = async () => {
     if (!word.trim()) return;
     setStatus('capturing');
+    setSaveNote('');
     try {
       const enriched = await captureWord(word.trim(), contextSentence.trim());
       setPreview(enriched);
@@ -47,10 +49,15 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
       collocations: fromLines(collocationsText),
     };
     setStatus('saving');
+    setSaveNote('');
     try {
-      await saveVocab(next);
-      setPreview(next);
-      onSaved?.(next);
+      const saved = await saveVocab(next);
+      const savedVocab = { ...next, id: saved.id, captureCount: saved.captureCount };
+      setPreview(savedVocab);
+      if (saved.existed) {
+        setSaveNote(`Already in your list - met ${saved.captureCount} times, priority raised.`);
+      }
+      onSaved?.(savedVocab);
       setStatus('saved');
     } catch {
       setStatus('error');
@@ -126,7 +133,11 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
             <button type="button" className="btn-primary" disabled={status === 'saving'} onClick={handleSave}>
               {status === 'saving' ? 'Saving' : 'Save to my words'}
             </button>
-            {status === 'saved' ? <span className="text-sm text-emerald-700">Saved.</span> : null}
+            {saveNote ? (
+              <span className="text-sm text-emerald-700">{saveNote}</span>
+            ) : status === 'saved' ? (
+              <span className="text-sm text-emerald-700">Saved.</span>
+            ) : null}
             {status === 'error' ? <span className="text-sm text-red-700">Could not complete that.</span> : null}
           </div>
         </div>

@@ -19,6 +19,9 @@ it('renders the single-page writing workspace', async () => {
     if (url.includes('/api/vocab/prime')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ topic: 'tech', vocab: [] }) } as Response);
     }
+    if (url.includes('/api/vocab/list')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ total: 0, items: [] }) } as Response);
+    }
     if (url.includes('/api/profile')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ tallies: [], activation: { suggested: 0, used: 0 } }) } as Response);
     }
@@ -34,6 +37,7 @@ it('renders the single-page writing workspace', async () => {
   expect(screen.getByLabelText('Draft')).toBeInTheDocument();
   expect(screen.getByText('Your patterns')).toBeInTheDocument();
   expect(screen.getByText('Progress')).toBeInTheDocument();
+  expect(screen.getByText('My vocabulary (0)')).toBeInTheDocument();
 });
 
 it('records a paragraph result and refetches the profile after rewrite submit', async () => {
@@ -53,6 +57,9 @@ it('records a paragraph result and refetches the profile after rewrite submit', 
     }
     if (url.includes('/api/vocab/prime')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ topic: 'finance', vocab: [] }) } as Response);
+    }
+    if (url.includes('/api/vocab/list')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ total: 0, items: [] }) } as Response);
     }
     if (url.includes('/api/profile')) {
       profileCalls += 1;

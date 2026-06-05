@@ -4,6 +4,8 @@ import {
   getPrimeCandidates,
   getPrimeCandidatePool,
   getDailyMistakeCounts,
+  getVocabCount,
+  getVocabList,
   getVocabSample,
   getMistakeLog,
   getMistakeRanking,
@@ -64,6 +66,50 @@ it('selects prime candidates by deterministic weighted priority', () => {
   });
 
   expect(getPrimeCandidates(db, 2).map(v => v.word)).toEqual(['risk premium', 'plain']);
+});
+
+it('lists vocab by the same priority order used for prime candidates', () => {
+  upsertVocab(db, {
+    word: 'fresh word',
+    kind: 'word',
+    captureCount: 1,
+    lastCaptured: '2026-06-04T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+    defCn: 'newly captured',
+  });
+  upsertVocab(db, {
+    word: 'well worn phrase',
+    kind: 'phrase',
+    captureCount: 5,
+    lastCaptured: '2026-05-10T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+    defCn: 'seen many times',
+  });
+  upsertVocab(db, {
+    word: 'overused term',
+    kind: 'word',
+    captureCount: 10,
+    lastCaptured: '2026-06-04T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 12,
+    defCn: 'already active',
+  });
+
+  const list = getVocabList(db, 10);
+
+  expect(getVocabCount(db)).toBe(3);
+  expect(list.map(item => item.word)).toEqual(getPrimeCandidates(db, 10).map(item => item.word));
+  expect(list[0]).toEqual({
+    word: 'well worn phrase',
+    kind: 'phrase',
+    defCn: 'seen many times',
+    captureCount: 5,
+    timesSuggested: 0,
+    timesUsed: 0,
+    lastCaptured: '2026-05-10T00:00:00.000Z',
+  });
 });
 
 it('builds a blended prime pool from priority terms and oldest unused terms', () => {

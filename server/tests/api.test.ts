@@ -245,6 +245,73 @@ it('POST /api/vocab/save upserts and GET /api/vocab/prime returns LLM-selected t
   });
 });
 
+it('GET /api/vocab/list returns priority-ordered vocab with total count', async () => {
+  upsertVocab(db, {
+    word: 'fresh word',
+    kind: 'word',
+    captureCount: 1,
+    lastCaptured: '2026-06-04T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+    defCn: 'newly captured',
+  });
+  upsertVocab(db, {
+    word: 'well worn phrase',
+    kind: 'phrase',
+    captureCount: 5,
+    lastCaptured: '2026-05-10T00:00:00.000Z',
+    timesSuggested: 2,
+    timesUsed: 1,
+    defCn: 'seen many times',
+  });
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/vocab/list?limit=1`);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.total).toBe(2);
+    expect(json.items).toEqual([
+      {
+        word: 'well worn phrase',
+        kind: 'phrase',
+        defCn: 'seen many times',
+        captureCount: 5,
+        timesSuggested: 2,
+        timesUsed: 1,
+        lastCaptured: '2026-05-10T00:00:00.000Z',
+      },
+    ]);
+  });
+});
+
+it('POST /api/vocab/save returns existed true and incremented captureCount for an existing normalized term', async () => {
+  upsertVocab(db, {
+    word: 'Risk premium',
+    kind: 'phrase',
+    captureCount: 1,
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/vocab/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word: ' risk   premium ', kind: 'phrase', defCn: 'risk-return spread' }),
+    });
+
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json).toEqual({
+      id: expect.any(Number),
+      captureCount: 2,
+      existed: true,
+    });
+    expect(getPrimeCandidates(db, 1)[0].captureCount).toBe(2);
+  });
+});
+
 it('POST /api/vocab/capture returns an enriched preview without saving', async () => {
   const utilityProvider: LLMProvider = {
     async complete() {

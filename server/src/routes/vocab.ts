@@ -6,6 +6,9 @@ import { selectPrimeWords } from '../brain/prompts.js';
 import { config } from '../config.js';
 import { parseYoudaoTxt } from '../import/youdao.js';
 import {
+  getVocabCaptureMeta,
+  getVocabCount,
+  getVocabList,
   getPrimeCandidatePool,
   incrementVocabSuggested,
   insertVocab,
@@ -39,6 +42,10 @@ const captureVocabZ = z.object({
   contextSentence: z.string().optional(),
 });
 
+const vocabListQueryZ = z.object({
+  limit: z.coerce.number().int().positive().max(500).default(200),
+});
+
 export function createVocabRouter(deps: AppDependencies): Router {
   const router = Router();
 
@@ -59,13 +66,32 @@ export function createVocabRouter(deps: AppDependencies): Router {
   router.post('/save', (req, res, next) => {
     try {
       const body = saveVocabZ.parse(req.body);
+      const normalized = normalizeVocabWord(body.normalized ?? body.word);
+      const existed = Boolean(getVocabCaptureMeta(deps.db, normalized));
       const id = upsertVocab(deps.db, {
         ...body,
         source: body.source ?? 'capture',
         timesSuggested: body.timesSuggested ?? 0,
         timesUsed: body.timesUsed ?? 0,
       });
-      res.status(201).json({ id });
+      const saved = getVocabCaptureMeta(deps.db, normalized);
+      res.status(201).json({
+        id,
+        captureCount: saved?.captureCount ?? body.captureCount ?? 1,
+        existed,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/list', (req, res, next) => {
+    try {
+      const query = vocabListQueryZ.parse(req.query);
+      res.json({
+        total: getVocabCount(deps.db),
+        items: getVocabList(deps.db, query.limit),
+      });
     } catch (err) {
       next(err);
     }

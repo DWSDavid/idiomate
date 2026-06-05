@@ -45,6 +45,27 @@ export interface Vocab {
   timesUsed: number;
 }
 
+export interface VocabListItem {
+  word: string;
+  kind: VocabKind;
+  defCn?: string;
+  captureCount: number;
+  timesSuggested: number;
+  timesUsed: number;
+  lastCaptured?: string;
+}
+
+export interface VocabListResponse {
+  total: number;
+  items: VocabListItem[];
+}
+
+export interface SaveVocabResponse {
+  id: number;
+  captureCount: number;
+  existed: boolean;
+}
+
 export interface Prompt { id?: number; date: string; theme: string; text: string; sourceUrl?: string; }
 export interface ErrorTally { errorType: ErrorType; count: number; lastSeen: string; }
 

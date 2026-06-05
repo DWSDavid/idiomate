@@ -8,6 +8,7 @@ import { DailyPrompt } from './components/DailyPrompt';
 import { ProfileDashboard } from './components/ProfileDashboard';
 import { ProgressPanel } from './components/ProgressPanel';
 import { VocabPrime } from './components/VocabPrime';
+import { VocabularyPanel } from './components/VocabularyPanel';
 import { WriteSurface } from './components/WriteSurface';
 
 interface CoachPanelState {
@@ -110,6 +111,7 @@ export function App() {
         <ProfileDashboard refreshKey={profileKey} />
         <ProgressPanel refreshKey={profileKey} />
         <CaptureWord onSaved={() => setVocabKey(key => key + 1)} />
+        <VocabularyPanel refreshKey={vocabKey + profileKey} />
 
         <footer className="pb-2 text-center text-xs text-stone-400">Local-first. Your words stay on your machine.</footer>
       </div>
