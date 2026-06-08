@@ -7,16 +7,19 @@ export function AdminPanel() {
   const [users, setUsers] = useState<AdminUsersResponse>({ users: [] });
   const [detail, setDetail] = useState<AdminUserDetailResponse | null>(null);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
+  const [message, setMessage] = useState('');
 
   const loadUsers = async () => {
     if (!code.trim()) return;
     setStatus('loading');
     setDetail(null);
+    setMessage('');
     try {
       const result = await getAdminUsers(code.trim());
       setUsers(result);
       setStatus('idle');
-    } catch {
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Could not load admin data.');
       setStatus('error');
     }
   };
@@ -24,11 +27,13 @@ export function AdminPanel() {
   const openUser = async (userId: string) => {
     if (!code.trim()) return;
     setStatus('loading');
+    setMessage('');
     try {
       const result = await getAdminUserDetail(code.trim(), userId);
       setDetail(result);
       setStatus('idle');
-    } catch {
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Could not load admin data.');
       setStatus('error');
     }
   };
@@ -45,7 +50,7 @@ export function AdminPanel() {
           Load users
         </button>
       </div>
-      {status === 'error' ? <p className="mt-3 text-sm text-red-700">Could not load admin data.</p> : null}
+      {status === 'error' ? <p className="mt-3 text-sm text-red-700">{message || 'Could not load admin data.'}</p> : null}
 
       <div className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <div className="space-y-2">

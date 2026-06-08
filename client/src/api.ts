@@ -62,7 +62,14 @@ async function readJson<T>(response: Response): Promise<T> {
     globalThis.dispatchEvent?.(new Event(ACCESS_DENIED_EVENT));
   }
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    let message = `Request failed: ${response.status}`;
+    try {
+      const body = await response.json() as { error?: string };
+      if (body.error) message = body.error;
+    } catch {
+      // Keep the status fallback when the server does not return JSON.
+    }
+    throw new Error(message);
   }
   return response.json() as Promise<T>;
 }

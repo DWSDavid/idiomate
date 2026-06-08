@@ -19,8 +19,8 @@ export function OwnerVocabImport({ onImported }: OwnerVocabImportProps) {
       setMessage(`Imported ${result.imported} words. Total: ${result.total}.`);
       setStatus('done');
       onImported?.();
-    } catch {
-      setMessage('Could not import owner vocabulary.');
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Could not import owner vocabulary.');
       setStatus('error');
     }
   };
