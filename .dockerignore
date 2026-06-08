@@ -1,0 +1,11 @@
+node_modules
+client/dist
+dist
+.git
+.env
+*.sqlite
+# Do NOT ship the copyrighted source text to the deployed/shared image.
+# chinglishBook.ts handles its absence gracefully (no book quotes in the shared build).
+refs
+docs
+**/*.md

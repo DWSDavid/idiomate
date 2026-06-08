@@ -1,4 +1,6 @@
 import express from 'express';
+import { existsSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppDependencies } from './appContext.js';
 import { OpenAIProvider } from './brain/openai.js';
@@ -17,7 +19,11 @@ import { createSessionsRouter } from './routes/sessions.js';
 import { createStructureRouter } from './routes/structure.js';
 import { createVocabRouter } from './routes/vocab.js';
 
-export function createApp(overrides: Partial<AppDependencies> = {}) {
+interface CreateAppOptions {
+  clientDistPath?: string;
+}
+
+export function createApp(overrides: Partial<AppDependencies> = {}, options: CreateAppOptions = {}) {
   const db = overrides.db ?? openDb();
   migrate(db);
 
@@ -43,6 +49,17 @@ export function createApp(overrides: Partial<AppDependencies> = {}) {
   app.use('/api/profile', createProfileRouter(deps));
   app.use('/api/research', createResearchRouter(deps));
   app.use('/api/sentence-lab', createSentenceLabRouter(deps));
+
+  // Serve the built client from the same origin (production). Skipped in dev/tests when no build exists.
+  const clientDist = options.clientDistPath ?? join(dirname(fileURLToPath(import.meta.url)), '../../client/dist');
+  if (existsSync(clientDist)) {
+    app.use(express.static(clientDist));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api')) return next();
+      res.sendFile(join(clientDist, 'index.html'));
+    });
+  }
+
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
     const message = err instanceof Error ? err.message : 'Unknown server error';
     res.status(400).json({ error: message });

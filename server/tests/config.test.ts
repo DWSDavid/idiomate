@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, expect, it, vi } from 'vitest';
 
 const originalEnv = { ...process.env };
@@ -23,6 +24,7 @@ it('loads OpenAI settings from a local env file before building config', async (
     'OPENAI_API_KEY=sk-test-from-env-file',
     'OPENAI_MODEL_COACH=coach-env-file',
     'OPENAI_MODEL_UTILITY=utility-env-file',
+    `DB_PATH=${join(tempDir, 'mounted.sqlite')}`,
     'PORT=9876',
   ].join('\n'));
 
@@ -38,6 +40,7 @@ it('loads OpenAI settings from a local env file before building config', async (
   expect(config.apiKey).toBe('sk-test-from-env-file');
   expect(config.modelCoach).toBe('coach-env-file');
   expect(config.modelUtility).toBe('utility-env-file');
+  expect(config.dbPath).toBe(join(tempDir, 'mounted.sqlite'));
   expect(config.port).toBe(9876);
 });
 
@@ -53,4 +56,5 @@ it('defaults both model tiers to gpt-4o when not overridden', async () => {
 
   expect(config.modelCoach).toBe('gpt-4o');
   expect(config.modelUtility).toBe('gpt-4o');
+  expect(config.dbPath).toBe(join(dirname(fileURLToPath(import.meta.url)), '../idiomate.sqlite'));
 });

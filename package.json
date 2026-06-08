@@ -7,7 +7,8 @@
     "dev:server": "tsx watch server/src/index.ts",
     "dev:client": "vite --config client/vite.config.ts",
     "test": "vitest run",
-    "build": "vite build --config client/vite.config.ts"
+    "build": "vite build --config client/vite.config.ts",
+    "start": "node --import tsx server/src/index.ts"
   },
   "dependencies": {
     "better-sqlite3": "^12.10.0",
