@@ -16,7 +16,10 @@ export const config = {
   accessCode: process.env.ACCESS_CODE ?? '',
   seedVocabPath: process.env.SEED_VOCAB_PATH ?? '',
   autoSeedVocab: process.env.AUTO_SEED_VOCAB === 'true',
-  ownerVocabCode: process.env.OWNER_VOCAB_CODE ?? '',
-  ownerVocabPath: process.env.OWNER_VOCAB_PATH ?? '',
-  adminCode: process.env.ADMIN_CODE ?? '',
+  ownerVocabCode: process.env.OWNER_VOCAB_CODE ?? process.env.RUBI_PROFILE_CODE ?? 'rubi-vocab',
+  ownerVocabPath: process.env.OWNER_VOCAB_PATH ?? 'Vocabs.txt',
+  rubiProfileCode: process.env.RUBI_PROFILE_CODE ?? process.env.OWNER_VOCAB_CODE ?? 'rubi-vocab',
+  rubiProfileUserId: process.env.RUBI_PROFILE_USER_ID ?? 'rubi',
+  rubiProfileName: process.env.RUBI_PROFILE_NAME ?? 'Rubi',
+  adminCode: process.env.ADMIN_CODE ?? 'rubi-admin',
 };

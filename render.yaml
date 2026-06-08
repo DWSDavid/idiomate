@@ -4,7 +4,7 @@ services:
     runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile
-    autoDeploy: false
+    autoDeploy: true
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
@@ -19,6 +19,10 @@ services:
         value: /app/server/seed/vocab.txt
       - key: OWNER_VOCAB_PATH
         value: /app/Vocabs.txt
+      - key: RUBI_PROFILE_USER_ID
+        value: rubi
+      - key: RUBI_PROFILE_NAME
+        value: Rubi
       - key: OPENAI_MODEL_COACH
         value: gpt-4o
       - key: OPENAI_MODEL_UTILITY
@@ -28,6 +32,8 @@ services:
       - key: ACCESS_CODE
         sync: false
       - key: OWNER_VOCAB_CODE
+        sync: false
+      - key: RUBI_PROFILE_CODE
         sync: false
       - key: ADMIN_CODE
         sync: false

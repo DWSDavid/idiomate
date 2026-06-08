@@ -6,10 +6,15 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { AdminPanel } from '../src/components/AdminPanel';
 import { HistoryPanel } from '../src/components/HistoryPanel';
 import { OwnerVocabImport } from '../src/components/OwnerVocabImport';
-import { getAdminUserDetail, getAdminUsers, getHistory, importOwnerVocab } from '../src/api';
+import { getAdminUserDetail, getAdminUsers, getHistory, switchToRubiProfile } from '../src/api';
 
 vi.mock('../src/api', () => ({
-  importOwnerVocab: vi.fn(async () => ({ imported: 2716, total: 2716 })),
+  switchToRubiProfile: vi.fn(async () => ({
+    user: { id: 'rubi', name: 'Rubi' },
+    imported: 2716,
+    total: 2716,
+    ownerVocabAvailable: true,
+  })),
   getHistory: vi.fn(async () => ({
     entries: [
       {
@@ -52,14 +57,14 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-it('imports owner vocabulary with a code and reports the total', async () => {
+it('switches to Rubi profile with a code and reports the vocab total', async () => {
   render(<OwnerVocabImport onImported={() => {}} />);
 
-  fireEvent.change(screen.getByLabelText('Owner vocab code'), { target: { value: 'owner-code' } });
-  fireEvent.click(screen.getByRole('button', { name: 'Import owner vocab' }));
+  fireEvent.change(screen.getByLabelText('Rubi profile code'), { target: { value: 'rubi-code' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Switch to Rubi' }));
 
-  expect(await screen.findByText('Imported 2716 words. Total: 2716.')).toBeInTheDocument();
-  expect(importOwnerVocab).toHaveBeenCalledWith('owner-code');
+  expect(await screen.findByText("Using Rubi's profile. Imported 2716 words. Total: 2716.")).toBeInTheDocument();
+  expect(switchToRubiProfile).toHaveBeenCalledWith('rubi-code');
 });
 
 it('renders saved daily writing and sentence lab history', async () => {

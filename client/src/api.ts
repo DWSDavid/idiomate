@@ -19,7 +19,7 @@ import type {
   AdminUsersResponse,
   WritingHistoryResponse,
 } from '../../shared/types';
-import { getClientIdentity } from './identity';
+import { getClientIdentity, setClientIdentity } from './identity';
 
 const ACCESS_CODE_KEY = 'idiomate_access_code';
 export const ACCESS_DENIED_EVENT = 'idiomate-access-denied';
@@ -123,6 +123,22 @@ export function getVocabList(limit = 200): Promise<VocabListResponse> {
 
 export function importOwnerVocab(code: string): Promise<{ imported: number; total: number }> {
   return postJson<{ imported: number; total: number }>('/api/vocab/owner-import', { code });
+}
+
+export interface RubiProfileResponse {
+  user: {
+    id: string;
+    name: string;
+  };
+  imported: number;
+  total: number;
+  ownerVocabAvailable: boolean;
+}
+
+export async function switchToRubiProfile(code: string): Promise<RubiProfileResponse> {
+  const result = await postJson<RubiProfileResponse>('/api/profile/rubi', { code });
+  setClientIdentity(result.user);
+  return result;
 }
 
 export function coach(paragraph: string, paragraphIndex: number): Promise<CoachResponse> {

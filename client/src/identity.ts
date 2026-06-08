@@ -49,3 +49,9 @@ export function getClientIdentity(): ClientIdentity {
 
   return { id, name };
 }
+
+export function setClientIdentity(identity: ClientIdentity) {
+  const store = storage();
+  store.setItem(UID_KEY, identity.id);
+  store.setItem(NAME_KEY, identity.name);
+}

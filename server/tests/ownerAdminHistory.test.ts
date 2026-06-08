@@ -100,6 +100,59 @@ it('keeps new users empty until owner vocab code imports the full vocabulary', a
   });
 }, 10_000);
 
+it('switches to the stable Rubi profile and imports owner vocabulary for that profile', async () => {
+  tempDir = mkdtempSync(join(tmpdir(), 'idiomate-rubi-profile-'));
+  const ownerPath = join(tempDir, 'owner-vocab.txt');
+  writeFileSync(ownerPath, [
+    '1, equal footing',
+    'phr. the same status or chance',
+    '',
+    '2, move in lockstep',
+    'phr. move together at the same pace',
+  ].join('\n'));
+  process.env.IDIOMATE_ENV_FILE = join(tempDir, 'missing.env');
+  process.env.RUBI_PROFILE_CODE = 'rubi-code';
+  process.env.RUBI_PROFILE_USER_ID = 'rubi';
+  process.env.RUBI_PROFILE_NAME = 'Rubi';
+  process.env.OWNER_VOCAB_PATH = ownerPath;
+  vi.resetModules();
+
+  const { createApp } = await import('../src/index.js');
+  await withServer(createApp({ db }), async baseUrl => {
+    const rejected = await fetch(`${baseUrl}/api/profile/rubi`, {
+      method: 'POST',
+      headers: { ...userHeaders('random-user', 'Guest'), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'wrong-code' }),
+    });
+    expect(rejected.status).toBe(403);
+
+    const switched = await fetch(`${baseUrl}/api/profile/rubi`, {
+      method: 'POST',
+      headers: { ...userHeaders('random-user', 'Guest'), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: 'rubi-code' }),
+    });
+    expect(switched.status).toBe(200);
+    await expect(switched.json()).resolves.toEqual({
+      user: { id: 'rubi', name: 'Rubi' },
+      imported: 2,
+      total: 2,
+      ownerVocabAvailable: true,
+    });
+
+    const rubiList = await fetch(`${baseUrl}/api/vocab/list`, {
+      headers: userHeaders('rubi', 'Rubi'),
+    });
+    expect(rubiList.status).toBe(200);
+    await expect(rubiList.json()).resolves.toMatchObject({
+      total: 2,
+      items: expect.arrayContaining([
+        expect.objectContaining({ word: 'equal footing' }),
+        expect.objectContaining({ word: 'move in lockstep' }),
+      ]),
+    });
+  });
+}, 10_000);
+
 it('exposes admin user summaries, user vocabulary, and saved writing history', async () => {
   process.env.ADMIN_CODE = 'admin-code';
   process.env.IDIOMATE_ENV_FILE = join(tmpdir(), 'idiomate-missing.env');

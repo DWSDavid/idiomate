@@ -176,7 +176,12 @@ export function App() {
 
         {activeSection === 'vocabulary' ? (
           <section className="workspace-page two-column-page" aria-label="vocabulary review">
-            <OwnerVocabImport onImported={() => setVocabKey(key => key + 1)} />
+            <OwnerVocabImport
+              onImported={() => {
+                setVocabKey(key => key + 1);
+                setProfileKey(key => key + 1);
+              }}
+            />
             <CaptureWord onSaved={() => setVocabKey(key => key + 1)} />
             <VocabularyPanel refreshKey={vocabKey + profileKey} />
           </section>

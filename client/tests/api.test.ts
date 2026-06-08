@@ -20,6 +20,7 @@ import {
   researchEssay,
   saveVocab,
   structureDraft,
+  switchToRubiProfile,
   submitSession,
 } from '../src/api';
 
@@ -56,6 +57,7 @@ describe('client api', () => {
       if (url.includes('/api/history')) return jsonResponse({ entries: [] });
       if (url.includes('/api/admin/users/alice')) return jsonResponse({ user: { id: 'alice' }, vocab: { total: 0, items: [] }, history: { entries: [] } });
       if (url.includes('/api/admin/users')) return jsonResponse({ users: [] });
+      if (url.includes('/api/profile/rubi')) return jsonResponse({ user: { id: 'rubi', name: 'Rubi' }, imported: 2, total: 2, ownerVocabAvailable: true });
       if (url.includes('/api/profile')) return jsonResponse({ tallies: [], activation: { suggested: 0, used: 0 } });
       if (url.includes('/api/progress')) return jsonResponse({ daily: [], trend: [] });
       if (url.includes('/api/mistakes')) return jsonResponse({ mistakes: [] });
@@ -81,6 +83,7 @@ describe('client api', () => {
     await getHistory();
     await getAdminUsers('admin-code');
     await getAdminUserDetail('admin-code', 'alice');
+    await switchToRubiProfile('rubi-code');
     await getProfile();
     await getProgress();
     await getMistakes('redundancy');
@@ -110,6 +113,7 @@ describe('client api', () => {
       '/api/history?limit=100',
       '/api/admin/users',
       '/api/admin/users/alice',
+      '/api/profile/rubi',
       '/api/profile',
       '/api/progress',
       '/api/mistakes?type=redundancy&limit=50',
@@ -133,8 +137,11 @@ describe('client api', () => {
     }
     expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({ method: 'POST' }));
     expect(new Headers((fetchMock.mock.calls[5][1] as RequestInit).headers).get('x-admin-code')).toBe('admin-code');
-    expect(fetchMock.mock.calls[11][1]).toEqual(expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock.mock.calls[18][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[7][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[12][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[19][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(localStorage.getItem('idiomate_uid')).toBe('rubi');
+    expect(localStorage.getItem('idiomate_user_name')).toBe('Rubi');
   });
 
   it('sends a saved access code with api requests', async () => {

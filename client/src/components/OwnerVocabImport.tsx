@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { importOwnerVocab } from '../api';
+import { switchToRubiProfile } from '../api';
 
 interface OwnerVocabImportProps {
   onImported?: () => void;
@@ -15,12 +15,15 @@ export function OwnerVocabImport({ onImported }: OwnerVocabImportProps) {
     setStatus('importing');
     setMessage('');
     try {
-      const result = await importOwnerVocab(code.trim());
-      setMessage(`Imported ${result.imported} words. Total: ${result.total}.`);
+      const result = await switchToRubiProfile(code.trim());
+      const vocabMessage = result.ownerVocabAvailable
+        ? `Imported ${result.imported} words. Total: ${result.total}.`
+        : `Switched to ${result.user.name}, but the owner vocab file is not available on this server.`;
+      setMessage(`Using ${result.user.name}'s profile. ${vocabMessage}`);
       setStatus('done');
       onImported?.();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Could not import owner vocabulary.');
+      setMessage(err instanceof Error ? err.message : 'Could not switch to Rubi profile.');
       setStatus('error');
     }
   };
@@ -29,7 +32,7 @@ export function OwnerVocabImport({ onImported }: OwnerVocabImportProps) {
     <section className="surface" aria-label="owner vocab import">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
         <label className="field-label flex-1">
-          Owner vocab code
+          Rubi profile code
           <input
             className="field mt-1"
             value={code}
@@ -42,7 +45,7 @@ export function OwnerVocabImport({ onImported }: OwnerVocabImportProps) {
           disabled={!code.trim() || status === 'importing'}
           onClick={() => void submit()}
         >
-          {status === 'importing' ? 'Importing' : 'Import owner vocab'}
+          {status === 'importing' ? 'Switching' : 'Switch to Rubi'}
         </button>
       </div>
       {message ? (
