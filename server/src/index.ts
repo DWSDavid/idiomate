@@ -6,6 +6,7 @@ import type { AppDependencies } from './appContext.js';
 import { OpenAIProvider } from './brain/openai.js';
 import { config } from './config.js';
 import { migrate, openDb } from './db/db.js';
+import { accessMiddleware } from './middleware/access.js';
 import { userMiddleware } from './middleware/user.js';
 import { createCoachRouter } from './routes/coach.js';
 import { createLessonsRouter } from './routes/lessons.js';
@@ -38,6 +39,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}, options: Cre
 
   const app = express();
   app.use(express.json({ limit: '1mb' }));
+  app.use('/api', accessMiddleware(config.accessCode));
   app.use('/api', userMiddleware(db));
   app.use('/api/coach', createCoachRouter(deps));
   app.use('/api/lesson', createLessonsRouter(deps));

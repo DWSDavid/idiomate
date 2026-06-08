@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { CoachResponse, Prompt } from '../../shared/types';
-import { coach, submitSession as postSession } from './api';
+import { ACCESS_DENIED_EVENT, coach, saveAccessCode, submitSession as postSession } from './api';
+import { AccessGate } from './components/AccessGate';
 import { CoachPanel } from './components/CoachPanel';
 import type { ComparedAnnotation } from './components/CompareView';
 import { CaptureWord } from './components/CaptureWord';
@@ -18,6 +19,8 @@ interface CoachPanelState {
 }
 
 export function App() {
+  const [accessBlocked, setAccessBlocked] = useState(false);
+  const [accessRetryKey, setAccessRetryKey] = useState(0);
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [draft, setDraft] = useState('');
   const [coachingIndex, setCoachingIndex] = useState<number | undefined>();
@@ -25,6 +28,12 @@ export function App() {
   const [sessionStatus, setSessionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [profileKey, setProfileKey] = useState(0);
   const [vocabKey, setVocabKey] = useState(0);
+
+  useEffect(() => {
+    const onAccessDenied = () => setAccessBlocked(true);
+    globalThis.addEventListener?.(ACCESS_DENIED_EVENT, onAccessDenied);
+    return () => globalThis.removeEventListener?.(ACCESS_DENIED_EVENT, onAccessDenied);
+  }, []);
 
   const handleCoachParagraph = async (paragraph: string, paragraphIndex: number) => {
     setCoachingIndex(paragraphIndex);
@@ -55,9 +64,21 @@ export function App() {
     }
   };
 
+  if (accessBlocked) {
+    return (
+      <AccessGate
+        onSubmit={code => {
+          saveAccessCode(code);
+          setAccessBlocked(false);
+          setAccessRetryKey(key => key + 1);
+        }}
+      />
+    );
+  }
+
   return (
     <main className="app-shell min-h-[100dvh] overflow-x-hidden text-slate-950">
-      <div className="mx-auto flex min-w-0 max-w-[1600px] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8">
+      <div key={accessRetryKey} className="mx-auto flex min-w-0 max-w-[1600px] flex-col gap-6 px-4 py-5 sm:px-6 lg:px-8">
         <header
           className="desk-header"
           aria-label="Writing desk header"

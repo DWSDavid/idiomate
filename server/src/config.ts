@@ -13,4 +13,5 @@ export const config = {
   modelUtility: process.env.OPENAI_MODEL_UTILITY ?? 'gpt-4o',
   port: Number(process.env.PORT ?? 8787),
   dbPath: process.env.DB_PATH ?? localDbPath,
+  accessCode: process.env.ACCESS_CODE ?? '',
 };

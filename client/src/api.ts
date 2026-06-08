@@ -18,6 +18,9 @@ import type {
 } from '../../shared/types';
 import { getClientIdentity } from './identity';
 
+const ACCESS_CODE_KEY = 'idiomate_access_code';
+export const ACCESS_DENIED_EVENT = 'idiomate-access-denied';
+
 export interface ProfileResponse {
   tallies: ErrorTally[];
   ranking?: MistakeRankingItem[];
@@ -52,17 +55,30 @@ export interface ParagraphResultPayload {
 }
 
 async function readJson<T>(response: Response): Promise<T> {
+  if (response.status === 401) {
+    globalThis.dispatchEvent?.(new Event(ACCESS_DENIED_EVENT));
+  }
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
   }
   return response.json() as Promise<T>;
 }
 
+export function getStoredAccessCode(): string {
+  return globalThis.localStorage?.getItem(ACCESS_CODE_KEY)?.trim() ?? '';
+}
+
+export function saveAccessCode(code: string) {
+  globalThis.localStorage?.setItem(ACCESS_CODE_KEY, code.trim());
+}
+
 function identityHeaders(extra?: HeadersInit): Headers {
   const identity = getClientIdentity();
   const headers = new Headers(extra);
+  const accessCode = getStoredAccessCode();
   headers.set('x-user-id', identity.id);
   headers.set('x-user-name', identity.name);
+  if (accessCode) headers.set('x-access-code', accessCode);
   return headers;
 }
 

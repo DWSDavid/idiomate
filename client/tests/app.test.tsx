@@ -113,3 +113,40 @@ it('records a paragraph result and refetches the profile after rewrite submit', 
     expect(profileCalls).toBeGreaterThanOrEqual(2);
   });
 });
+
+it('shows the access gate after a 401 and retries after saving the code', async () => {
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    const headers = new Headers(init?.headers);
+    if (url.includes('/api/') && headers.get('x-access-code') !== 'share-code') {
+      return Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ error: 'Access code required.' }) } as Response);
+    }
+    if (url.includes('/api/prompt/today')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ date: '2026-06-04', theme: 'tech', text: 'Write one paragraph.' }) } as Response);
+    }
+    if (url.includes('/api/vocab/prime')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ topic: 'tech', vocab: [] }) } as Response);
+    }
+    if (url.includes('/api/vocab/list')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ total: 0, items: [] }) } as Response);
+    }
+    if (url.includes('/api/profile')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ tallies: [], activation: { suggested: 0, used: 0 } }) } as Response);
+    }
+    if (url.includes('/api/progress')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ daily: [], trend: [] }) } as Response);
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+
+  render(<App />);
+
+  fireEvent.change(await screen.findByLabelText('Access code'), {
+    target: { value: 'share-code' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+  expect(await screen.findByRole('banner', { name: 'Writing desk header' })).toBeInTheDocument();
+  expect(await screen.findByText(/Today's prompt/)).toBeInTheDocument();
+});

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   coach,
   captureWord,
@@ -25,6 +25,19 @@ const jsonResponse = (body: unknown) => Promise.resolve({
 } as Response);
 
 describe('client api', () => {
+  let store: Map<string, string>;
+
+  beforeEach(() => {
+    store = new Map();
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => store.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        store.set(key, value);
+      },
+      clear: () => store.clear(),
+    });
+  });
+
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -104,5 +117,16 @@ describe('client api', () => {
     }
     expect(fetchMock.mock.calls[7][1]).toEqual(expect.objectContaining({ method: 'POST' }));
     expect(fetchMock.mock.calls[14][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+  });
+
+  it('sends a saved access code with api requests', async () => {
+    localStorage.setItem('idiomate_access_code', 'share-code');
+    const fetchMock = vi.fn(() => jsonResponse({ date: '2026-06-04', theme: 'tech', text: 'Write.' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getTodayPrompt();
+
+    const headers = new Headers((fetchMock.mock.calls[0][1] as RequestInit).headers);
+    expect(headers.get('x-access-code')).toBe('share-code');
   });
 });
