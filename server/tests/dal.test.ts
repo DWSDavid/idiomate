@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+﻿import { describe, it, expect, beforeEach } from 'vitest';
 import { openDb, migrate } from '../src/db/db.js';
 import {
   getPrimeCandidates,
@@ -20,27 +20,28 @@ import {
 } from '../src/db/dal.js';
 
 let db: ReturnType<typeof openDb>;
+const USER_ID = 'local';
 beforeEach(() => { db = openDb(':memory:'); migrate(db); });
 
 it('inserts and samples vocab', () => {
-  insertVocab(db, [{ word: 'leverage', defCn: '利用', timesSuggested: 0, timesUsed: 0 }]);
-  expect(getVocabSample(db, 5).length).toBe(1);
+  insertVocab(db, USER_ID, [{ word: 'leverage', defCn: '鍒╃敤', timesSuggested: 0, timesUsed: 0 }]);
+  expect(getVocabSample(db, USER_ID, 5).length).toBe(1);
 });
 
 it('upserts vocab by normalized text and accumulates capture count', () => {
-  insertVocab(db, [
+  insertVocab(db, USER_ID, [
     { word: ' Risk   premium ', kind: 'phrase', defCn: 'risk return spread', timesSuggested: 0, timesUsed: 0 },
     { word: 'risk premium', defCn: 'duplicate capture', timesSuggested: 0, timesUsed: 0 },
   ]);
 
-  const vocab = getPrimeCandidates(db, 10);
+  const vocab = getPrimeCandidates(db, USER_ID, 10);
   expect(vocab).toHaveLength(1);
   expect(vocab[0].normalized).toBe('risk premium');
   expect(vocab[0].captureCount).toBe(2);
 });
 
 it('selects prime candidates by deterministic weighted priority', () => {
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'plain',
     kind: 'word',
     captureCount: 1,
@@ -48,7 +49,7 @@ it('selects prime candidates by deterministic weighted priority', () => {
     timesSuggested: 0,
     timesUsed: 0,
   });
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'risk premium',
     kind: 'phrase',
     captureCount: 3,
@@ -56,7 +57,7 @@ it('selects prime candidates by deterministic weighted priority', () => {
     timesSuggested: 0,
     timesUsed: 0,
   });
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'overused',
     kind: 'word',
     captureCount: 9,
@@ -65,11 +66,11 @@ it('selects prime candidates by deterministic weighted priority', () => {
     timesUsed: 12,
   });
 
-  expect(getPrimeCandidates(db, 2).map(v => v.word)).toEqual(['risk premium', 'plain']);
+  expect(getPrimeCandidates(db, USER_ID, 2).map(v => v.word)).toEqual(['risk premium', 'plain']);
 });
 
 it('lists vocab by the same priority order used for prime candidates', () => {
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'fresh word',
     kind: 'word',
     captureCount: 1,
@@ -78,7 +79,7 @@ it('lists vocab by the same priority order used for prime candidates', () => {
     timesUsed: 0,
     defCn: 'newly captured',
   });
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'well worn phrase',
     kind: 'phrase',
     captureCount: 5,
@@ -87,7 +88,7 @@ it('lists vocab by the same priority order used for prime candidates', () => {
     timesUsed: 0,
     defCn: 'seen many times',
   });
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'overused term',
     kind: 'word',
     captureCount: 10,
@@ -97,10 +98,10 @@ it('lists vocab by the same priority order used for prime candidates', () => {
     defCn: 'already active',
   });
 
-  const list = getVocabList(db, 10);
+  const list = getVocabList(db, USER_ID, 10);
 
-  expect(getVocabCount(db)).toBe(3);
-  expect(list.map(item => item.word)).toEqual(getPrimeCandidates(db, 10).map(item => item.word));
+  expect(getVocabCount(db, USER_ID)).toBe(3);
+  expect(list.map(item => item.word)).toEqual(getPrimeCandidates(db, USER_ID, 10).map(item => item.word));
   expect(list[0]).toEqual({
     word: 'well worn phrase',
     kind: 'phrase',
@@ -113,7 +114,7 @@ it('lists vocab by the same priority order used for prime candidates', () => {
 });
 
 it('builds a blended prime pool from priority terms and oldest unused terms', () => {
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'top phrase one',
     kind: 'phrase',
     captureCount: 5,
@@ -121,7 +122,7 @@ it('builds a blended prime pool from priority terms and oldest unused terms', ()
     timesSuggested: 0,
     timesUsed: 0,
   });
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'top phrase two',
     kind: 'phrase',
     captureCount: 4,
@@ -129,7 +130,7 @@ it('builds a blended prime pool from priority terms and oldest unused terms', ()
     timesSuggested: 0,
     timesUsed: 0,
   });
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'top phrase three',
     kind: 'phrase',
     captureCount: 3,
@@ -137,7 +138,7 @@ it('builds a blended prime pool from priority terms and oldest unused terms', ()
     timesSuggested: 0,
     timesUsed: 0,
   });
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'old unused',
     kind: 'word',
     captureCount: 1,
@@ -145,7 +146,7 @@ it('builds a blended prime pool from priority terms and oldest unused terms', ()
     timesSuggested: 9,
     timesUsed: 0,
   });
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'old but used',
     kind: 'word',
     captureCount: 1,
@@ -154,7 +155,7 @@ it('builds a blended prime pool from priority terms and oldest unused terms', ()
     timesUsed: 1,
   });
 
-  const pool = getPrimeCandidatePool(db, '', 4).map(v => v.word);
+  const pool = getPrimeCandidatePool(db, USER_ID, '', 4).map(v => v.word);
 
   expect(pool).toEqual(expect.arrayContaining(['top phrase one', 'top phrase two', 'top phrase three']));
   expect(pool).toContain('old unused');
@@ -162,22 +163,22 @@ it('builds a blended prime pool from priority terms and oldest unused terms', ()
 });
 
 it('increments vocab usage by normalized word', () => {
-  upsertVocab(db, { word: 'Leverage', timesSuggested: 0, timesUsed: 0 });
-  incrementVocabUsed(db, ' leverage ');
+  upsertVocab(db, USER_ID, { word: 'Leverage', timesSuggested: 0, timesUsed: 0 });
+  incrementVocabUsed(db, USER_ID, ' leverage ');
 
-  expect(getPrimeCandidates(db, 1)[0].timesUsed).toBe(1);
+  expect(getPrimeCandidates(db, USER_ID, 1)[0].timesUsed).toBe(1);
 });
 
 it('tallies error types across calls', () => {
-  recordErrors(db, ['redundancy', 'calque', 'redundancy']);
-  const t = getTallies(db);
+  recordErrors(db, USER_ID, ['redundancy', 'calque', 'redundancy']);
+  const t = getTallies(db, USER_ID);
   expect(t.find(x => x.errorType === 'redundancy')!.count).toBe(2);
 });
 
 it('ranks mistakes with recent examples from saved annotations', () => {
-  const olderSession = insertSession(db, { date: '2026-06-01', draftText: 'older draft' });
-  const newerSession = insertSession(db, { date: '2026-06-03', draftText: 'newer draft' });
-  insertAnnotations(db, olderSession, [
+  const olderSession = insertSession(db, USER_ID, { date: '2026-06-01', draftText: 'older draft' });
+  const newerSession = insertSession(db, USER_ID, { date: '2026-06-03', draftText: 'newer draft' });
+  insertAnnotations(db, USER_ID, olderSession, [
     {
       paragraphIdx: 0,
       span: 'in a state of rapid growth',
@@ -199,7 +200,7 @@ it('ranks mistakes with recent examples from saved annotations', () => {
       userRewrite: 'support for our peer',
     },
   ]);
-  insertAnnotations(db, newerSession, [
+  insertAnnotations(db, USER_ID, newerSession, [
     {
       paragraphIdx: 1,
       span: 'in order to',
@@ -211,9 +212,9 @@ it('ranks mistakes with recent examples from saved annotations', () => {
       userRewrite: 'to',
     },
   ]);
-  recordErrors(db, ['redundancy', 'word_choice', 'redundancy']);
+  recordErrors(db, USER_ID, ['redundancy', 'word_choice', 'redundancy']);
 
-  const ranking = getMistakeRanking(db);
+  const ranking = getMistakeRanking(db, USER_ID);
 
   expect(ranking[0]).toEqual(expect.objectContaining({
     errorType: 'redundancy',
@@ -237,9 +238,9 @@ it('ranks mistakes with recent examples from saved annotations', () => {
 });
 
 it('returns a filterable mistake log ordered by recent occurrence', () => {
-  const first = insertSession(db, { date: '2026-06-01', draftText: 'first' });
-  const second = insertSession(db, { date: '2026-06-04', draftText: 'second' });
-  insertAnnotations(db, first, [
+  const first = insertSession(db, USER_ID, { date: '2026-06-01', draftText: 'first' });
+  const second = insertSession(db, USER_ID, { date: '2026-06-04', draftText: 'second' });
+  insertAnnotations(db, USER_ID, first, [
     {
       paragraphIdx: 0,
       span: 'in order to',
@@ -251,7 +252,7 @@ it('returns a filterable mistake log ordered by recent occurrence', () => {
       userRewrite: 'to',
     },
   ]);
-  insertAnnotations(db, second, [
+  insertAnnotations(db, USER_ID, second, [
     {
       paragraphIdx: 0,
       span: 'support to',
@@ -264,7 +265,7 @@ it('returns a filterable mistake log ordered by recent occurrence', () => {
     },
   ]);
 
-  expect(getMistakeLog(db, 'redundancy', 5)).toEqual([
+  expect(getMistakeLog(db, USER_ID, 'redundancy', 5)).toEqual([
     {
       errorType: 'redundancy',
       span: 'in order to',
@@ -273,7 +274,7 @@ it('returns a filterable mistake log ordered by recent occurrence', () => {
       date: '2026-06-01',
     },
   ]);
-  expect(getMistakeLog(db, undefined, 1)).toEqual([
+  expect(getMistakeLog(db, USER_ID, undefined, 1)).toEqual([
     {
       errorType: 'word_choice',
       span: 'support to',
@@ -285,9 +286,9 @@ it('returns a filterable mistake log ordered by recent occurrence', () => {
 });
 
 it('buckets daily mistake counts by session date and excludes vocab suggestions', () => {
-  const first = insertSession(db, { date: '2026-06-03T09:00:00.000Z', draftText: 'first' });
-  const second = insertSession(db, { date: '2026-06-04', draftText: 'second' });
-  insertAnnotations(db, first, [
+  const first = insertSession(db, USER_ID, { date: '2026-06-03T09:00:00.000Z', draftText: 'first' });
+  const second = insertSession(db, USER_ID, { date: '2026-06-04', draftText: 'second' });
+  insertAnnotations(db, USER_ID, first, [
     {
       paragraphIdx: 0,
       span: 'in order to',
@@ -313,7 +314,7 @@ it('buckets daily mistake counts by session date and excludes vocab suggestions'
       modelRewrite: 'shore up',
     },
   ]);
-  insertAnnotations(db, second, [
+  insertAnnotations(db, USER_ID, second, [
     {
       paragraphIdx: 0,
       span: 'implementation of',
@@ -324,17 +325,17 @@ it('buckets daily mistake counts by session date and excludes vocab suggestions'
     },
   ]);
 
-  expect(getDailyMistakeCounts(db, 30)).toEqual([
+  expect(getDailyMistakeCounts(db, USER_ID, 30)).toEqual([
     { date: '2026-06-03', count: 2 },
     { date: '2026-06-04', count: 1 },
   ]);
 });
 
 it('returns mistake trends for the top error types by overall count', () => {
-  const first = insertSession(db, { date: '2026-06-01', draftText: 'first' });
-  const second = insertSession(db, { date: '2026-06-02', draftText: 'second' });
-  const third = insertSession(db, { date: '2026-06-03', draftText: 'third' });
-  insertAnnotations(db, first, [
+  const first = insertSession(db, USER_ID, { date: '2026-06-01', draftText: 'first' });
+  const second = insertSession(db, USER_ID, { date: '2026-06-02', draftText: 'second' });
+  const third = insertSession(db, USER_ID, { date: '2026-06-03', draftText: 'third' });
+  insertAnnotations(db, USER_ID, first, [
     {
       paragraphIdx: 0,
       span: 'in order to',
@@ -352,7 +353,7 @@ it('returns mistake trends for the top error types by overall count', () => {
       modelRewrite: 'support for',
     },
   ]);
-  insertAnnotations(db, second, [
+  insertAnnotations(db, USER_ID, second, [
     {
       paragraphIdx: 0,
       span: 'in a state of growth',
@@ -378,7 +379,7 @@ it('returns mistake trends for the top error types by overall count', () => {
       modelRewrite: 'natural phrase',
     },
   ]);
-  insertAnnotations(db, third, [
+  insertAnnotations(db, USER_ID, third, [
     {
       paragraphIdx: 0,
       span: 'support to',
@@ -405,7 +406,7 @@ it('returns mistake trends for the top error types by overall count', () => {
     },
   ]);
 
-  expect(getMistakeTrend(db, 30, 2)).toEqual([
+  expect(getMistakeTrend(db, USER_ID, 30, 2)).toEqual([
     {
       errorType: 'redundancy',
       points: [

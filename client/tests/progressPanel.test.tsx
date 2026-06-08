@@ -46,5 +46,5 @@ it('renders daily mistake counts and top-type trend points', async () => {
   expect(screen.getByText('redundancy')).toBeInTheDocument();
   expect(screen.getByText('2026-06-04: 1')).toBeInTheDocument();
   expect(screen.getByText('word choice')).toBeInTheDocument();
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/progress'));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/progress', expect.any(Object)));
 });

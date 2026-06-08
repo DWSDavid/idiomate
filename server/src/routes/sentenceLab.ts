@@ -51,7 +51,7 @@ export function createSentenceLabRouter(deps: AppDependencies): Router {
   router.post('/diagnose', async (req, res, next) => {
     try {
       const body = diagnoseRequestZ.parse(req.body);
-      const topErrors = getTallies(deps.db)
+      const topErrors = getTallies(deps.db, req.userId)
         .filter(tally => tally.errorType !== 'vocab_suggestion')
         .slice(0, 3)
         .map(tally => tally.errorType);
@@ -66,7 +66,7 @@ export function createSentenceLabRouter(deps: AppDependencies): Router {
         ...response,
         annotations: attachBookReferences(response.annotations),
       };
-      const id = insertSentenceLabDraft(deps.db, {
+      const id = insertSentenceLabDraft(deps.db, req.userId, {
         date: body.date,
         sentence: body.sentence,
         context: body.context,
@@ -87,13 +87,13 @@ export function createSentenceLabRouter(deps: AppDependencies): Router {
   router.post('/result', (req, res, next) => {
     try {
       const body = resultRequestZ.parse(req.body);
-      const draft = getSentenceLabDraft(deps.db, body.id);
+      const draft = getSentenceLabDraft(deps.db, req.userId, body.id);
       if (!draft) {
         res.status(404).json({ error: 'Sentence Lab diagnosis not found.' });
         return;
       }
 
-      recordSentenceLabResult(deps.db, body);
+      recordSentenceLabResult(deps.db, req.userId, body);
       res.json({
         id: draft.id,
         sentence: draft.sentence,

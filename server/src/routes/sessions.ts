@@ -26,7 +26,7 @@ export function createSessionsRouter(deps: AppDependencies): Router {
   router.post('/', (req, res, next) => {
     try {
       const body = sessionSubmitZ.parse(req.body);
-      const sessionId = insertSession(deps.db, {
+      const sessionId = insertSession(deps.db, req.userId, {
         date: body.date,
         promptId: body.promptId,
         draftText: body.draftText,
@@ -34,16 +34,16 @@ export function createSessionsRouter(deps: AppDependencies): Router {
         durationS: body.durationS,
       });
 
-      insertAnnotations(deps.db, sessionId, body.annotations);
+      insertAnnotations(deps.db, req.userId, sessionId, body.annotations);
 
       const errorTypes = body.annotations
         .map(annotation => annotation.errorType)
         .filter(errorType => errorType !== 'vocab_suggestion');
-      recordErrors(deps.db, errorTypes);
+      recordErrors(deps.db, req.userId, errorTypes);
 
       for (const annotation of body.annotations) {
         if (annotation.errorType === 'vocab_suggestion' && annotation.accepted && annotation.vocabWord) {
-          incrementVocabUsed(deps.db, annotation.vocabWord);
+          incrementVocabUsed(deps.db, req.userId, annotation.vocabWord);
         }
       }
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+﻿import { describe, it, expect, beforeEach } from 'vitest';
 import type { Server } from 'node:http';
 import { createApp } from '../src/index.js';
 import { openDb, migrate } from '../src/db/db.js';
@@ -15,6 +15,7 @@ import {
 import type { LLMProvider } from '../src/brain/provider.js';
 
 let db: ReturnType<typeof openDb>;
+const USER_ID = 'local';
 
 beforeEach(() => {
   db = openDb(':memory:');
@@ -26,9 +27,20 @@ async function withServer<T>(app: ReturnType<typeof createApp>, fn: (baseUrl: st
   await new Promise<void>(resolve => server.once('listening', resolve));
   const address = server.address();
   if (!address || typeof address === 'string') throw new Error('server did not bind to a port');
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = ((input: RequestInfo | URL, init: RequestInit = {}) => {
+    const headers = new Headers(init.headers);
+    const url = String(input);
+    if (url.startsWith(`http://127.0.0.1:${address.port}/api`)) {
+      headers.set('x-user-id', USER_ID);
+      headers.set('x-user-name', 'Local');
+    }
+    return originalFetch(input, { ...init, headers });
+  }) as typeof fetch;
   try {
     return await fn(`http://127.0.0.1:${address.port}`);
   } finally {
+    globalThis.fetch = originalFetch;
     await new Promise<void>((resolve, reject) => server.close(err => err ? reject(err) : resolve()));
   }
 }
@@ -59,7 +71,7 @@ it('POST /api/coach returns annotations without updating error tallies', async (
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.annotations[0].errorType).toBe('redundancy');
-    expect(getTallies(db)).toEqual([]);
+    expect(getTallies(db, USER_ID)).toEqual([]);
   });
 });
 
@@ -99,7 +111,7 @@ it('POST /api/coach attaches local Chinglish book references to annotations', as
       pattern: expect.stringContaining('Noun Plague'),
       quote: expect.stringContaining('real action'),
     }));
-    expect(getTallies(db)).toEqual([]);
+    expect(getTallies(db, USER_ID)).toEqual([]);
   });
 });
 
@@ -177,10 +189,10 @@ it('POST /api/sentence-lab diagnoses without revealing fixes, then records after
         pattern: expect.stringContaining('Noun Plague'),
       }),
     }));
-    expect(getTallies(db)).toEqual([
+    expect(getTallies(db, USER_ID)).toEqual([
       expect.objectContaining({ errorType: 'noun_plague', count: 1 }),
     ]);
-    expect(getMistakeLog(db, 'noun_plague', 1)).toEqual([
+    expect(getMistakeLog(db, USER_ID, 'noun_plague', 1)).toEqual([
       expect.objectContaining({
         span: 'made the implementation',
         userRewrite: 'We implemented the policy yesterday.',
@@ -196,14 +208,14 @@ it('POST /api/sentence-lab diagnoses without revealing fixes, then records after
       }),
     });
     expect(duplicate.status).toBe(200);
-    expect(getTallies(db)).toEqual([
+    expect(getTallies(db, USER_ID)).toEqual([
       expect.objectContaining({ errorType: 'noun_plague', count: 1 }),
     ]);
   });
 });
 
 it('POST /api/sessions records errors and increments accepted vocab suggestions', async () => {
-  insertVocab(db, [{ word: 'shore up', kind: 'phrase', timesSuggested: 0, timesUsed: 0 }]);
+  insertVocab(db, USER_ID, [{ word: 'shore up', kind: 'phrase', timesSuggested: 0, timesUsed: 0 }]);
 
   await withServer(createApp({ db }), async baseUrl => {
     const res = await fetch(`${baseUrl}/api/sessions`, {
@@ -244,10 +256,10 @@ it('POST /api/sessions records errors and increments accepted vocab suggestions'
     expect(res.status).toBe(201);
     const json = await res.json();
     expect(json.id).toEqual(expect.any(Number));
-    expect(getTallies(db)).toEqual([
+    expect(getTallies(db, USER_ID)).toEqual([
       expect.objectContaining({ errorType: 'redundancy', count: 1 }),
     ]);
-    expect(getPrimeCandidates(db, 1)[0].timesUsed).toBe(1);
+    expect(getPrimeCandidates(db, USER_ID, 1)[0].timesUsed).toBe(1);
     const row = db.prepare(`
       SELECT rule, rule_example
       FROM annotations
@@ -259,7 +271,7 @@ it('POST /api/sessions records errors and increments accepted vocab suggestions'
 });
 
 it('POST /api/paragraph-result records a paragraph rewrite idempotently', async () => {
-  insertVocab(db, [{ word: 'shore up', kind: 'phrase', timesSuggested: 0, timesUsed: 0 }]);
+  insertVocab(db, USER_ID, [{ word: 'shore up', kind: 'phrase', timesSuggested: 0, timesUsed: 0 }]);
 
   await withServer(createApp({ db }), async baseUrl => {
     const body = {
@@ -303,10 +315,10 @@ it('POST /api/paragraph-result records a paragraph rewrite idempotently', async 
 
     expect(first.status).toBe(201);
     expect(duplicate.status).toBe(200);
-    expect(getTallies(db)).toEqual([
+    expect(getTallies(db, USER_ID)).toEqual([
       expect.objectContaining({ errorType: 'redundancy', count: 1 }),
     ]);
-    expect(getPrimeCandidates(db, 1)[0].timesUsed).toBe(1);
+    expect(getPrimeCandidates(db, USER_ID, 1)[0].timesUsed).toBe(1);
 
     const replacement = await fetch(`${baseUrl}/api/paragraph-result`, {
       method: 'POST',
@@ -329,8 +341,8 @@ it('POST /api/paragraph-result records a paragraph rewrite idempotently', async 
     });
 
     expect(replacement.status).toBe(200);
-    expect(getTallies(db)).toEqual([]);
-    expect(getPrimeCandidates(db, 1)[0].timesUsed).toBe(1);
+    expect(getTallies(db, USER_ID)).toEqual([]);
+    expect(getPrimeCandidates(db, USER_ID, 1)[0].timesUsed).toBe(1);
     const sessions = db.prepare('SELECT id FROM sessions').all() as { id: number }[];
     expect(sessions).toHaveLength(1);
     const rows = db.prepare(`
@@ -349,8 +361,8 @@ it('POST /api/paragraph-result records a paragraph rewrite idempotently', async 
 });
 
 it('POST /api/vocab/save upserts and GET /api/vocab/prime returns LLM-selected topic-fit candidates', async () => {
-  upsertVocab(db, { word: 'plain', kind: 'word', captureCount: 1, timesSuggested: 0, timesUsed: 0 });
-  upsertVocab(db, { word: 'overused', kind: 'word', captureCount: 9, timesSuggested: 0, timesUsed: 12 });
+  upsertVocab(db, USER_ID, { word: 'plain', kind: 'word', captureCount: 1, timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, USER_ID, { word: 'overused', kind: 'word', captureCount: 9, timesSuggested: 0, timesUsed: 12 });
   let captured: { system: string; user: string; model: string } | undefined;
   const utilityProvider: LLMProvider = {
     async complete(opts) {
@@ -379,14 +391,14 @@ it('POST /api/vocab/save upserts and GET /api/vocab/prime returns LLM-selected t
     expect(captured!.user).toContain(promptText);
     expect(captured!.system).toContain('10');
 
-    const saved = getPrimeCandidates(db, 1)[0];
+    const saved = getPrimeCandidates(db, USER_ID, 1)[0];
     expect(saved.normalized).toBe('risk premium');
     expect(saved.timesSuggested).toBe(1);
   });
 });
 
 it('GET /api/vocab/list returns priority-ordered vocab with total count', async () => {
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'fresh word',
     kind: 'word',
     captureCount: 1,
@@ -395,7 +407,7 @@ it('GET /api/vocab/list returns priority-ordered vocab with total count', async 
     timesUsed: 0,
     defCn: 'newly captured',
   });
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'well worn phrase',
     kind: 'phrase',
     captureCount: 5,
@@ -426,7 +438,7 @@ it('GET /api/vocab/list returns priority-ordered vocab with total count', async 
 });
 
 it('POST /api/vocab/save returns existed true and incremented captureCount for an existing normalized term', async () => {
-  upsertVocab(db, {
+  upsertVocab(db, USER_ID, {
     word: 'Risk premium',
     kind: 'phrase',
     captureCount: 1,
@@ -448,7 +460,7 @@ it('POST /api/vocab/save returns existed true and incremented captureCount for a
       captureCount: 2,
       existed: true,
     });
-    expect(getPrimeCandidates(db, 1)[0].captureCount).toBe(2);
+    expect(getPrimeCandidates(db, USER_ID, 1)[0].captureCount).toBe(2);
   });
 });
 
@@ -484,7 +496,7 @@ it('POST /api/vocab/capture returns an enriched preview without saving', async (
       timesSuggested: 0,
       timesUsed: 0,
     }));
-    expect(getPrimeCandidates(db, 1)).toEqual([]);
+    expect(getPrimeCandidates(db, USER_ID, 1)).toEqual([]);
   });
 });
 
@@ -500,7 +512,7 @@ it('POST /api/vocab/import parses a raw Youdao export', async () => {
 
     expect(res.status).toBe(201);
     await expect(res.json()).resolves.toEqual({ count: 1 });
-    expect(getPrimeCandidates(db, 1)[0].word).toBe('esoteric');
+    expect(getPrimeCandidates(db, USER_ID, 1)[0].word).toBe('esoteric');
   });
 });
 
@@ -565,8 +577,8 @@ it('GET /api/prompt/today falls back to LLM-only generation when news fetch fail
 });
 
 it('GET /api/profile returns error tallies, ranking, and activation stats', async () => {
-  const sessionId = insertSession(db, { date: '2026-06-05', draftText: 'draft' });
-  insertAnnotations(db, sessionId, [
+  const sessionId = insertSession(db, USER_ID, { date: '2026-06-05', draftText: 'draft' });
+  insertAnnotations(db, USER_ID, sessionId, [
     {
       paragraphIdx: 0,
       span: 'carried out the implementation',
@@ -578,8 +590,8 @@ it('GET /api/profile returns error tallies, ranking, and activation stats', asyn
       userRewrite: 'implemented',
     },
   ]);
-  recordErrors(db, ['noun_plague', 'noun_plague', 'redundancy']);
-  upsertVocab(db, {
+  recordErrors(db, USER_ID, ['noun_plague', 'noun_plague', 'redundancy']);
+  upsertVocab(db, USER_ID, {
     word: 'shore up',
     kind: 'phrase',
     timesSuggested: 3,
@@ -609,9 +621,9 @@ it('GET /api/profile returns error tallies, ranking, and activation stats', asyn
 });
 
 it('GET /api/progress returns daily mistake counts and top-type trends', async () => {
-  const first = insertSession(db, { date: '2026-06-03', draftText: 'first' });
-  const second = insertSession(db, { date: '2026-06-04', draftText: 'second' });
-  insertAnnotations(db, first, [
+  const first = insertSession(db, USER_ID, { date: '2026-06-03', draftText: 'first' });
+  const second = insertSession(db, USER_ID, { date: '2026-06-04', draftText: 'second' });
+  insertAnnotations(db, USER_ID, first, [
     {
       paragraphIdx: 0,
       span: 'in order to',
@@ -629,7 +641,7 @@ it('GET /api/progress returns daily mistake counts and top-type trends', async (
       modelRewrite: 'support for',
     },
   ]);
-  insertAnnotations(db, second, [
+  insertAnnotations(db, USER_ID, second, [
     {
       paragraphIdx: 0,
       span: 'in a state of growth',
@@ -684,9 +696,9 @@ it('GET /api/progress returns daily mistake counts and top-type trends', async (
 });
 
 it('GET /api/mistakes returns a drill-down log optionally filtered by type', async () => {
-  const older = insertSession(db, { date: '2026-06-01', draftText: 'older' });
-  const newer = insertSession(db, { date: '2026-06-05', draftText: 'newer' });
-  insertAnnotations(db, older, [
+  const older = insertSession(db, USER_ID, { date: '2026-06-01', draftText: 'older' });
+  const newer = insertSession(db, USER_ID, { date: '2026-06-05', draftText: 'newer' });
+  insertAnnotations(db, USER_ID, older, [
     {
       paragraphIdx: 0,
       span: 'in order to',
@@ -698,7 +710,7 @@ it('GET /api/mistakes returns a drill-down log optionally filtered by type', asy
       userRewrite: 'to',
     },
   ]);
-  insertAnnotations(db, newer, [
+  insertAnnotations(db, USER_ID, newer, [
     {
       paragraphIdx: 0,
       span: 'support to our peer',
@@ -742,8 +754,8 @@ it('GET /api/mistakes returns a drill-down log optionally filtered by type', asy
 });
 
 it('GET /api/lesson returns a systematic lesson for a requested mistake type', async () => {
-  const sessionId = insertSession(db, { date: '2026-06-05', draftText: 'draft' });
-  insertAnnotations(db, sessionId, [
+  const sessionId = insertSession(db, USER_ID, { date: '2026-06-05', draftText: 'draft' });
+  insertAnnotations(db, USER_ID, sessionId, [
     {
       paragraphIdx: 0,
       span: 'implementation of the policy',
@@ -755,7 +767,7 @@ it('GET /api/lesson returns a systematic lesson for a requested mistake type', a
       userRewrite: 'implemented the policy',
     },
   ]);
-  recordErrors(db, ['noun_plague']);
+  recordErrors(db, USER_ID, ['noun_plague']);
   let captured: { system: string; user: string; model: string } | undefined;
   const utilityProvider: LLMProvider = {
     async complete(opts) {
@@ -814,7 +826,7 @@ it('GET /api/lesson returns a systematic lesson for a requested mistake type', a
 });
 
 it('GET /api/lesson defaults to the top recurring mistake type', async () => {
-  recordErrors(db, ['word_choice', 'noun_plague', 'noun_plague']);
+  recordErrors(db, USER_ID, ['word_choice', 'noun_plague', 'noun_plague']);
   const utilityProvider: LLMProvider = {
     async complete() {
       return JSON.stringify({

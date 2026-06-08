@@ -16,6 +16,7 @@ import type {
 
 interface VocabRow {
   id: number;
+  user_id: string;
   word: string;
   normalized: string;
   kind: VocabKind;
@@ -35,6 +36,7 @@ interface VocabRow {
 }
 
 interface ErrorTallyRow {
+  user_id: string;
   error_type: ErrorType;
   count: number;
   last_seen: string;
@@ -67,6 +69,7 @@ interface TrendTypeRow {
 
 interface SentenceLabDraftRow {
   id: number;
+  user_id: string;
   date: string | null;
   sentence: string;
   context: string | null;
@@ -110,6 +113,16 @@ export interface SentenceLabDraft {
   sentence: string;
   context?: string;
   response: CoachResponse;
+}
+
+export function upsertUser(db: Database.Database, userId: string, name?: string) {
+  const safeName = name?.trim() || null;
+  db.prepare(`
+    INSERT INTO users (id, name)
+    VALUES (?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      name = COALESCE(excluded.name, users.name)
+  `).run(userId, safeName);
 }
 
 export function normalizeVocabWord(word: string): string {
@@ -168,9 +181,10 @@ function mapVocabListItem(row: VocabRow): VocabListItem {
   };
 }
 
-function vocabParams(item: Vocab) {
+function vocabParams(userId: string, item: Vocab) {
   const normalized = normalizeVocabWord(item.normalized ?? item.word);
   return {
+    userId,
     word: item.word.trim().replace(/\s+/g, ' '),
     normalized,
     kind: item.kind ?? inferVocabKind(item.word),
@@ -190,19 +204,19 @@ function vocabParams(item: Vocab) {
   };
 }
 
-export function upsertVocab(db: Database.Database, vocab: Vocab): number {
+export function upsertVocab(db: Database.Database, userId: string, vocab: Vocab): number {
   const stmt = db.prepare(`
     INSERT INTO vocab (
-      word, normalized, kind, ipa, def_cn, pos, status, source,
+      user_id, word, normalized, kind, ipa, def_cn, pos, status, source,
       context_sentence, examples, collocations, register, capture_count,
       last_captured, times_suggested, times_used
     )
     VALUES (
-      @word, @normalized, @kind, @ipa, @defCn, @pos, @status, @source,
+      @userId, @word, @normalized, @kind, @ipa, @defCn, @pos, @status, @source,
       @contextSentence, @examples, @collocations, @register, @captureCount,
       COALESCE(@lastCaptured, datetime('now')), @timesSuggested, @timesUsed
     )
-    ON CONFLICT(normalized) DO UPDATE SET
+    ON CONFLICT(user_id, normalized) DO UPDATE SET
       word = excluded.word,
       kind = excluded.kind,
       ipa = COALESCE(excluded.ipa, vocab.ipa),
@@ -220,22 +234,23 @@ export function upsertVocab(db: Database.Database, vocab: Vocab): number {
       times_used = vocab.times_used + excluded.times_used
   `);
   const normalized = normalizeVocabWord(vocab.normalized ?? vocab.word);
-  stmt.run(vocabParams(vocab));
-  const row = db.prepare('SELECT id FROM vocab WHERE normalized = ?').get(normalized) as { id: number };
+  stmt.run(vocabParams(userId, vocab));
+  const row = db.prepare('SELECT id FROM vocab WHERE user_id = ? AND normalized = ?')
+    .get(userId, normalized) as { id: number };
   return row.id;
 }
 
-export function insertVocab(db: Database.Database, vocab: Vocab[]) {
+export function insertVocab(db: Database.Database, userId: string, vocab: Vocab[]) {
   const insertMany = db.transaction((items: Vocab[]) => {
     for (const item of items) {
-      upsertVocab(db, item);
+      upsertVocab(db, userId, item);
     }
   });
   insertMany(vocab);
 }
 
-export function getVocabSample(db: Database.Database, n: number): Vocab[] {
-  return getPrimeCandidates(db, n);
+export function getVocabSample(db: Database.Database, userId: string, n: number): Vocab[] {
+  return getPrimeCandidates(db, userId, n);
 }
 
 const VOCAB_PRIORITY_SCORE_SQL = `
@@ -264,41 +279,44 @@ const VOCAB_PRIORITY_ORDER_SQL = `
   normalized ASC
 `;
 
-export function getPrimeCandidates(db: Database.Database, n: number): Vocab[] {
+export function getPrimeCandidates(db: Database.Database, userId: string, n: number): Vocab[] {
   const rows = db.prepare(`
     SELECT *, ${VOCAB_PRIORITY_SCORE_SQL} AS priority_score
     FROM vocab
+    WHERE user_id = ?
     ORDER BY ${VOCAB_PRIORITY_ORDER_SQL}
     LIMIT ?
-  `).all(n) as VocabRow[];
+  `).all(userId, n) as VocabRow[];
   return rows.map(mapVocab);
 }
 
-export function getVocabList(db: Database.Database, limit = 200): VocabListItem[] {
+export function getVocabList(db: Database.Database, userId: string, limit = 200): VocabListItem[] {
   const safeLimit = boundedPositiveInt(limit, 200, 500);
   const rows = db.prepare(`
     SELECT *, ${VOCAB_PRIORITY_SCORE_SQL} AS priority_score
     FROM vocab
+    WHERE user_id = ?
     ORDER BY ${VOCAB_PRIORITY_ORDER_SQL}
     LIMIT ?
-  `).all(safeLimit) as VocabRow[];
+  `).all(userId, safeLimit) as VocabRow[];
   return rows.map(mapVocabListItem);
 }
 
-export function getVocabCount(db: Database.Database): number {
-  const row = db.prepare('SELECT COUNT(*) AS count FROM vocab').get() as { count: number };
+export function getVocabCount(db: Database.Database, userId: string): number {
+  const row = db.prepare('SELECT COUNT(*) AS count FROM vocab WHERE user_id = ?').get(userId) as { count: number };
   return row.count;
 }
 
 export function getVocabCaptureMeta(
   db: Database.Database,
+  userId: string,
   wordOrNormalized: string,
 ): { id: number; captureCount: number } | undefined {
   const row = db.prepare(`
     SELECT id, capture_count
     FROM vocab
-    WHERE normalized = ?
-  `).get(normalizeVocabWord(wordOrNormalized)) as { id: number; capture_count: number } | undefined;
+    WHERE user_id = ? AND normalized = ?
+  `).get(userId, normalizeVocabWord(wordOrNormalized)) as { id: number; capture_count: number } | undefined;
   if (!row) return undefined;
   return { id: row.id, captureCount: row.capture_count };
 }
@@ -323,7 +341,7 @@ function keywordsFromText(text: string): string[] {
  *  3. coverage                - random sample, so relevant words exist even when scores tie
  * The LLM then ranks this pool down to the final set.
  */
-export function getPrimeCandidatePool(db: Database.Database, promptText = '', n = 120): Vocab[] {
+export function getPrimeCandidatePool(db: Database.Database, userId: string, promptText = '', n = 120): Vocab[] {
   const limit = Math.max(1, n);
   const byNormalized = new Map<string, Vocab>();
   const add = (items: Vocab[]) => {
@@ -345,97 +363,113 @@ export function getPrimeCandidatePool(db: Database.Database, promptText = '', n 
       params.push(like, like, like, like);
     }
     const rows = db
-      .prepare(`SELECT * FROM vocab WHERE ${clause} ORDER BY times_used ASC, capture_count DESC LIMIT 60`)
-      .all(...params) as VocabRow[];
+      .prepare(`
+        SELECT * FROM vocab
+        WHERE user_id = ? AND (${clause})
+        ORDER BY times_used ASC, capture_count DESC
+        LIMIT 60
+      `)
+      .all(userId, ...params) as VocabRow[];
     add(rows.map(mapVocab));
   }
 
   // 2. Memory blend: priority + oldest unused, proportional so old words keep a guaranteed slot.
   const priorityLimit = Math.max(1, Math.ceil(limit * 25 / 40));
   const oldestLimit = Math.max(0, limit - priorityLimit);
-  add(getPrimeCandidates(db, priorityLimit));
+  add(getPrimeCandidates(db, userId, priorityLimit));
   if (oldestLimit > 0) {
     const oldest = db
-      .prepare('SELECT * FROM vocab WHERE times_used = 0 ORDER BY last_captured ASC, normalized ASC LIMIT ?')
-      .all(oldestLimit) as VocabRow[];
+      .prepare(`
+        SELECT * FROM vocab
+        WHERE user_id = ? AND times_used = 0
+        ORDER BY last_captured ASC, normalized ASC
+        LIMIT ?
+      `)
+      .all(userId, oldestLimit) as VocabRow[];
     add(oldest.map(mapVocab));
   }
 
   // 3. Coverage: random fill so topical words can surface even when scores tie.
   if (byNormalized.size < limit) {
-    const random = db.prepare('SELECT * FROM vocab ORDER BY RANDOM() LIMIT ?').all(limit * 2) as VocabRow[];
+    const random = db.prepare('SELECT * FROM vocab WHERE user_id = ? ORDER BY RANDOM() LIMIT ?')
+      .all(userId, limit * 2) as VocabRow[];
     add(random.map(mapVocab));
   }
 
   return Array.from(byNormalized.values()).slice(0, limit);
 }
 
-export function incrementVocabUsed(db: Database.Database, word: string) {
+export function incrementVocabUsed(db: Database.Database, userId: string, word: string) {
   db.prepare(`
     UPDATE vocab
     SET times_used = times_used + 1
-    WHERE normalized = ?
-  `).run(normalizeVocabWord(word));
+    WHERE user_id = ? AND normalized = ?
+  `).run(userId, normalizeVocabWord(word));
 }
 
-export function decrementVocabUsed(db: Database.Database, word: string) {
+export function decrementVocabUsed(db: Database.Database, userId: string, word: string) {
   db.prepare(`
     UPDATE vocab
     SET times_used = CASE WHEN times_used > 0 THEN times_used - 1 ELSE 0 END
-    WHERE normalized = ?
-  `).run(normalizeVocabWord(word));
+    WHERE user_id = ? AND normalized = ?
+  `).run(userId, normalizeVocabWord(word));
 }
 
-export function incrementVocabSuggested(db: Database.Database, words: string[]) {
+export function incrementVocabSuggested(db: Database.Database, userId: string, words: string[]) {
   const stmt = db.prepare(`
     UPDATE vocab
     SET times_suggested = times_suggested + 1
-    WHERE normalized = ?
+    WHERE user_id = ? AND normalized = ?
   `);
   const incrementMany = db.transaction((items: string[]) => {
     for (const word of items) {
-      stmt.run(normalizeVocabWord(word));
+      stmt.run(userId, normalizeVocabWord(word));
     }
   });
   incrementMany(words);
 }
 
-export function recordErrors(db: Database.Database, types: ErrorType[]) {
+export function recordErrors(db: Database.Database, userId: string, types: ErrorType[]) {
   const stmt = db.prepare(`
-    INSERT INTO error_tally (error_type, count, last_seen)
-    VALUES (?, 1, datetime('now'))
-    ON CONFLICT(error_type) DO UPDATE SET
+    INSERT INTO error_tally (user_id, error_type, count, last_seen)
+    VALUES (?, ?, 1, datetime('now'))
+    ON CONFLICT(user_id, error_type) DO UPDATE SET
       count = count + 1,
       last_seen = datetime('now')
   `);
   const recordMany = db.transaction((items: ErrorType[]) => {
     for (const type of items) {
-      stmt.run(type);
+      stmt.run(userId, type);
     }
   });
   recordMany(types);
 }
 
-function decrementErrors(db: Database.Database, types: ErrorType[]) {
+function decrementErrors(db: Database.Database, userId: string, types: ErrorType[]) {
   const decrement = db.prepare(`
     UPDATE error_tally
     SET count = CASE WHEN count > 0 THEN count - 1 ELSE 0 END
-    WHERE error_type = ?
+    WHERE user_id = ? AND error_type = ?
   `);
-  const deleteEmpty = db.prepare('DELETE FROM error_tally WHERE count <= 0');
+  const deleteEmpty = db.prepare('DELETE FROM error_tally WHERE user_id = ? AND count <= 0');
   const decrementMany = db.transaction((items: ErrorType[]) => {
     for (const type of items) {
-      decrement.run(type);
+      decrement.run(userId, type);
     }
-    deleteEmpty.run();
+    deleteEmpty.run(userId);
   });
   decrementMany(types);
 }
 
-export function getTallies(db: Database.Database): ErrorTally[] {
+export function getTallies(db: Database.Database, userId: string): ErrorTally[] {
   const rows = db
-    .prepare('SELECT error_type, count, last_seen FROM error_tally ORDER BY count DESC, error_type ASC')
-    .all() as ErrorTallyRow[];
+    .prepare(`
+      SELECT user_id, error_type, count, last_seen
+      FROM error_tally
+      WHERE user_id = ?
+      ORDER BY count DESC, error_type ASC
+    `)
+    .all(userId) as ErrorTallyRow[];
   return rows.map(row => ({
     errorType: row.error_type,
     count: row.count,
@@ -455,6 +489,7 @@ function mapMistakeRow(row: MistakeLogRow): MistakeLogItem {
 
 export function getMistakeLog(
   db: Database.Database,
+  userId: string,
   errorType?: ErrorType,
   limit = 50,
 ): MistakeLogItem[] {
@@ -469,17 +504,18 @@ export function getMistakeLog(
       sessions.date
     FROM annotations
     JOIN sessions ON sessions.id = annotations.session_id
-    WHERE annotations.error_type != 'vocab_suggestion'
+    WHERE sessions.user_id = @userId
+      AND annotations.error_type != 'vocab_suggestion'
       AND (@errorType IS NULL OR annotations.error_type = @errorType)
     ORDER BY sessions.date DESC, annotations.id DESC
     LIMIT @limit
-  `).all({ errorType: errorType ?? null, limit: safeLimit }) as MistakeLogRow[];
+  `).all({ userId, errorType: errorType ?? null, limit: safeLimit }) as MistakeLogRow[];
   return rows.map(mapMistakeRow);
 }
 
-export function getMistakeRanking(db: Database.Database): MistakeRankingItem[] {
-  return getTallies(db).map(tally => {
-    const recentExamples: MistakeExample[] = getMistakeLog(db, tally.errorType, 3)
+export function getMistakeRanking(db: Database.Database, userId: string): MistakeRankingItem[] {
+  return getTallies(db, userId).map(tally => {
+    const recentExamples: MistakeExample[] = getMistakeLog(db, userId, tally.errorType, 3)
       .map(({ errorType: _errorType, ...example }) => example);
     return {
       errorType: tally.errorType,
@@ -500,41 +536,44 @@ function daysParam(days: number): { startOffset: string } {
   return { startOffset: `-${safeDays - 1} days` };
 }
 
-export function getDailyMistakeCounts(db: Database.Database, days = 30): ProgressDailyPoint[] {
+export function getDailyMistakeCounts(db: Database.Database, userId: string, days = 30): ProgressDailyPoint[] {
   const rows = db.prepare(`
     SELECT date(sessions.date) AS date, COUNT(*) AS count
     FROM annotations
     JOIN sessions ON sessions.id = annotations.session_id
-    WHERE annotations.error_type != 'vocab_suggestion'
+    WHERE sessions.user_id = @userId
+      AND annotations.error_type != 'vocab_suggestion'
       AND date(sessions.date) >= date('now', @startOffset)
     GROUP BY date(sessions.date)
     ORDER BY date ASC
-  `).all(daysParam(days)) as DailyMistakeCountRow[];
+  `).all({ userId, ...daysParam(days) }) as DailyMistakeCountRow[];
   return rows.map(row => ({
     date: row.date,
     count: row.count,
   }));
 }
 
-export function getMistakeTrend(db: Database.Database, days = 30, topN = 3): MistakeTrendSeries[] {
+export function getMistakeTrend(db: Database.Database, userId: string, days = 30, topN = 3): MistakeTrendSeries[] {
   const window = daysParam(days);
   const safeTopN = boundedPositiveInt(topN, 3, 10);
   const topTypes = db.prepare(`
     SELECT annotations.error_type, COUNT(*) AS count
     FROM annotations
     JOIN sessions ON sessions.id = annotations.session_id
-    WHERE annotations.error_type != 'vocab_suggestion'
+    WHERE sessions.user_id = @userId
+      AND annotations.error_type != 'vocab_suggestion'
       AND date(sessions.date) >= date('now', @startOffset)
     GROUP BY annotations.error_type
     ORDER BY count DESC, annotations.error_type ASC
     LIMIT @limit
-  `).all({ ...window, limit: safeTopN }) as TrendTypeRow[];
+  `).all({ userId, ...window, limit: safeTopN }) as TrendTypeRow[];
 
   const pointsForType = db.prepare(`
     SELECT date(sessions.date) AS date, COUNT(*) AS count
     FROM annotations
     JOIN sessions ON sessions.id = annotations.session_id
-    WHERE annotations.error_type = @errorType
+    WHERE sessions.user_id = @userId
+      AND annotations.error_type = @errorType
       AND date(sessions.date) >= date('now', @startOffset)
     GROUP BY date(sessions.date)
     ORDER BY date ASC
@@ -543,6 +582,7 @@ export function getMistakeTrend(db: Database.Database, days = 30, topN = 3): Mis
   return topTypes.map(type => ({
     errorType: type.error_type,
     points: (pointsForType.all({
+      userId,
       errorType: type.error_type,
       ...window,
     }) as DailyMistakeCountRow[]).map(row => ({
@@ -552,21 +592,23 @@ export function getMistakeTrend(db: Database.Database, days = 30, topN = 3): Mis
   }));
 }
 
-export function getActivationStats(db: Database.Database): { suggested: number; used: number } {
+export function getActivationStats(db: Database.Database, userId: string): { suggested: number; used: number } {
   const row = db.prepare(`
     SELECT
       COALESCE(SUM(times_suggested), 0) AS suggested,
       COALESCE(SUM(times_used), 0) AS used
     FROM vocab
-  `).get() as { suggested: number; used: number };
+    WHERE user_id = ?
+  `).get(userId) as { suggested: number; used: number };
   return row;
 }
 
-export function insertSession(db: Database.Database, input: InsertSessionInput): number {
+export function insertSession(db: Database.Database, userId: string, input: InsertSessionInput): number {
   const result = db.prepare(`
-    INSERT INTO sessions (date, prompt_id, draft_text, final_text, duration_s)
-    VALUES (@date, @promptId, @draftText, @finalText, @durationS)
+    INSERT INTO sessions (user_id, date, prompt_id, draft_text, final_text, duration_s)
+    VALUES (@userId, @date, @promptId, @draftText, @finalText, @durationS)
   `).run({
+    userId,
     date: input.date ?? new Date().toISOString(),
     promptId: input.promptId ?? null,
     draftText: input.draftText,
@@ -584,12 +626,14 @@ const SENTENCE_LAB_PARAGRAPH_OFFSET = 1_000_000;
 
 export function insertSentenceLabDraft(
   db: Database.Database,
+  userId: string,
   input: { date?: string; sentence: string; context?: string; response: CoachResponse },
 ): number {
   const result = db.prepare(`
-    INSERT INTO sentence_lab_drafts (date, sentence, context, response_json)
-    VALUES (@date, @sentence, @context, @responseJson)
+    INSERT INTO sentence_lab_drafts (user_id, date, sentence, context, response_json)
+    VALUES (@userId, @date, @sentence, @context, @responseJson)
   `).run({
+    userId,
     date: sessionDay(input.date),
     sentence: input.sentence,
     context: input.context?.trim() || null,
@@ -598,12 +642,12 @@ export function insertSentenceLabDraft(
   return Number(result.lastInsertRowid);
 }
 
-export function getSentenceLabDraft(db: Database.Database, id: number): SentenceLabDraft | undefined {
+export function getSentenceLabDraft(db: Database.Database, userId: string, id: number): SentenceLabDraft | undefined {
   const row = db.prepare(`
-    SELECT id, date, sentence, context, response_json
+    SELECT id, user_id, date, sentence, context, response_json
     FROM sentence_lab_drafts
-    WHERE id = ?
-  `).get(id) as SentenceLabDraftRow | undefined;
+    WHERE user_id = ? AND id = ?
+  `).get(userId, id) as SentenceLabDraftRow | undefined;
   if (!row) return undefined;
   return {
     id: row.id,
@@ -616,12 +660,13 @@ export function getSentenceLabDraft(db: Database.Database, id: number): Sentence
 
 export function recordSentenceLabResult(
   db: Database.Database,
+  userId: string,
   input: { id: number; rewrite: string },
 ): ParagraphResultRecord {
-  const draft = getSentenceLabDraft(db, input.id);
+  const draft = getSentenceLabDraft(db, userId, input.id);
   if (!draft) throw new Error('Sentence Lab diagnosis not found.');
 
-  return recordParagraphResult(db, {
+  return recordParagraphResult(db, userId, {
     date: draft.date,
     paragraphIdx: SENTENCE_LAB_PARAGRAPH_OFFSET + draft.id,
     paragraph: draft.sentence,
@@ -630,24 +675,25 @@ export function recordSentenceLabResult(
   });
 }
 
-function findSessionForDay(db: Database.Database, date: string, promptId?: number): number | undefined {
+function findSessionForDay(db: Database.Database, userId: string, date: string, promptId?: number): number | undefined {
   const row = db.prepare(`
     SELECT id
     FROM sessions
-    WHERE date = @date
+    WHERE user_id = @userId
+      AND date = @date
       AND (
         (@promptId IS NULL AND prompt_id IS NULL)
         OR prompt_id = @promptId
       )
     ORDER BY id ASC
     LIMIT 1
-  `).get({ date, promptId: promptId ?? null }) as { id: number } | undefined;
+  `).get({ userId, date, promptId: promptId ?? null }) as { id: number } | undefined;
   return row?.id;
 }
 
-function getOrCreateParagraphSession(db: Database.Database, input: ParagraphResultInput): ParagraphResultRecord {
+function getOrCreateParagraphSession(db: Database.Database, userId: string, input: ParagraphResultInput): ParagraphResultRecord {
   const date = sessionDay(input.date);
-  const existing = findSessionForDay(db, date, input.promptId);
+  const existing = findSessionForDay(db, userId, date, input.promptId);
   if (existing) {
     db.prepare(`
       UPDATE sessions
@@ -655,12 +701,12 @@ function getOrCreateParagraphSession(db: Database.Database, input: ParagraphResu
           WHEN draft_text IS NULL OR draft_text = '' THEN @paragraph
           ELSE draft_text
         END
-      WHERE id = @id
-    `).run({ id: existing, paragraph: input.paragraph });
+      WHERE user_id = @userId AND id = @id
+    `).run({ userId, id: existing, paragraph: input.paragraph });
     return { sessionId: existing, created: false };
   }
 
-  const sessionId = insertSession(db, {
+  const sessionId = insertSession(db, userId, {
     date,
     promptId: input.promptId,
     draftText: input.paragraph,
@@ -696,9 +742,14 @@ function submittedVocabWords(annotations: InsertAnnotationInput[]): string[] {
 
 export function insertAnnotations(
   db: Database.Database,
+  userId: string,
   sessionId: number,
   annotations: InsertAnnotationInput[],
 ) {
+  const session = db.prepare('SELECT id FROM sessions WHERE user_id = ? AND id = ?')
+    .get(userId, sessionId) as { id: number } | undefined;
+  if (!session) throw new Error('Session not found for user.');
+
   const stmt = db.prepare(`
     INSERT INTO annotations (
       session_id, paragraph_idx, span_text, error_type, hint, explanation,
@@ -731,34 +782,41 @@ export function insertAnnotations(
 
 export function recordParagraphResult(
   db: Database.Database,
+  userId: string,
   input: ParagraphResultInput,
 ): ParagraphResultRecord {
   const applyResult = db.transaction(() => {
-    const session = getOrCreateParagraphSession(db, input);
+    const session = getOrCreateParagraphSession(db, userId, input);
     const previous = db.prepare(`
       SELECT error_type, model_rewrite, accepted
       FROM annotations
-      WHERE session_id = ? AND paragraph_idx = ?
-    `).all(session.sessionId, input.paragraphIdx) as StoredAnnotationRow[];
+      JOIN sessions ON sessions.id = annotations.session_id
+      WHERE sessions.user_id = ? AND session_id = ? AND paragraph_idx = ?
+    `).all(userId, session.sessionId, input.paragraphIdx) as StoredAnnotationRow[];
 
-    db.prepare('DELETE FROM annotations WHERE session_id = ? AND paragraph_idx = ?')
-      .run(session.sessionId, input.paragraphIdx);
+    db.prepare(`
+      DELETE FROM annotations
+      WHERE session_id = (
+        SELECT id FROM sessions WHERE user_id = ? AND id = ?
+      )
+      AND paragraph_idx = ?
+    `).run(userId, session.sessionId, input.paragraphIdx);
 
     const nextAnnotations: InsertAnnotationInput[] = input.annotations.map(annotation => ({
       ...annotation,
       paragraphIdx: input.paragraphIdx,
       userRewrite: input.rewrite,
     }));
-    insertAnnotations(db, session.sessionId, nextAnnotations);
+    insertAnnotations(db, userId, session.sessionId, nextAnnotations);
 
-    decrementErrors(db, tallyErrorTypes(previous));
-    recordErrors(db, submittedErrorTypes(nextAnnotations));
+    decrementErrors(db, userId, tallyErrorTypes(previous));
+    recordErrors(db, userId, submittedErrorTypes(nextAnnotations));
 
     for (const word of acceptedVocabWords(previous)) {
-      decrementVocabUsed(db, word);
+      decrementVocabUsed(db, userId, word);
     }
     for (const word of submittedVocabWords(nextAnnotations)) {
-      incrementVocabUsed(db, word);
+      incrementVocabUsed(db, userId, word);
     }
 
     return session;

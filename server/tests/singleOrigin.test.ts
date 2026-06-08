@@ -8,6 +8,7 @@ import { createApp } from '../src/index.js';
 
 let db: ReturnType<typeof openDb>;
 let tempDir: string | undefined;
+const USER_ID = 'local';
 
 beforeEach(() => {
   db = openDb(':memory:');
@@ -51,10 +52,14 @@ it('serves built client assets and keeps api routes on the same origin', async (
     expect(spaFallback.status).toBe(200);
     await expect(spaFallback.text()).resolves.toContain('Idiomate shell');
 
-    const api = await fetch(`${baseUrl}/api/vocab/list`);
+    const api = await fetch(`${baseUrl}/api/vocab/list`, {
+      headers: { 'x-user-id': USER_ID },
+    });
     expect(api.status).toBe(200);
 
-    const missingApi = await fetch(`${baseUrl}/api/not-real`);
+    const missingApi = await fetch(`${baseUrl}/api/not-real`, {
+      headers: { 'x-user-id': USER_ID },
+    });
     expect(missingApi.status).toBe(404);
     await expect(missingApi.text()).resolves.not.toContain('Idiomate shell');
   });

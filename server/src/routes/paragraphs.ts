@@ -19,7 +19,7 @@ export function createParagraphsRouter(deps: AppDependencies): Router {
   router.post('/', (req, res, next) => {
     try {
       const body = paragraphResultZ.parse(req.body);
-      const result = recordParagraphResult(deps.db, body);
+      const result = recordParagraphResult(deps.db, req.userId, body);
       res.status(result.created ? 201 : 200).json({ id: result.sessionId });
     } catch (err) {
       next(err);

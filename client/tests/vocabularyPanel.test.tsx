@@ -51,5 +51,5 @@ it('renders a priority-sorted vocabulary list with capture and usage counts', as
   expect(screen.getByText('met 5x')).toBeInTheDocument();
   expect(screen.getByText('used 1 / suggested 3')).toBeInTheDocument();
   expect(screen.getByText('fresh word')).toBeInTheDocument();
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vocab/list?limit=30'));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vocab/list?limit=30', expect.any(Object)));
 });

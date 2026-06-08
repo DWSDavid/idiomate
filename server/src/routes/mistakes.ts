@@ -16,7 +16,7 @@ export function createMistakesRouter(deps: AppDependencies): Router {
     try {
       const query = mistakesQueryZ.parse(req.query);
       res.json({
-        mistakes: getMistakeLog(deps.db, query.type, query.limit),
+        mistakes: getMistakeLog(deps.db, req.userId, query.type, query.limit),
       });
     } catch (err) {
       next(err);

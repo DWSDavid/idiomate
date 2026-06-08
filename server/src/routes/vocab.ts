@@ -67,14 +67,14 @@ export function createVocabRouter(deps: AppDependencies): Router {
     try {
       const body = saveVocabZ.parse(req.body);
       const normalized = normalizeVocabWord(body.normalized ?? body.word);
-      const existed = Boolean(getVocabCaptureMeta(deps.db, normalized));
-      const id = upsertVocab(deps.db, {
+      const existed = Boolean(getVocabCaptureMeta(deps.db, req.userId, normalized));
+      const id = upsertVocab(deps.db, req.userId, {
         ...body,
         source: body.source ?? 'capture',
         timesSuggested: body.timesSuggested ?? 0,
         timesUsed: body.timesUsed ?? 0,
       });
-      const saved = getVocabCaptureMeta(deps.db, normalized);
+      const saved = getVocabCaptureMeta(deps.db, req.userId, normalized);
       res.status(201).json({
         id,
         captureCount: saved?.captureCount ?? body.captureCount ?? 1,
@@ -89,8 +89,8 @@ export function createVocabRouter(deps: AppDependencies): Router {
     try {
       const query = vocabListQueryZ.parse(req.query);
       res.json({
-        total: getVocabCount(deps.db),
-        items: getVocabList(deps.db, query.limit),
+        total: getVocabCount(deps.db, req.userId),
+        items: getVocabList(deps.db, req.userId, query.limit),
       });
     } catch (err) {
       next(err);
@@ -101,7 +101,7 @@ export function createVocabRouter(deps: AppDependencies): Router {
     try {
       const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from(String(req.body ?? ''), 'utf8');
       const vocab = parseYoudaoTxt(body);
-      insertVocab(deps.db, vocab);
+      insertVocab(deps.db, req.userId, vocab);
       res.status(201).json({ count: vocab.length });
     } catch (err) {
       next(err);
@@ -115,7 +115,7 @@ export function createVocabRouter(deps: AppDependencies): Router {
       const limit = Number.isFinite(parsedLimit)
         ? Math.max(1, Math.min(10, Math.floor(parsedLimit)))
         : 10;
-      const pool = getPrimeCandidatePool(deps.db, promptText, 120);
+      const pool = getPrimeCandidatePool(deps.db, req.userId, promptText, 120);
       const selectedWords = await selectPrimeWords(deps.utilityProvider, {
         topic: promptText,
         vocab: pool.map(v => ({ word: v.word, defCn: v.defCn, kind: v.kind })),
@@ -135,7 +135,7 @@ export function createVocabRouter(deps: AppDependencies): Router {
       }
       const vocab = Array.from(selected.values()).slice(0, limit);
 
-      incrementVocabSuggested(deps.db, vocab.map(v => v.word));
+      incrementVocabSuggested(deps.db, req.userId, vocab.map(v => v.word));
       res.json({ topic: promptText, promptText, limit, vocab });
     } catch (err) {
       next(err);

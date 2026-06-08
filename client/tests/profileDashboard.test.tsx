@@ -92,14 +92,14 @@ it('shows ranked mistakes and renders a structured teaching lesson with book lin
   fireEvent.click(screen.getByRole('button', { name: /Open tense mistakes/ }));
 
   await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith('/api/mistakes?type=tense&limit=50');
+    expect(fetchMock).toHaveBeenCalledWith('/api/mistakes?type=tense&limit=50', expect.any(Object));
     expect(screen.getByText('Yesterday I go to the meeting')).toBeInTheDocument();
   });
 
   fireEvent.click(screen.getByRole('button', { name: /Learn tense/ }));
 
   await waitFor(() => {
-    expect(fetchMock).toHaveBeenCalledWith('/api/lesson?type=tense');
+    expect(fetchMock).toHaveBeenCalledWith('/api/lesson?type=tense', expect.any(Object));
     expect(screen.getByText('What is the pattern?')).toBeInTheDocument();
     expect(screen.getByText('Why it feels unnatural')).toBeInTheDocument();
     expect(screen.getByText('How to repair it')).toBeInTheDocument();

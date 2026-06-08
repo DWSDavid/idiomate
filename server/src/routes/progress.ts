@@ -15,8 +15,8 @@ export function createProgressRouter(deps: AppDependencies): Router {
     try {
       const query = progressQueryZ.parse(req.query);
       res.json({
-        daily: getDailyMistakeCounts(deps.db, query.days),
-        trend: getMistakeTrend(deps.db, query.days, query.topN),
+        daily: getDailyMistakeCounts(deps.db, req.userId, query.days),
+        trend: getMistakeTrend(deps.db, req.userId, query.days, query.topN),
       });
     } catch (err) {
       next(err);

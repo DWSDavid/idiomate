@@ -14,8 +14,8 @@ const lessonQueryZ = z.object({
   type: z.enum(ERROR_TYPES).optional(),
 });
 
-function defaultErrorType(deps: AppDependencies): ErrorType {
-  return getMistakeRanking(deps.db)
+function defaultErrorType(deps: AppDependencies, userId: string): ErrorType {
+  return getMistakeRanking(deps.db, userId)
     .filter(item => item.errorType !== 'vocab_suggestion')[0]?.errorType ?? 'small_grammar';
 }
 
@@ -70,10 +70,10 @@ export function createLessonsRouter(deps: AppDependencies): Router {
   router.get('/', async (req, res, next) => {
     try {
       const query = lessonQueryZ.parse(req.query);
-      const errorType = query.type ?? defaultErrorType(deps);
+      const errorType = query.type ?? defaultErrorType(deps, req.userId);
       const rules = lessonRules(errorType);
       const seedPairs = seedPairsFor(errorType, rules).slice(0, 3);
-      const pastInstances = getMistakeLog(deps.db, errorType, 6);
+      const pastInstances = getMistakeLog(deps.db, req.userId, errorType, 6);
       const generated = await generateLesson(deps.utilityProvider, {
         errorType,
         rules,

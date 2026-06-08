@@ -5,11 +5,11 @@ import { getActivationStats, getMistakeRanking, getTallies } from '../db/dal.js'
 export function createProfileRouter(deps: AppDependencies): Router {
   const router = Router();
 
-  router.get('/', (_req, res) => {
+  router.get('/', (req, res) => {
     res.json({
-      tallies: getTallies(deps.db),
-      ranking: getMistakeRanking(deps.db),
-      activation: getActivationStats(deps.db),
+      tallies: getTallies(deps.db, req.userId),
+      ranking: getMistakeRanking(deps.db, req.userId),
+      activation: getActivationStats(deps.db, req.userId),
     });
   });
 

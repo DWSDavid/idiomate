@@ -17,11 +17,11 @@ export function createCoachRouter(deps: AppDependencies): Router {
   router.post('/', async (req, res, next) => {
     try {
       const body = coachRequestZ.parse(req.body);
-      const topErrors = getTallies(deps.db)
+      const topErrors = getTallies(deps.db, req.userId)
         .filter(tally => tally.errorType !== 'vocab_suggestion')
         .slice(0, 3)
         .map(tally => tally.errorType);
-      const vocabCandidates = getPrimeCandidates(deps.db, 8).map(v => ({
+      const vocabCandidates = getPrimeCandidates(deps.db, req.userId, 8).map(v => ({
         word: v.word,
         defCn: v.defCn,
       }));

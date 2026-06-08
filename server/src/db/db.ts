@@ -12,6 +12,17 @@ export function openDb(path = config.dbPath) {
 
 export function migrate(db: Database.Database) {
   db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'));
+  db.prepare(`
+    INSERT INTO users (id, name)
+    VALUES ('local', 'Local')
+    ON CONFLICT(id) DO UPDATE SET name = COALESCE(users.name, excluded.name)
+  `).run();
+  ensureColumn(db, 'vocab', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
+  ensureColumn(db, 'sessions', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
+  ensureColumn(db, 'error_tally', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
+  ensureColumn(db, 'sentence_lab_drafts', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
+  rebuildVocabIfLegacy(db);
+  rebuildErrorTallyIfLegacy(db);
   ensureColumn(db, 'annotations', 'rule', 'TEXT');
   ensureColumn(db, 'annotations', 'rule_example', 'TEXT');
 }
@@ -21,4 +32,55 @@ function ensureColumn(db: Database.Database, table: string, column: string, defi
   if (!columns.some(item => item.name === column)) {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
+}
+
+function tableSql(db: Database.Database, table: string): string {
+  const row = db.prepare(`
+    SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?
+  `).get(table) as { sql: string } | undefined;
+  return row?.sql ?? '';
+}
+
+function rebuildVocabIfLegacy(db: Database.Database) {
+  if (tableSql(db, 'vocab').includes('UNIQUE(user_id, normalized)')) return;
+  db.exec(`
+    CREATE TABLE vocab_new (
+      id INTEGER PRIMARY KEY, user_id TEXT NOT NULL DEFAULT 'local',
+      word TEXT NOT NULL, normalized TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'word', ipa TEXT, def_cn TEXT, pos TEXT,
+      status TEXT, source TEXT, context_sentence TEXT, examples TEXT,
+      collocations TEXT, register TEXT, capture_count INTEGER DEFAULT 1,
+      last_captured TEXT DEFAULT (datetime('now')), date_added TEXT DEFAULT (datetime('now')),
+      times_suggested INTEGER DEFAULT 0, times_used INTEGER DEFAULT 0,
+      UNIQUE(user_id, normalized)
+    );
+    INSERT INTO vocab_new (
+      id, user_id, word, normalized, kind, ipa, def_cn, pos, status, source,
+      context_sentence, examples, collocations, register, capture_count,
+      last_captured, date_added, times_suggested, times_used
+    )
+    SELECT
+      id, COALESCE(user_id, 'local'), word, normalized, kind, ipa, def_cn, pos, status, source,
+      context_sentence, examples, collocations, register, capture_count,
+      last_captured, date_added, times_suggested, times_used
+    FROM vocab;
+    DROP TABLE vocab;
+    ALTER TABLE vocab_new RENAME TO vocab;
+  `);
+}
+
+function rebuildErrorTallyIfLegacy(db: Database.Database) {
+  if (tableSql(db, 'error_tally').includes('PRIMARY KEY (user_id, error_type)')) return;
+  db.exec(`
+    CREATE TABLE error_tally_new (
+      user_id TEXT NOT NULL DEFAULT 'local',
+      error_type TEXT NOT NULL, count INTEGER DEFAULT 0, last_seen TEXT,
+      PRIMARY KEY (user_id, error_type)
+    );
+    INSERT INTO error_tally_new (user_id, error_type, count, last_seen)
+    SELECT COALESCE(user_id, 'local'), error_type, count, last_seen
+    FROM error_tally;
+    DROP TABLE error_tally;
+    ALTER TABLE error_tally_new RENAME TO error_tally;
+  `);
 }

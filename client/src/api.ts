@@ -16,6 +16,7 @@ import type {
   VocabListResponse,
   SaveVocabResponse,
 } from '../../shared/types';
+import { getClientIdentity } from './identity';
 
 export interface ProfileResponse {
   tallies: ErrorTally[];
@@ -57,8 +58,23 @@ async function readJson<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function postJson<T>(url: string, body: unknown): Promise<T> {
+function identityHeaders(extra?: HeadersInit): Headers {
+  const identity = getClientIdentity();
+  const headers = new Headers(extra);
+  headers.set('x-user-id', identity.id);
+  headers.set('x-user-name', identity.name);
+  return headers;
+}
+
+function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
   return fetch(url, {
+    ...init,
+    headers: identityHeaders(init.headers),
+  });
+}
+
+function postJson<T>(url: string, body: unknown): Promise<T> {
+  return apiFetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -66,17 +82,17 @@ function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 export function getTodayPrompt(): Promise<Prompt> {
-  return fetch('/api/prompt/today').then(readJson<Prompt>);
+  return apiFetch('/api/prompt/today').then(readJson<Prompt>);
 }
 
 export function primeVocab(promptText: string, limit = 10): Promise<{ topic: string; vocab: Vocab[] }> {
   const params = new URLSearchParams({ promptText, limit: String(limit) });
-  return fetch(`/api/vocab/prime?${params.toString()}`).then(readJson<{ topic: string; vocab: Vocab[] }>);
+  return apiFetch(`/api/vocab/prime?${params.toString()}`).then(readJson<{ topic: string; vocab: Vocab[] }>);
 }
 
 export function getVocabList(limit = 200): Promise<VocabListResponse> {
   const params = new URLSearchParams({ limit: String(limit) });
-  return fetch(`/api/vocab/list?${params.toString()}`).then(readJson<VocabListResponse>);
+  return apiFetch(`/api/vocab/list?${params.toString()}`).then(readJson<VocabListResponse>);
 }
 
 export function coach(paragraph: string, paragraphIndex: number): Promise<CoachResponse> {
@@ -92,25 +108,25 @@ export function recordParagraph(payload: ParagraphResultPayload): Promise<{ id: 
 }
 
 export function getProfile(): Promise<ProfileResponse> {
-  return fetch('/api/profile').then(readJson<ProfileResponse>);
+  return apiFetch('/api/profile').then(readJson<ProfileResponse>);
 }
 
 export function getProgress(): Promise<ProgressResponse> {
-  return fetch('/api/progress').then(readJson<ProgressResponse>);
+  return apiFetch('/api/progress').then(readJson<ProgressResponse>);
 }
 
 export function getMistakes(errorType?: ErrorType, limit = 50): Promise<{ mistakes: MistakeLogItem[] }> {
   const params = new URLSearchParams();
   if (errorType) params.set('type', errorType);
   params.set('limit', String(limit));
-  return fetch(`/api/mistakes?${params.toString()}`).then(readJson<{ mistakes: MistakeLogItem[] }>);
+  return apiFetch(`/api/mistakes?${params.toString()}`).then(readJson<{ mistakes: MistakeLogItem[] }>);
 }
 
 export function getLesson(errorType?: ErrorType): Promise<LessonResponse> {
   const params = new URLSearchParams();
   if (errorType) params.set('type', errorType);
   const query = params.toString();
-  return fetch(`/api/lesson${query ? `?${query}` : ''}`).then(readJson<LessonResponse>);
+  return apiFetch(`/api/lesson${query ? `?${query}` : ''}`).then(readJson<LessonResponse>);
 }
 
 export function researchEssay(essay: string): Promise<ResearchResponse> {
@@ -139,7 +155,7 @@ export function revealSentenceLabResult(
 }
 
 export function importVocab(file: File): Promise<{ count: number }> {
-  return fetch('/api/vocab/import', {
+  return apiFetch('/api/vocab/import', {
     method: 'POST',
     headers: {
       'Content-Type': file.type || 'text/plain',

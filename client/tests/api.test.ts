@@ -77,22 +77,32 @@ describe('client api', () => {
     await captureWord('shore up', 'We need to shore up margins.');
     await saveVocab({ word: 'shore up', timesSuggested: 0, timesUsed: 0 });
 
-    expect(fetchMock).toHaveBeenNthCalledWith(1, '/api/prompt/today');
-    expect(fetchMock).toHaveBeenNthCalledWith(2, '/api/vocab/list?limit=200');
-    expect(fetchMock).toHaveBeenNthCalledWith(3, '/api/vocab/prime?promptText=tech+risk&limit=10');
-    expect(fetchMock).toHaveBeenNthCalledWith(4, '/api/profile');
-    expect(fetchMock).toHaveBeenNthCalledWith(5, '/api/progress');
-    expect(fetchMock).toHaveBeenNthCalledWith(6, '/api/mistakes?type=redundancy&limit=50');
-    expect(fetchMock).toHaveBeenNthCalledWith(7, '/api/lesson?type=redundancy');
-    expect(fetchMock).toHaveBeenNthCalledWith(8, '/api/research', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(9, '/api/structure', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(10, '/api/sentence-lab/diagnose', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(11, '/api/sentence-lab/result', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(12, '/api/coach', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(13, '/api/paragraph-result', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(14, '/api/sessions', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(15, '/api/vocab/import', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(16, '/api/vocab/capture', expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock).toHaveBeenNthCalledWith(17, '/api/vocab/save', expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls.map(call => String(call[0]))).toEqual([
+      '/api/prompt/today',
+      '/api/vocab/list?limit=200',
+      '/api/vocab/prime?promptText=tech+risk&limit=10',
+      '/api/profile',
+      '/api/progress',
+      '/api/mistakes?type=redundancy&limit=50',
+      '/api/lesson?type=redundancy',
+      '/api/research',
+      '/api/structure',
+      '/api/sentence-lab/diagnose',
+      '/api/sentence-lab/result',
+      '/api/coach',
+      '/api/paragraph-result',
+      '/api/sessions',
+      '/api/vocab/import',
+      '/api/vocab/capture',
+      '/api/vocab/save',
+    ]);
+
+    for (const [, init] of fetchMock.mock.calls) {
+      const headers = new Headers((init as RequestInit | undefined)?.headers);
+      expect(headers.get('x-user-id')).toBeTruthy();
+      expect(headers.get('x-user-name')).toBeTruthy();
+    }
+    expect(fetchMock.mock.calls[7][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[14][1]).toEqual(expect.objectContaining({ method: 'POST' }));
   });
 });
