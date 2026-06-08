@@ -17,6 +17,14 @@ function fromLines(value: string): string[] {
     .filter(Boolean);
 }
 
+function dictionaryLinks(term: string): { merriamWebster: string; cambridge: string } {
+  const encoded = encodeURIComponent(term.trim());
+  return {
+    merriamWebster: `https://www.merriam-webster.com/dictionary/${encoded}`,
+    cambridge: `https://dictionary.cambridge.org/dictionary/english/${encoded}`,
+  };
+}
+
 export function CaptureWord({ onSaved }: CaptureWordProps) {
   const [word, setWord] = useState('');
   const [contextSentence, setContextSentence] = useState('');
@@ -64,6 +72,8 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
     }
   };
 
+  const links = preview ? dictionaryLinks(preview.word) : null;
+
   return (
     <section className="surface" aria-label="quick capture">
       <span className="section-label">Add a word you met today</span>
@@ -93,6 +103,13 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
 
       {preview ? (
         <div className="mt-5 grid gap-3 md:grid-cols-2">
+          {links ? (
+            <div className="dictionary-strip md:col-span-2">
+              <span className="text-xs font-semibold text-slate-500">Dictionary</span>
+              <a href={links.merriamWebster} target="_blank" rel="noreferrer">Merriam-Webster</a>
+              <a href={links.cambridge} target="_blank" rel="noreferrer">Cambridge</a>
+            </div>
+          ) : null}
           <label className="field-label">
             Headword
             <input className="field mt-1" value={preview.word} onChange={event => setPreview({ ...preview, word: event.target.value })} />

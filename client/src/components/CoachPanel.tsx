@@ -4,6 +4,7 @@ import { recordParagraph, researchEssay, structureDraft } from '../api';
 import { CompareView, type ComparedAnnotation } from './CompareView';
 
 type CoachPhase = 'review' | 'rewriting' | 'compared';
+type StructureStatus = StructureResponse['observations'][number]['status'];
 
 interface RecordContext {
   date?: string;
@@ -18,6 +19,10 @@ interface CoachPanelProps {
   recordContext?: RecordContext;
   onRecorded?: () => void;
   onSubmit: (rewrite: string, accepted: ComparedAnnotation[]) => void;
+}
+
+function statusClass(status: StructureStatus): string {
+  return `status-chip status-${status}`;
 }
 
 export function CoachPanel({ paragraph, nativeVersion, annotations, recordContext, onRecorded, onSubmit }: CoachPanelProps) {
@@ -171,7 +176,7 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
                 <ul className="mt-2 space-y-2">
                   {structure.observations.map(item => (
                     <li key={`${item.part}-${item.status}-${item.note}`}>
-                      <span className="chip">{item.status}</span>
+                      <span className={statusClass(item.status)}>{item.status}</span>
                       <span className="ml-2 font-medium text-stone-900">{item.part}</span>
                       <span className="ml-2 text-stone-500">{item.note}</span>
                     </li>

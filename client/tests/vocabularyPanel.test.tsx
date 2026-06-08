@@ -24,6 +24,7 @@ it('renders a priority-sorted vocabulary list with capture and usage counts', as
           timesSuggested: 3,
           timesUsed: 1,
           lastCaptured: '2026-05-10T00:00:00.000Z',
+          capturedDate: '2026-05-10',
         },
         {
           word: 'fresh word',
@@ -33,6 +34,7 @@ it('renders a priority-sorted vocabulary list with capture and usage counts', as
           timesSuggested: 0,
           timesUsed: 0,
           lastCaptured: '2026-06-04T00:00:00.000Z',
+          capturedDate: '2026-06-04',
         },
       ],
     }),
@@ -47,9 +49,11 @@ it('renders a priority-sorted vocabulary list with capture and usage counts', as
   fireEvent.click(screen.getByRole('button', { name: 'Open vocabulary' }));
 
   expect(screen.getByText('well worn phrase')).toBeInTheDocument();
+  expect(screen.getByText('2026-05-10')).toBeInTheDocument();
   expect(screen.getByText('seen many times')).toBeInTheDocument();
   expect(screen.getByText('met 5x')).toBeInTheDocument();
   expect(screen.getByText('used 1 / suggested 3')).toBeInTheDocument();
   expect(screen.getByText('fresh word')).toBeInTheDocument();
+  expect(screen.getByText('2026-06-04')).toBeInTheDocument();
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('/api/vocab/list?limit=30', expect.any(Object)));
 });

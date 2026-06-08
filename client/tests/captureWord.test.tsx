@@ -49,6 +49,23 @@ it('captures a word, lets the user edit enrichment, and saves it', async () => {
   expect(captureWord).toHaveBeenCalledWith('shore up', 'We need to shore up margins.');
 });
 
+it('links the captured headword to Merriam-Webster and Cambridge lookups', async () => {
+  render(<CaptureWord onSaved={() => {}} />);
+
+  fireEvent.change(screen.getByLabelText('Word or phrase'), { target: { value: 'shore up' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enrich' }));
+
+  expect(await screen.findByDisplayValue('support')).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Merriam-Webster' })).toHaveAttribute(
+    'href',
+    'https://www.merriam-webster.com/dictionary/shore%20up',
+  );
+  expect(screen.getByRole('link', { name: 'Cambridge' })).toHaveAttribute(
+    'href',
+    'https://dictionary.cambridge.org/dictionary/english/shore%20up',
+  );
+});
+
 it('shows a priority-raised note when saving an existing word', async () => {
   vi.mocked(saveVocab).mockResolvedValueOnce({ id: 9, captureCount: 2, existed: true });
 

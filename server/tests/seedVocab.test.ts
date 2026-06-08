@@ -41,6 +41,7 @@ it('copies seed vocabulary to each new user without sharing later mutations', as
   ].join('\n'));
   process.env.IDIOMATE_ENV_FILE = join(tempDir, 'missing.env');
   process.env.SEED_VOCAB_PATH = seedPath;
+  process.env.AUTO_SEED_VOCAB = 'true';
   vi.resetModules();
 
   const { createApp } = await import('../src/index.js');

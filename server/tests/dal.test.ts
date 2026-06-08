@@ -110,6 +110,7 @@ it('lists vocab by the same priority order used for prime candidates', () => {
     timesSuggested: 0,
     timesUsed: 0,
     lastCaptured: '2026-05-10T00:00:00.000Z',
+    capturedDate: '2026-05-10',
   });
 });
 

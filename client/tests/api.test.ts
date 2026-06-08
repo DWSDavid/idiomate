@@ -9,7 +9,11 @@ import {
   getTodayPrompt,
   getProgress,
   getVocabList,
+  getAdminUserDetail,
+  getAdminUsers,
+  getHistory,
   importVocab,
+  importOwnerVocab,
   primeVocab,
   recordParagraph,
   revealSentenceLabResult,
@@ -47,7 +51,11 @@ describe('client api', () => {
       const url = String(input);
       if (url.includes('/api/prompt/today')) return jsonResponse({ date: '2026-06-04', theme: 'tech', text: 'Write.' });
       if (url.includes('/api/vocab/list')) return jsonResponse({ total: 1, items: [] });
+      if (url.includes('/api/vocab/owner-import')) return jsonResponse({ imported: 2, total: 2 });
       if (url.includes('/api/vocab/prime')) return jsonResponse({ topic: 'tech', vocab: [] });
+      if (url.includes('/api/history')) return jsonResponse({ entries: [] });
+      if (url.includes('/api/admin/users/alice')) return jsonResponse({ user: { id: 'alice' }, vocab: { total: 0, items: [] }, history: { entries: [] } });
+      if (url.includes('/api/admin/users')) return jsonResponse({ users: [] });
       if (url.includes('/api/profile')) return jsonResponse({ tallies: [], activation: { suggested: 0, used: 0 } });
       if (url.includes('/api/progress')) return jsonResponse({ daily: [], trend: [] });
       if (url.includes('/api/mistakes')) return jsonResponse({ mistakes: [] });
@@ -68,7 +76,11 @@ describe('client api', () => {
 
     await getTodayPrompt();
     await getVocabList();
+    await importOwnerVocab('owner-code');
     await primeVocab('tech risk');
+    await getHistory();
+    await getAdminUsers('admin-code');
+    await getAdminUserDetail('admin-code', 'alice');
     await getProfile();
     await getProgress();
     await getMistakes('redundancy');
@@ -93,7 +105,11 @@ describe('client api', () => {
     expect(fetchMock.mock.calls.map(call => String(call[0]))).toEqual([
       '/api/prompt/today',
       '/api/vocab/list?limit=200',
+      '/api/vocab/owner-import',
       '/api/vocab/prime?promptText=tech+risk&limit=10',
+      '/api/history?limit=100',
+      '/api/admin/users',
+      '/api/admin/users/alice',
       '/api/profile',
       '/api/progress',
       '/api/mistakes?type=redundancy&limit=50',
@@ -115,8 +131,10 @@ describe('client api', () => {
       expect(headers.get('x-user-id')).toBeTruthy();
       expect(headers.get('x-user-name')).toBeTruthy();
     }
-    expect(fetchMock.mock.calls[7][1]).toEqual(expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock.mock.calls[14][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(new Headers((fetchMock.mock.calls[5][1] as RequestInit).headers).get('x-admin-code')).toBe('admin-code');
+    expect(fetchMock.mock.calls[11][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[18][1]).toEqual(expect.objectContaining({ method: 'POST' }));
   });
 
   it('sends a saved access code with api requests', async () => {

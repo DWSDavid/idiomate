@@ -19,6 +19,10 @@ OPENAI_MODEL_UTILITY=gpt-4o
 ACCESS_CODE=
 DB_PATH=server/idiomate.sqlite
 SEED_VOCAB_PATH=server/seed/vocab.txt
+AUTO_SEED_VOCAB=false
+OWNER_VOCAB_PATH=Vocabs.txt
+OWNER_VOCAB_CODE=choose-an-owner-vocab-code
+ADMIN_CODE=choose-an-admin-code
 PORT=8787
 ```
 
@@ -87,6 +91,10 @@ OPENAI_MODEL_UTILITY=gpt-4o
 ACCESS_CODE=choose-a-private-code
 DB_PATH=/data/idiomate.sqlite
 SEED_VOCAB_PATH=/app/server/seed/vocab.txt
+AUTO_SEED_VOCAB=false
+OWNER_VOCAB_PATH=/app/Vocabs.txt
+OWNER_VOCAB_CODE=choose-an-owner-vocab-code
+ADMIN_CODE=choose-an-admin-code
 PORT=10000
 ```
 
@@ -97,12 +105,16 @@ Deploy steps:
 3. Confirm the service uses Docker and the disk `idiomate-data` is mounted at `/data`.
 4. Set `OPENAI_API_KEY` as a secret value.
 5. Set `ACCESS_CODE` as a secret value. Use a short private code you can send to testers.
-6. Keep `DB_PATH=/data/idiomate.sqlite`, `SEED_VOCAB_PATH=/app/server/seed/vocab.txt`, `OPENAI_MODEL_COACH=gpt-4o`, `OPENAI_MODEL_UTILITY=gpt-4o`, and `PORT=10000`.
-7. Deploy, then open the Render service URL.
+6. Set `OWNER_VOCAB_CODE` and `ADMIN_CODE` as secret values.
+7. Keep `DB_PATH=/data/idiomate.sqlite`, `SEED_VOCAB_PATH=/app/server/seed/vocab.txt`, `AUTO_SEED_VOCAB=false`, `OPENAI_MODEL_COACH=gpt-4o`, `OPENAI_MODEL_UTILITY=gpt-4o`, and `PORT=10000`.
+8. If the online owner import should include the full private `Vocabs.txt` list, add that file to the Render image or upload it to the configured `OWNER_VOCAB_PATH`. The file is git-ignored by default.
+9. Deploy, then open the Render service URL.
 
 Share the Render URL and access code with peers. Each peer enters the access code, then each peer enters a name. Their browser generates a private `idiomate_uid`, and the server stores vocab, sessions, mistakes, and Sentence Lab data separately for that user.
 
-New users receive an initial seed vocabulary from `SEED_VOCAB_PATH` the first time they call `/api`. The default seed lives at `server/seed/vocab.txt`. It is copied into each user's private vocab table, so peer evaluators can test vocab prime immediately while their later usage stats stay isolated.
+New users start with an empty private vocabulary by default. If `AUTO_SEED_VOCAB=true`, new users receive seed vocabulary from `SEED_VOCAB_PATH`; otherwise, the owner can use the Vocabulary page's owner import code to copy `OWNER_VOCAB_PATH` into the current user's private vocab table. The import only adds missing normalized terms, so repeated imports do not inflate capture counts.
+
+Use the History page to review saved Daily Writing and Sentence Lab trials. Use the Admin page with `ADMIN_CODE` to inspect users, vocab lists, and writing history.
 
 ## Verification
 
@@ -113,7 +125,7 @@ npx vitest run
 npm run build
 ```
 
-Latest local run: `30 passed / 0 failed`, build passed.
+Latest local run: `95 passed / 0 failed`, build passed.
 
 Manual smoke path after adding `.env`:
 

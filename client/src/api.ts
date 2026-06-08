@@ -15,6 +15,9 @@ import type {
   Vocab,
   VocabListResponse,
   SaveVocabResponse,
+  AdminUserDetailResponse,
+  AdminUsersResponse,
+  WritingHistoryResponse,
 } from '../../shared/types';
 import { getClientIdentity } from './identity';
 
@@ -111,6 +114,10 @@ export function getVocabList(limit = 200): Promise<VocabListResponse> {
   return apiFetch(`/api/vocab/list?${params.toString()}`).then(readJson<VocabListResponse>);
 }
 
+export function importOwnerVocab(code: string): Promise<{ imported: number; total: number }> {
+  return postJson<{ imported: number; total: number }>('/api/vocab/owner-import', { code });
+}
+
 export function coach(paragraph: string, paragraphIndex: number): Promise<CoachResponse> {
   return postJson<CoachResponse>('/api/coach', { paragraph, paragraphIndex });
 }
@@ -129,6 +136,23 @@ export function getProfile(): Promise<ProfileResponse> {
 
 export function getProgress(): Promise<ProgressResponse> {
   return apiFetch('/api/progress').then(readJson<ProgressResponse>);
+}
+
+export function getHistory(limit = 100): Promise<WritingHistoryResponse> {
+  const params = new URLSearchParams({ limit: String(limit) });
+  return apiFetch(`/api/history?${params.toString()}`).then(readJson<WritingHistoryResponse>);
+}
+
+export function getAdminUsers(adminCode: string): Promise<AdminUsersResponse> {
+  return apiFetch('/api/admin/users', {
+    headers: { 'x-admin-code': adminCode },
+  }).then(readJson<AdminUsersResponse>);
+}
+
+export function getAdminUserDetail(adminCode: string, userId: string): Promise<AdminUserDetailResponse> {
+  return apiFetch(`/api/admin/users/${encodeURIComponent(userId)}`, {
+    headers: { 'x-admin-code': adminCode },
+  }).then(readJson<AdminUserDetailResponse>);
 }
 
 export function getMistakes(errorType?: ErrorType, limit = 50): Promise<{ mistakes: MistakeLogItem[] }> {

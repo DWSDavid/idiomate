@@ -63,6 +63,7 @@ export interface VocabListItem {
   timesSuggested: number;
   timesUsed: number;
   lastCaptured?: string;
+  capturedDate?: string;
 }
 
 export interface VocabListResponse {
@@ -179,6 +180,50 @@ export interface MistakeTrendSeries {
 export interface ProgressResponse {
   daily: ProgressDailyPoint[];
   trend: MistakeTrendSeries[];
+}
+
+export type WritingSource = 'daily_writing' | 'sentence_lab';
+
+export interface WritingHistoryAnnotation {
+  span: string;
+  errorType: ErrorType;
+  rule?: string;
+  userRewrite?: string;
+  accepted?: boolean;
+}
+
+export interface WritingHistoryEntry {
+  id: number;
+  date?: string;
+  createdAt?: string;
+  source: WritingSource;
+  draftText: string;
+  finalText?: string;
+  annotations: WritingHistoryAnnotation[];
+}
+
+export interface WritingHistoryResponse {
+  entries: WritingHistoryEntry[];
+}
+
+export interface AdminUserSummary {
+  id: string;
+  name?: string;
+  createdAt?: string;
+  vocabCount: number;
+  sessionCount: number;
+  sentenceLabCount: number;
+  lastActivity?: string;
+}
+
+export interface AdminUsersResponse {
+  users: AdminUserSummary[];
+}
+
+export interface AdminUserDetailResponse {
+  user: AdminUserSummary;
+  vocab: VocabListResponse;
+  history: WritingHistoryResponse;
 }
 
 export type SentenceLabNote = Pick<Annotation, 'span' | 'errorType' | 'hint' | 'explanation' | 'rule' | 'bookReference'>;

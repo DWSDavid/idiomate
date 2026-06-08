@@ -13,8 +13,12 @@ services:
         value: 10000
       - key: DB_PATH
         value: /data/idiomate.sqlite
+      - key: AUTO_SEED_VOCAB
+        value: "false"
       - key: SEED_VOCAB_PATH
         value: /app/server/seed/vocab.txt
+      - key: OWNER_VOCAB_PATH
+        value: /app/Vocabs.txt
       - key: OPENAI_MODEL_COACH
         value: gpt-4o
       - key: OPENAI_MODEL_UTILITY
@@ -22,6 +26,10 @@ services:
       - key: OPENAI_API_KEY
         sync: false
       - key: ACCESS_CODE
+        sync: false
+      - key: OWNER_VOCAB_CODE
+        sync: false
+      - key: ADMIN_CODE
         sync: false
     disks:
       - name: idiomate-data

@@ -6,6 +6,15 @@ interface VocabularyPanelProps {
   refreshKey?: number;
 }
 
+function groupByCapturedDate(items: VocabListResponse['items']): Array<{ date: string; items: VocabListResponse['items'] }> {
+  const groups = new Map<string, VocabListResponse['items']>();
+  for (const item of items) {
+    const date = item.capturedDate ?? item.lastCaptured?.slice(0, 10) ?? 'No date';
+    groups.set(date, [...(groups.get(date) ?? []), item]);
+  }
+  return Array.from(groups.entries()).map(([date, groupedItems]) => ({ date, items: groupedItems }));
+}
+
 export function VocabularyPanel({ refreshKey = 0 }: VocabularyPanelProps) {
   const [vocab, setVocab] = useState<VocabListResponse>({ total: 0, items: [] });
   const [status, setStatus] = useState<'loading' | 'idle' | 'error'>('loading');
@@ -47,18 +56,25 @@ export function VocabularyPanel({ refreshKey = 0 }: VocabularyPanelProps) {
 
       {open ? (
         <div className="mt-4 space-y-3">
-          {vocab.items.map(item => (
-            <article key={`${item.word}-${item.lastCaptured ?? ''}`} className="vocab-row">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-semibold text-slate-950">{item.word}</h2>
-                <span className="chip">{item.kind}</span>
-                <span className="chip chip-blue">met {item.captureCount}x</span>
+          {groupByCapturedDate(vocab.items).map(group => (
+            <div key={group.date} className="vocab-day-group">
+              <p className="vocab-day-label">{group.date}</p>
+              <div className="mt-2 space-y-2">
+                {group.items.map(item => (
+                  <article key={`${item.word}-${item.lastCaptured ?? ''}`} className="vocab-row">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-base font-semibold text-slate-950">{item.word}</h2>
+                      <span className="chip">{item.kind}</span>
+                      <span className="chip chip-blue">met {item.captureCount}x</span>
+                    </div>
+                    {item.defCn ? <p className="mt-2 text-sm text-slate-600">{item.defCn}</p> : null}
+                    <p className="mt-2 text-xs text-slate-500">
+                      used {item.timesUsed} / suggested {item.timesSuggested}
+                    </p>
+                  </article>
+                ))}
               </div>
-              {item.defCn ? <p className="mt-2 text-sm text-slate-600">{item.defCn}</p> : null}
-              <p className="mt-2 text-xs text-slate-500">
-                used {item.timesUsed} / suggested {item.timesSuggested}
-              </p>
-            </article>
+            </div>
           ))}
         </div>
       ) : null}

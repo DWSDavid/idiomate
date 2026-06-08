@@ -87,11 +87,16 @@ export function CompareView({ original, rewrite, nativeVersion, annotations }: C
               <p className="mt-1 text-sm leading-6 text-stone-600">{annotation.explanation}</p>
             ) : null}
             {annotation.ruleExample ? (
-              <p className="mt-2 text-sm">
-                <span className="text-stone-400 line-through">{annotation.ruleExample.before}</span>
-                <span className="text-stone-400"> → </span>
-                <span className="font-medium text-stone-900">{annotation.ruleExample.after}</span>
-              </p>
+              <div className="change-card mt-3">
+                <div>
+                  <span className="change-label">From your text</span>
+                  <p>{annotation.ruleExample.before}</p>
+                </div>
+                <div>
+                  <span className="change-label">Change to</span>
+                  <p className="font-semibold text-emerald-900">{annotation.ruleExample.after}</p>
+                </div>
+              </div>
             ) : null}
             {annotation.bookReference ? (
               <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3 text-xs leading-5 text-slate-600">
@@ -107,7 +112,7 @@ export function CompareView({ original, rewrite, nativeVersion, annotations }: C
             ) : null}
             {annotation.modelRewrite ? (
               <p className="mt-3 text-sm">
-                <span className="text-stone-400">Suggested: </span>
+                <span className="text-stone-400">Use this move: </span>
                 <span className="font-medium text-emerald-800">{annotation.modelRewrite}</span>
               </p>
             ) : null}

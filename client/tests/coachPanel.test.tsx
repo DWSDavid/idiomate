@@ -48,6 +48,18 @@ it('keeps the rewrite and explanation hidden while the user is drafting', () => 
   expect(onSubmit).toHaveBeenCalledWith('We did X to Y', expect.any(Array));
 });
 
+it('summarizes exact changes without showing a struck-through original line', () => {
+  const { container } = render(<CoachPanel paragraph="We did X in order to Y" annotations={ann as any} onSubmit={() => {}} />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'We did X to Y' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
+
+  expect(screen.getByText('From your text')).toBeInTheDocument();
+  expect(screen.getByText('Change to')).toBeInTheDocument();
+  expect(container.querySelector('.line-through')).not.toBeInTheDocument();
+});
+
 it('hides nativeVersion until the user submits a rewrite', () => {
   render(
     <CoachPanel
@@ -146,5 +158,6 @@ it('offers structure guidance only after the user submits a rewrite', async () =
   expect(await screen.findByText('State the central claim.')).toBeInTheDocument();
   expect(screen.getByText('Support the claim with specifics.')).toBeInTheDocument();
   expect(screen.getByText('The draft needs a concrete fact.')).toBeInTheDocument();
+  expect(screen.getByText('weak')).toHaveClass('status-weak');
   expect(fetchMock).toHaveBeenCalledWith('/api/structure', expect.objectContaining({ method: 'POST' }));
 });

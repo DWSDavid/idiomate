@@ -10,7 +10,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('renders the single-page writing workspace', async () => {
+it('renders a tabbed workspace with vocab prime above the writing surface', async () => {
   vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes('/api/prompt/today')) {
@@ -34,15 +34,28 @@ it('renders the single-page writing workspace', async () => {
   render(<App />);
 
   expect(await screen.findByRole('banner', { name: 'Writing desk header' })).toBeInTheDocument();
-  expect(screen.getByLabelText('daily desk')).toBeInTheDocument();
+  expect(screen.getByRole('navigation', { name: 'Workspace sections' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Write' })).toHaveAttribute('aria-pressed', 'true');
   expect(screen.getByLabelText('writing canvas')).toBeInTheDocument();
-  expect(screen.getByLabelText('companion rail')).toBeInTheDocument();
+  expect(screen.getByLabelText('writing prep')).toBeInTheDocument();
   expect(await screen.findByText(/Today's prompt/)).toBeInTheDocument();
+  expect(screen.getByText('Words to work in')).toBeInTheDocument();
   expect(screen.getByLabelText('Draft')).toBeInTheDocument();
+  expect(screen.queryByLabelText('sentence lab page')).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Patterns' }));
+
   expect(screen.getByText('Your patterns')).toBeInTheDocument();
   expect(screen.getByText('Progress')).toBeInTheDocument();
-  expect(screen.getByText('Sentence Lab')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Vocabulary' }));
+
+  expect(screen.getByText('Add a word you met today')).toBeInTheDocument();
   expect(screen.getByText('My vocabulary (0)')).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Sentence Lab' }));
+
+  expect(screen.getByLabelText('sentence lab page')).toBeInTheDocument();
 });
 
 it('records a paragraph result and refetches the profile after rewrite submit', async () => {
@@ -110,7 +123,12 @@ it('records a paragraph result and refetches the profile after rewrite submit', 
 
   await waitFor(() => {
     expect(fetchMock).toHaveBeenCalledWith('/api/paragraph-result', expect.objectContaining({ method: 'POST' }));
-    expect(profileCalls).toBeGreaterThanOrEqual(2);
+  });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Patterns' }));
+
+  await waitFor(() => {
+    expect(profileCalls).toBeGreaterThanOrEqual(1);
   });
 });
 

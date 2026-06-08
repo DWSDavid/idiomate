@@ -432,6 +432,7 @@ it('GET /api/vocab/list returns priority-ordered vocab with total count', async 
         timesSuggested: 2,
         timesUsed: 1,
         lastCaptured: '2026-05-10T00:00:00.000Z',
+        capturedDate: '2026-05-10',
       },
     ]);
   });

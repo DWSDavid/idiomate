@@ -15,4 +15,8 @@ export const config = {
   dbPath: process.env.DB_PATH ?? localDbPath,
   accessCode: process.env.ACCESS_CODE ?? '',
   seedVocabPath: process.env.SEED_VOCAB_PATH ?? '',
+  autoSeedVocab: process.env.AUTO_SEED_VOCAB === 'true',
+  ownerVocabCode: process.env.OWNER_VOCAB_CODE ?? '',
+  ownerVocabPath: process.env.OWNER_VOCAB_PATH ?? '',
+  adminCode: process.env.ADMIN_CODE ?? '',
 };

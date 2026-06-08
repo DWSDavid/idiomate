@@ -16,7 +16,7 @@ function headerValue(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
 }
 
-export function userMiddleware(db: Database.Database, seedVocabPath = '') {
+export function userMiddleware(db: Database.Database, seedVocabPath = '', autoSeedVocab = false) {
   return (req: Request, res: Response, next: NextFunction) => {
     const userId = headerValue(req.headers['x-user-id']).trim();
     const userName = headerValue(req.headers['x-user-name']).trim();
@@ -26,7 +26,7 @@ export function userMiddleware(db: Database.Database, seedVocabPath = '') {
     }
 
     upsertUser(db, userId, userName || undefined);
-    if (getVocabCount(db, userId) === 0) seedUserVocab(db, userId, seedVocabPath);
+    if (autoSeedVocab && getVocabCount(db, userId) === 0) seedUserVocab(db, userId, seedVocabPath);
     req.userId = userId;
     req.userName = userName || undefined;
     next();

@@ -2,10 +2,13 @@ import React, { useEffect, useState } from 'react';
 import type { CoachResponse, Prompt } from '../../shared/types';
 import { ACCESS_DENIED_EVENT, coach, saveAccessCode, submitSession as postSession } from './api';
 import { AccessGate } from './components/AccessGate';
+import { AdminPanel } from './components/AdminPanel';
 import { CoachPanel } from './components/CoachPanel';
 import type { ComparedAnnotation } from './components/CompareView';
 import { CaptureWord } from './components/CaptureWord';
 import { DailyPrompt } from './components/DailyPrompt';
+import { HistoryPanel } from './components/HistoryPanel';
+import { OwnerVocabImport } from './components/OwnerVocabImport';
 import { ProfileDashboard } from './components/ProfileDashboard';
 import { ProgressPanel } from './components/ProgressPanel';
 import { SentenceLab } from './components/SentenceLab';
@@ -18,6 +21,17 @@ interface CoachPanelState {
   response: CoachResponse;
 }
 
+type WorkspaceSection = 'write' | 'patterns' | 'vocabulary' | 'history' | 'sentence-lab' | 'admin';
+
+const workspaceSections: Array<{ id: WorkspaceSection; label: string }> = [
+  { id: 'write', label: 'Write' },
+  { id: 'patterns', label: 'Patterns' },
+  { id: 'vocabulary', label: 'Vocabulary' },
+  { id: 'history', label: 'History' },
+  { id: 'sentence-lab', label: 'Sentence Lab' },
+  { id: 'admin', label: 'Admin' },
+];
+
 export function App() {
   const [accessBlocked, setAccessBlocked] = useState(false);
   const [accessRetryKey, setAccessRetryKey] = useState(0);
@@ -28,6 +42,7 @@ export function App() {
   const [sessionStatus, setSessionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [profileKey, setProfileKey] = useState(0);
   const [vocabKey, setVocabKey] = useState(0);
+  const [activeSection, setActiveSection] = useState<WorkspaceSection>('write');
 
   useEffect(() => {
     const onAccessDenied = () => setAccessBlocked(true);
@@ -99,14 +114,27 @@ export function App() {
           </button>
         </header>
 
-        <div className="desk-grid">
-          <aside className="desk-rail desk-rail-left" aria-label="daily desk">
-            <DailyPrompt onPrompt={setPrompt} />
-            <ProfileDashboard refreshKey={profileKey} />
-            <ProgressPanel refreshKey={profileKey} />
-          </aside>
+        <nav className="workspace-tabs" aria-label="Workspace sections">
+          {workspaceSections.map(section => (
+            <button
+              key={section.id}
+              type="button"
+              className="workspace-tab"
+              aria-pressed={activeSection === section.id}
+              onClick={() => setActiveSection(section.id)}
+            >
+              {section.label}
+            </button>
+          ))}
+        </nav>
 
-          <section className="desk-center" aria-label="writing canvas">
+        {activeSection === 'write' ? (
+          <section className="desk-center workspace-page" aria-label="writing canvas">
+            <div className="writing-prep" aria-label="writing prep">
+              <DailyPrompt onPrompt={setPrompt} />
+              <VocabPrime promptText={prompt?.text ?? ''} refreshKey={vocabKey} />
+            </div>
+
             {sessionStatus === 'saved' ? (
               <p className="notice notice-success">Session saved. Your profile is updated.</p>
             ) : null}
@@ -137,14 +165,40 @@ export function App() {
               />
             ))}
           </section>
+        ) : null}
 
-          <aside className="desk-rail desk-rail-right" aria-label="companion rail">
-            <SentenceLab onRecorded={() => setProfileKey(key => key + 1)} />
-            <VocabPrime promptText={prompt?.text ?? ''} refreshKey={vocabKey} />
+        {activeSection === 'patterns' ? (
+          <section className="workspace-page two-column-page" aria-label="pattern review">
+            <ProfileDashboard refreshKey={profileKey} />
+            <ProgressPanel refreshKey={profileKey} />
+          </section>
+        ) : null}
+
+        {activeSection === 'vocabulary' ? (
+          <section className="workspace-page two-column-page" aria-label="vocabulary review">
+            <OwnerVocabImport onImported={() => setVocabKey(key => key + 1)} />
             <CaptureWord onSaved={() => setVocabKey(key => key + 1)} />
             <VocabularyPanel refreshKey={vocabKey + profileKey} />
-          </aside>
-        </div>
+          </section>
+        ) : null}
+
+        {activeSection === 'history' ? (
+          <section className="workspace-page" aria-label="history page">
+            <HistoryPanel />
+          </section>
+        ) : null}
+
+        {activeSection === 'sentence-lab' ? (
+          <section className="workspace-page" aria-label="sentence lab page">
+            <SentenceLab onRecorded={() => setProfileKey(key => key + 1)} />
+          </section>
+        ) : null}
+
+        {activeSection === 'admin' ? (
+          <section className="workspace-page" aria-label="admin page">
+            <AdminPanel />
+          </section>
+        ) : null}
 
         <footer className="pb-2 text-center text-xs text-slate-400">Local-first. Your words stay on your machine.</footer>
       </div>

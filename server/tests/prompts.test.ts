@@ -69,6 +69,34 @@ it('requires ruleExample to be contextual and keeps reference examples out of co
   expect(prompt.user).toContain('Singular count noun needs an article');
 });
 
+it('asks coaching to rank grammar issues and explain the underlying norm', () => {
+  const prompt = assembleCoachPrompt({
+    paragraph: 'He has finished the report yesterday and discussed about it.',
+    paragraphIndex: 0,
+    topErrors: ['tense', 'small_grammar'],
+    vocabCandidates: [],
+  });
+
+  expect(prompt.system).toContain('rank the annotations');
+  expect(prompt.system).toContain('underlying norm');
+  expect(prompt.system).toContain('base verb after do');
+  expect(prompt.system).toContain('has/have been vs simple past');
+  expect(prompt.system).toContain('active vs passive');
+});
+
+it('asks coaching to explain Chinglish mindset instead of only naming the error', () => {
+  const prompt = assembleCoachPrompt({
+    paragraph: 'In this situation, we should make a discussion about the problem.',
+    paragraphIndex: 0,
+    topErrors: ['calque', 'noun_plague'],
+    vocabCandidates: [],
+  });
+
+  expect(prompt.system).toContain('Chinese-L1 mindset');
+  expect(prompt.system).toContain('why a Chinese speaker may write it this way');
+  expect(prompt.system).toContain('how native English packages the idea differently');
+});
+
 it('assembles a bilingual lesson prompt from rules and the user past instances', () => {
   const prompt = assembleLessonPrompt({
     errorType: 'noun_plague',
@@ -97,6 +125,20 @@ it('assembles a bilingual lesson prompt from rules and the user past instances',
   expect(prompt.user).toContain('Prefer a verb over a noun string');
   expect(prompt.user).toContain('中文里常先搭一个抽象名词框架');
   expect(prompt.user).toContain('Return additional comparison pairs');
+});
+
+it('asks lesson prompts for a ranked common-mistake view with concrete grammar norms', () => {
+  const prompt = assembleLessonPrompt({
+    errorType: 'tense',
+    rules: [],
+    pastInstances: [],
+    seedPairs: [],
+  });
+
+  expect(prompt.system).toContain('rank the learner');
+  expect(prompt.system).toContain('grammar norms');
+  expect(prompt.system).toContain('has/have been vs simple past');
+  expect(prompt.system).toContain('active/passive choice');
 });
 
 it('falls back to the full named rule set when recurring errors are sparse', () => {
@@ -166,6 +208,8 @@ it('assembles prime prompt text without calling a provider', () => {
   });
 
   expect(prompt.system).toContain('Return ONLY JSON');
+  expect(prompt.system).toContain('daily-life, tech, and business chunks');
+  expect(prompt.system).toContain('native slang');
   expect(prompt.user).toContain('chip cycle');
   expect(prompt.user).toContain('cyclical');
 });
@@ -192,6 +236,7 @@ it('assembles a news-grounded discussion prompt from headlines', () => {
 
   expect(prompt.system).toContain('academic writing');
   expect(prompt.system).toContain('professional discussion');
+  expect(prompt.system).toContain('one or two sentences');
   expect(prompt.system).toContain('Return ONLY JSON');
   expect(prompt.user).toContain('humanoid robotics');
   expect(prompt.user).toContain('Humanoid robots enter warehouses');

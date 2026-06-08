@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import type {
   Annotation,
+  AdminUserSummary,
   CoachResponse,
   ErrorTally,
   ErrorType,
@@ -12,6 +13,9 @@ import type {
   Vocab,
   VocabKind,
   VocabListItem,
+  WritingHistoryAnnotation,
+  WritingHistoryEntry,
+  WritingSource,
 } from '../../../shared/types.js';
 
 interface VocabRow {
@@ -31,6 +35,7 @@ interface VocabRow {
   register: string | null;
   capture_count: number;
   last_captured: string | null;
+  date_added: string | null;
   times_suggested: number;
   times_used: number;
 }
@@ -76,12 +81,43 @@ interface SentenceLabDraftRow {
   response_json: string;
 }
 
+interface UserSummaryRow {
+  id: string;
+  name: string | null;
+  created_at: string | null;
+  vocab_count: number;
+  session_count: number;
+  sentence_lab_count: number;
+  last_session_at: string | null;
+  last_sentence_lab_at: string | null;
+  last_vocab_at: string | null;
+}
+
+interface HistorySessionRow {
+  id: number;
+  date: string | null;
+  draft_text: string;
+  final_text: string | null;
+  source: WritingSource | null;
+  created_at: string | null;
+}
+
+interface HistoryAnnotationRow {
+  session_id: number;
+  span_text: string;
+  error_type: ErrorType;
+  rule: string | null;
+  user_rewrite: string | null;
+  accepted: number;
+}
+
 export interface InsertSessionInput {
   date?: string;
   promptId?: number;
   draftText: string;
   finalText?: string;
   durationS?: number;
+  source?: WritingSource;
 }
 
 export interface InsertAnnotationInput extends Annotation {
@@ -96,6 +132,7 @@ export interface ParagraphResultInput {
   paragraphIdx: number;
   paragraph: string;
   rewrite: string;
+  source?: WritingSource;
   annotations: Array<Omit<InsertAnnotationInput, 'paragraphIdx' | 'userRewrite'> & {
     paragraphIdx?: number;
     userRewrite?: string;
@@ -172,6 +209,7 @@ function mapVocab(row: VocabRow): Vocab {
 }
 
 function mapVocabListItem(row: VocabRow): VocabListItem {
+  const capturedAt = row.last_captured ?? row.date_added ?? undefined;
   return {
     word: row.word,
     kind: row.kind,
@@ -179,7 +217,8 @@ function mapVocabListItem(row: VocabRow): VocabListItem {
     captureCount: row.capture_count,
     timesSuggested: row.times_suggested,
     timesUsed: row.times_used,
-    lastCaptured: row.last_captured ?? undefined,
+    lastCaptured: capturedAt,
+    capturedDate: capturedAt?.slice(0, 10),
   };
 }
 
@@ -249,6 +288,20 @@ export function insertVocab(db: Database.Database, userId: string, vocab: Vocab[
     }
   });
   insertMany(vocab);
+}
+
+export function insertMissingVocab(db: Database.Database, userId: string, vocab: Vocab[]): number {
+  const insertMany = db.transaction((items: Vocab[]) => {
+    let inserted = 0;
+    for (const item of items) {
+      const normalized = normalizeVocabWord(item.normalized ?? item.word);
+      if (getVocabCaptureMeta(db, userId, normalized)) continue;
+      upsertVocab(db, userId, item);
+      inserted += 1;
+    }
+    return inserted;
+  });
+  return insertMany(vocab);
 }
 
 export function getVocabSample(db: Database.Database, userId: string, n: number): Vocab[] {
@@ -605,10 +658,98 @@ export function getActivationStats(db: Database.Database, userId: string): { sug
   return row;
 }
 
+function maxDate(...values: Array<string | null | undefined>): string | undefined {
+  return values
+    .filter((value): value is string => Boolean(value))
+    .sort()
+    .at(-1);
+}
+
+function mapUserSummary(row: UserSummaryRow): AdminUserSummary {
+  return {
+    id: row.id,
+    name: row.name ?? undefined,
+    createdAt: row.created_at ?? undefined,
+    vocabCount: row.vocab_count,
+    sessionCount: row.session_count,
+    sentenceLabCount: row.sentence_lab_count,
+    lastActivity: maxDate(row.last_session_at, row.last_sentence_lab_at, row.last_vocab_at),
+  };
+}
+
+export function listAdminUsers(db: Database.Database): AdminUserSummary[] {
+  const rows = db.prepare(`
+    SELECT
+      users.id,
+      users.name,
+      users.created_at,
+      (SELECT COUNT(*) FROM vocab WHERE vocab.user_id = users.id) AS vocab_count,
+      (SELECT COUNT(*) FROM sessions WHERE sessions.user_id = users.id) AS session_count,
+      (SELECT COUNT(*) FROM sentence_lab_drafts WHERE sentence_lab_drafts.user_id = users.id) AS sentence_lab_count,
+      (SELECT MAX(COALESCE(sessions.created_at, sessions.date)) FROM sessions WHERE sessions.user_id = users.id) AS last_session_at,
+      (SELECT MAX(sentence_lab_drafts.created_at) FROM sentence_lab_drafts WHERE sentence_lab_drafts.user_id = users.id) AS last_sentence_lab_at,
+      (SELECT MAX(vocab.last_captured) FROM vocab WHERE vocab.user_id = users.id) AS last_vocab_at
+    FROM users
+    ORDER BY COALESCE(last_session_at, last_sentence_lab_at, last_vocab_at, users.created_at) DESC
+  `).all() as UserSummaryRow[];
+  return rows.map(mapUserSummary);
+}
+
+export function getAdminUserSummary(db: Database.Database, userId: string): AdminUserSummary | undefined {
+  return listAdminUsers(db).find(user => user.id === userId);
+}
+
+function mapHistoryAnnotation(row: HistoryAnnotationRow): WritingHistoryAnnotation {
+  return {
+    span: row.span_text,
+    errorType: row.error_type,
+    rule: row.rule ?? undefined,
+    userRewrite: row.user_rewrite ?? undefined,
+    accepted: Boolean(row.accepted),
+  };
+}
+
+export function getWritingHistory(db: Database.Database, userId: string, limit = 100): WritingHistoryEntry[] {
+  const safeLimit = boundedPositiveInt(limit, 100, 500);
+  const sessions = db.prepare(`
+    SELECT id, date, draft_text, final_text, COALESCE(source, 'daily_writing') AS source, created_at
+    FROM sessions
+    WHERE user_id = ?
+    ORDER BY COALESCE(created_at, date) DESC, id DESC
+    LIMIT ?
+  `).all(userId, safeLimit) as HistorySessionRow[];
+  if (!sessions.length) return [];
+
+  const sessionIds = sessions.map(session => session.id);
+  const placeholders = sessionIds.map(() => '?').join(', ');
+  const annotationRows = db.prepare(`
+    SELECT session_id, span_text, error_type, rule, user_rewrite, accepted
+    FROM annotations
+    WHERE session_id IN (${placeholders})
+    ORDER BY id ASC
+  `).all(...sessionIds) as HistoryAnnotationRow[];
+  const annotationsBySession = new Map<number, WritingHistoryAnnotation[]>();
+  for (const row of annotationRows) {
+    const existing = annotationsBySession.get(row.session_id) ?? [];
+    existing.push(mapHistoryAnnotation(row));
+    annotationsBySession.set(row.session_id, existing);
+  }
+
+  return sessions.map(session => ({
+    id: session.id,
+    date: session.date ?? undefined,
+    createdAt: session.created_at ?? undefined,
+    source: session.source ?? 'daily_writing',
+    draftText: session.draft_text,
+    finalText: session.final_text ?? undefined,
+    annotations: annotationsBySession.get(session.id) ?? [],
+  }));
+}
+
 export function insertSession(db: Database.Database, userId: string, input: InsertSessionInput): number {
   const result = db.prepare(`
-    INSERT INTO sessions (user_id, date, prompt_id, draft_text, final_text, duration_s)
-    VALUES (@userId, @date, @promptId, @draftText, @finalText, @durationS)
+    INSERT INTO sessions (user_id, date, prompt_id, draft_text, final_text, duration_s, source, created_at)
+    VALUES (@userId, @date, @promptId, @draftText, @finalText, @durationS, @source, datetime('now'))
   `).run({
     userId,
     date: input.date ?? new Date().toISOString(),
@@ -616,6 +757,7 @@ export function insertSession(db: Database.Database, userId: string, input: Inse
     draftText: input.draftText,
     finalText: input.finalText ?? null,
     durationS: input.durationS ?? null,
+    source: input.source ?? 'daily_writing',
   });
   return Number(result.lastInsertRowid);
 }
@@ -674,37 +816,41 @@ export function recordSentenceLabResult(
     paragraph: draft.sentence,
     rewrite: input.rewrite,
     annotations: draft.response.annotations,
+    source: 'sentence_lab',
   });
 }
 
-function findSessionForDay(db: Database.Database, userId: string, date: string, promptId?: number): number | undefined {
+function findSessionForDay(db: Database.Database, userId: string, date: string, promptId: number | undefined, source: WritingSource): number | undefined {
   const row = db.prepare(`
     SELECT id
     FROM sessions
     WHERE user_id = @userId
       AND date = @date
+      AND COALESCE(source, 'daily_writing') = @source
       AND (
         (@promptId IS NULL AND prompt_id IS NULL)
         OR prompt_id = @promptId
       )
     ORDER BY id ASC
     LIMIT 1
-  `).get({ userId, date, promptId: promptId ?? null }) as { id: number } | undefined;
+  `).get({ userId, date, promptId: promptId ?? null, source }) as { id: number } | undefined;
   return row?.id;
 }
 
 function getOrCreateParagraphSession(db: Database.Database, userId: string, input: ParagraphResultInput): ParagraphResultRecord {
   const date = sessionDay(input.date);
-  const existing = findSessionForDay(db, userId, date, input.promptId);
+  const source = input.source ?? 'daily_writing';
+  const existing = findSessionForDay(db, userId, date, input.promptId, source);
   if (existing) {
     db.prepare(`
       UPDATE sessions
       SET draft_text = CASE
           WHEN draft_text IS NULL OR draft_text = '' THEN @paragraph
           ELSE draft_text
-        END
+        END,
+        final_text = @rewrite
       WHERE user_id = @userId AND id = @id
-    `).run({ userId, id: existing, paragraph: input.paragraph });
+    `).run({ userId, id: existing, paragraph: input.paragraph, rewrite: input.rewrite });
     return { sessionId: existing, created: false };
   }
 
@@ -712,6 +858,8 @@ function getOrCreateParagraphSession(db: Database.Database, userId: string, inpu
     date,
     promptId: input.promptId,
     draftText: input.paragraph,
+    finalText: input.rewrite,
+    source,
   });
   return { sessionId, created: true };
 }

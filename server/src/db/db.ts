@@ -22,6 +22,8 @@ export function migrate(db: Database.Database) {
   `).run();
   ensureColumn(db, 'vocab', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
   ensureColumn(db, 'sessions', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
+  ensureColumn(db, 'sessions', 'source', "TEXT DEFAULT 'daily_writing'");
+  ensureColumn(db, 'sessions', 'created_at', 'TEXT');
   ensureColumn(db, 'error_tally', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
   ensureColumn(db, 'sentence_lab_drafts', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
   rebuildVocabIfLegacy(db);

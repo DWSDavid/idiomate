@@ -1,4 +1,5 @@
 import express, { Router } from 'express';
+import { existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 import type { AppDependencies } from '../appContext.js';
 import { enrichWord } from '../brain/enrich.js';
@@ -11,6 +12,7 @@ import {
   getVocabList,
   getPrimeCandidatePool,
   incrementVocabSuggested,
+  insertMissingVocab,
   insertVocab,
   normalizeVocabWord,
   upsertVocab,
@@ -44,6 +46,10 @@ const captureVocabZ = z.object({
 
 const vocabListQueryZ = z.object({
   limit: z.coerce.number().int().positive().max(500).default(200),
+});
+
+const ownerImportZ = z.object({
+  code: z.string().min(1),
 });
 
 export function createVocabRouter(deps: AppDependencies): Router {
@@ -103,6 +109,26 @@ export function createVocabRouter(deps: AppDependencies): Router {
       const vocab = parseYoudaoTxt(body);
       insertVocab(deps.db, req.userId, vocab);
       res.status(201).json({ count: vocab.length });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/owner-import', (req, res, next) => {
+    try {
+      const body = ownerImportZ.parse(req.body);
+      if (!config.ownerVocabCode || body.code !== config.ownerVocabCode) {
+        res.status(403).json({ error: 'Invalid owner vocab code.' });
+        return;
+      }
+      if (!config.ownerVocabPath || !existsSync(config.ownerVocabPath)) {
+        res.status(400).json({ error: 'Owner vocabulary file is not configured.' });
+        return;
+      }
+      const vocab = parseYoudaoTxt(readFileSync(config.ownerVocabPath));
+      const imported = insertMissingVocab(deps.db, req.userId, vocab);
+      const total = getVocabCount(deps.db, req.userId);
+      res.status(imported ? 201 : 200).json({ imported, total });
     } catch (err) {
       next(err);
     }

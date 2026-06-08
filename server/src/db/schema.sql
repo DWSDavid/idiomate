@@ -17,7 +17,9 @@ CREATE TABLE IF NOT EXISTS prompts (
 CREATE TABLE IF NOT EXISTS sessions (
   id INTEGER PRIMARY KEY, user_id TEXT NOT NULL DEFAULT 'local',
   date TEXT, prompt_id INTEGER, draft_text TEXT,
-  final_text TEXT, duration_s INTEGER);
+  final_text TEXT, duration_s INTEGER,
+  source TEXT DEFAULT 'daily_writing',
+  created_at TEXT DEFAULT (datetime('now')));
 CREATE TABLE IF NOT EXISTS annotations (
   id INTEGER PRIMARY KEY, session_id INTEGER, paragraph_idx INTEGER, span_text TEXT,
   error_type TEXT, hint TEXT, explanation TEXT, model_rewrite TEXT,
