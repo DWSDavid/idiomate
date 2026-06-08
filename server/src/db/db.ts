@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { config } from '../config.js';
@@ -7,6 +7,9 @@ import { config } from '../config.js';
 const here = dirname(fileURLToPath(import.meta.url));
 
 export function openDb(path = config.dbPath) {
+  if (path !== ':memory:') {
+    mkdirSync(dirname(path), { recursive: true });
+  }
   return new Database(path);
 }
 

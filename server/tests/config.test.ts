@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,4 +57,19 @@ it('defaults both model tiers to gpt-4o when not overridden', async () => {
   expect(config.modelCoach).toBe('gpt-4o');
   expect(config.modelUtility).toBe('gpt-4o');
   expect(config.dbPath).toBe(join(dirname(fileURLToPath(import.meta.url)), '../idiomate.sqlite'));
+});
+
+it('creates the database parent directory when DB_PATH points to a mounted path', async () => {
+  tempDir = mkdtempSync(join(tmpdir(), 'idiomate-dbpath-'));
+  const dbPath = join(tempDir, 'data', 'idiomate.sqlite');
+  delete process.env.OPENAI_API_KEY;
+  process.env.DB_PATH = dbPath;
+  process.env.IDIOMATE_ENV_FILE = join(tmpdir(), 'idiomate-missing-env-file');
+  vi.resetModules();
+
+  const { openDb } = await import('../src/db/db.js');
+  const db = openDb();
+  db.close();
+
+  expect(existsSync(dbPath)).toBe(true);
 });
