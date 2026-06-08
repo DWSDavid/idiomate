@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: idiomate
+    runtime: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    autoDeploy: false
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DB_PATH
+        value: /data/idiomate.sqlite
+      - key: OPENAI_MODEL_COACH
+        value: gpt-4o
+      - key: OPENAI_MODEL_UTILITY
+        value: gpt-4o
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ACCESS_CODE
+        sync: false
+    disks:
+      - name: idiomate-data
+        mountPath: /data
+        sizeGB: 1

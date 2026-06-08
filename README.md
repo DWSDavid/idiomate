@@ -16,6 +16,8 @@ npm install
 OPENAI_API_KEY=sk-your-key-here
 OPENAI_MODEL_COACH=gpt-4o
 OPENAI_MODEL_UTILITY=gpt-4o
+ACCESS_CODE=
+DB_PATH=server/idiomate.sqlite
 PORT=8787
 ```
 
@@ -28,6 +30,15 @@ npm run dev
 ```
 
 Then open `http://127.0.0.1:5173/`.
+
+For a production-like single-origin run:
+
+```powershell
+npm run build
+npm start
+```
+
+Then open `http://127.0.0.1:8787/`. The built client and `/api` routes are served from the same port.
 
 ## Import Vocab
 
@@ -59,6 +70,35 @@ Use the Quick Capture area for a word, phrase, or collocation you saw elsewhere.
 ## Provider Swap
 
 LLM access is isolated behind `server/src/brain/provider.ts`. To swap providers, implement `LLMProvider.complete(...)` and wire it in `server/src/index.ts` or pass it through `createApp(...)` in tests. The `brain/` module does not import Express or React.
+
+## Deploy on Render
+
+Idiomate is a stateful Node app backed by SQLite, so deploy it to a Node host with a persistent disk. Do not deploy this app to a serverless host where the filesystem is reset between requests.
+
+The repo includes `render.yaml` for Render. It builds the Dockerfile, mounts a persistent disk at `/data`, and sets `DB_PATH=/data/idiomate.sqlite` so SQLite survives deploys and restarts.
+
+Required production environment variables:
+
+```dotenv
+OPENAI_API_KEY=sk-your-key-here
+OPENAI_MODEL_COACH=gpt-4o
+OPENAI_MODEL_UTILITY=gpt-4o
+ACCESS_CODE=choose-a-private-code
+DB_PATH=/data/idiomate.sqlite
+PORT=10000
+```
+
+Deploy steps:
+
+1. Push this branch to GitHub.
+2. In Render, create a new Blueprint from the repo and use `render.yaml`.
+3. Confirm the service uses Docker and the disk `idiomate-data` is mounted at `/data`.
+4. Set `OPENAI_API_KEY` as a secret value.
+5. Set `ACCESS_CODE` as a secret value. Use a short private code you can send to testers.
+6. Keep `DB_PATH=/data/idiomate.sqlite`, `OPENAI_MODEL_COACH=gpt-4o`, `OPENAI_MODEL_UTILITY=gpt-4o`, and `PORT=10000`.
+7. Deploy, then open the Render service URL.
+
+Share the Render URL and access code with peers. Each peer enters the access code, then each peer enters a name. Their browser generates a private `idiomate_uid`, and the server stores vocab, sessions, mistakes, and Sentence Lab data separately for that user.
 
 ## Verification
 
