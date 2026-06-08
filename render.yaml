@@ -13,6 +13,8 @@ services:
         value: 10000
       - key: DB_PATH
         value: /data/idiomate.sqlite
+      - key: SEED_VOCAB_PATH
+        value: /app/server/seed/vocab.txt
       - key: OPENAI_MODEL_COACH
         value: gpt-4o
       - key: OPENAI_MODEL_UTILITY

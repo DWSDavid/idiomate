@@ -1,6 +1,7 @@
 import type Database from 'better-sqlite3';
 import type { NextFunction, Request, Response } from 'express';
-import { upsertUser } from '../db/dal.js';
+import { getVocabCount, upsertUser } from '../db/dal.js';
+import { seedUserVocab } from '../db/seed.js';
 
 declare global {
   namespace Express {
@@ -15,7 +16,7 @@ function headerValue(value: string | string[] | undefined): string {
   return Array.isArray(value) ? value[0] ?? '' : value ?? '';
 }
 
-export function userMiddleware(db: Database.Database) {
+export function userMiddleware(db: Database.Database, seedVocabPath = '') {
   return (req: Request, res: Response, next: NextFunction) => {
     const userId = headerValue(req.headers['x-user-id']).trim();
     const userName = headerValue(req.headers['x-user-name']).trim();
@@ -25,6 +26,7 @@ export function userMiddleware(db: Database.Database) {
     }
 
     upsertUser(db, userId, userName || undefined);
+    if (getVocabCount(db, userId) === 0) seedUserVocab(db, userId, seedVocabPath);
     req.userId = userId;
     req.userName = userName || undefined;
     next();

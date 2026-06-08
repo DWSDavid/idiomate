@@ -115,7 +115,8 @@ export interface SentenceLabDraft {
   response: CoachResponse;
 }
 
-export function upsertUser(db: Database.Database, userId: string, name?: string) {
+export function upsertUser(db: Database.Database, userId: string, name?: string): boolean {
+  const existing = db.prepare('SELECT id FROM users WHERE id = ?').get(userId) as { id: string } | undefined;
   const safeName = name?.trim() || null;
   db.prepare(`
     INSERT INTO users (id, name)
@@ -123,6 +124,7 @@ export function upsertUser(db: Database.Database, userId: string, name?: string)
     ON CONFLICT(id) DO UPDATE SET
       name = COALESCE(excluded.name, users.name)
   `).run(userId, safeName);
+  return !existing;
 }
 
 export function normalizeVocabWord(word: string): string {

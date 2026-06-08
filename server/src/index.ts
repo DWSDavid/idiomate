@@ -40,7 +40,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}, options: Cre
   const app = express();
   app.use(express.json({ limit: '1mb' }));
   app.use('/api', accessMiddleware(config.accessCode));
-  app.use('/api', userMiddleware(db));
+  app.use('/api', userMiddleware(db, config.seedVocabPath));
   app.use('/api/coach', createCoachRouter(deps));
   app.use('/api/lesson', createLessonsRouter(deps));
   app.use('/api/mistakes', createMistakesRouter(deps));

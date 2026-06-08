@@ -14,4 +14,5 @@ export const config = {
   port: Number(process.env.PORT ?? 8787),
   dbPath: process.env.DB_PATH ?? localDbPath,
   accessCode: process.env.ACCESS_CODE ?? '',
+  seedVocabPath: process.env.SEED_VOCAB_PATH ?? '',
 };

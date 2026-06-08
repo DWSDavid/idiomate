@@ -1,0 +1,119 @@
+1, risk premium
+n. the extra return investors demand for taking risk
+
+2, shore up
+v. support or strengthen something under pressure
+
+3, margin pressure
+n. stress on company profit margins
+
+4, durable moat
+n. a lasting competitive advantage that protects a business
+
+5, operating leverage
+n. the way fixed costs can magnify profit growth when revenue rises
+
+6, capital discipline
+n. careful control over spending and investment
+
+7, pricing power
+n. the ability to raise prices without losing too many customers
+
+8, secular tailwind
+n. a long-term trend that helps growth
+
+9, demand elasticity
+n. how much demand changes when price changes
+
+10, execution risk
+n. the risk that a plan fails because implementation is hard
+
+11, near-term headwind
+n. a short-term factor that makes progress harder
+
+12, long-term compounding
+n. growth that builds on itself over many periods
+
+13, valuation multiple
+n. a market ratio used to value a company
+
+14, earnings visibility
+n. how predictable future profits are
+
+15, cash conversion
+n. how efficiently profit turns into cash
+
+16, supply constraint
+n. a limit on available inputs or inventory
+
+17, customer retention
+n. the ability to keep customers over time
+
+18, switching cost
+n. the effort or expense required to move to another provider
+
+19, utilization rate
+n. the share of available capacity that is actively used
+
+20, cost structure
+n. the mix of fixed and variable costs in a business
+
+21, revenue durability
+n. how likely revenue is to continue over time
+
+22, productivity uplift
+n. an improvement in output for the same amount of work
+
+23, adoption curve
+n. the pattern by which users start using a new product or technology
+
+24, downside protection
+n. features that reduce losses when conditions worsen
+
+25, balance-sheet strength
+n. the financial resilience shown by cash, debt, and assets
+
+26, unit economics
+n. revenue and cost performance for one customer or transaction
+
+27, payback period
+n. the time needed to recover an investment
+
+28, addressable market
+n. the total market a product could realistically serve
+
+29, reinvestment runway
+n. the room a company has to keep investing at attractive returns
+
+30, competitive intensity
+n. how hard rivals compete in a market
+
+31, bottleneck
+n. the part of a process that limits overall throughput
+
+32, inflection point
+n. a moment when a trend starts changing meaningfully
+
+33, trade-off
+n. a choice that improves one thing while sacrificing another
+
+34, constraint
+n. a limit that shapes what choices are possible
+
+35, mitigate
+v. make a risk or problem less severe
+
+36, allocate
+v. distribute resources for a purpose
+
+37, compound
+v. grow by building on previous growth
+
+38, erode
+v. gradually weaken or reduce value
+
+39, sustain
+v. keep something going over time
+
+40, calibrate
+v. adjust carefully to fit conditions

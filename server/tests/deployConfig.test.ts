@@ -14,6 +14,7 @@ it('documents required production environment variables', () => {
     'OPENAI_MODEL_UTILITY',
     'ACCESS_CODE',
     'DB_PATH',
+    'SEED_VOCAB_PATH',
     'PORT',
   ]) {
     expect(envExample).toContain(name);
@@ -27,6 +28,8 @@ it('provides a Render Node host manifest with a persistent SQLite volume', () =>
   expect(manifest).toContain('mountPath: /data');
   expect(manifest).toContain('DB_PATH');
   expect(manifest).toContain('/data/idiomate.sqlite');
+  expect(manifest).toContain('SEED_VOCAB_PATH');
+  expect(manifest).toContain('/app/server/seed/vocab.txt');
   expect(manifest.toLowerCase()).not.toContain('vercel');
 });
 
