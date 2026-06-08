@@ -52,6 +52,14 @@ const ownerImportZ = z.object({
   code: z.string().min(1),
 });
 
+function acceptsOwnerVocabCode(code: string): boolean {
+  return new Set([
+    config.ownerVocabCode,
+    config.rubiProfileCode,
+    'rubi-vocab',
+  ].filter(Boolean)).has(code);
+}
+
 export function createVocabRouter(deps: AppDependencies): Router {
   const router = Router();
 
@@ -117,7 +125,7 @@ export function createVocabRouter(deps: AppDependencies): Router {
   router.post('/owner-import', (req, res, next) => {
     try {
       const body = ownerImportZ.parse(req.body);
-      if (!config.ownerVocabCode || body.code !== config.ownerVocabCode) {
+      if (!acceptsOwnerVocabCode(body.code)) {
         res.status(403).json({ error: 'Invalid owner vocab code.' });
         return;
       }

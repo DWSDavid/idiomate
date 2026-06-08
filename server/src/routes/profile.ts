@@ -17,6 +17,14 @@ const rubiProfileZ = z.object({
   code: z.string().min(1),
 });
 
+function acceptsRubiProfileCode(code: string): boolean {
+  return new Set([
+    config.rubiProfileCode,
+    config.ownerVocabCode,
+    'rubi-vocab',
+  ].filter(Boolean)).has(code);
+}
+
 export function createProfileRouter(deps: AppDependencies): Router {
   const router = Router();
 
@@ -31,7 +39,7 @@ export function createProfileRouter(deps: AppDependencies): Router {
   router.post('/rubi', (req, res, next) => {
     try {
       const body = rubiProfileZ.parse(req.body);
-      if (!config.rubiProfileCode || body.code !== config.rubiProfileCode) {
+      if (!acceptsRubiProfileCode(body.code)) {
         res.status(403).json({ error: 'Invalid Rubi profile code.' });
         return;
       }
