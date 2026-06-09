@@ -186,7 +186,7 @@ export interface ProgressResponse {
   trend: MistakeTrendSeries[];
 }
 
-export type WritingSource = 'daily_writing' | 'sentence_lab';
+export type WritingSource = 'daily_writing' | 'coach_review' | 'sentence_lab';
 
 export interface WritingHistoryAnnotation {
   span: string;

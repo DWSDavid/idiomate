@@ -97,6 +97,21 @@ it('asks coaching to explain Chinglish mindset instead of only naming the error'
   expect(prompt.system).toContain('how native English packages the idea differently');
 });
 
+it('asks coaching to give concrete fixes and preserve valid domain terminology', () => {
+  const prompt = assembleCoachPrompt({
+    paragraph: 'AI sprawl is irrelevant to this concern.',
+    paragraphIndex: 0,
+    topErrors: ['word_choice'],
+    vocabCandidates: [],
+  });
+
+  expect(prompt.system).toContain('Do not write vague feedback like "choose the correct expression"');
+  expect(prompt.system).toContain('provide 1 to 3 concrete replacement options');
+  expect(prompt.system).toContain('Preserve valid domain terminology');
+  expect(prompt.system).toContain('AI sprawl');
+  expect(prompt.system).toContain('terminology_check');
+});
+
 it('assembles a bilingual lesson prompt from rules and the user past instances', () => {
   const prompt = assembleLessonPrompt({
     errorType: 'noun_plague',

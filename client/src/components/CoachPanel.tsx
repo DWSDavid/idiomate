@@ -213,12 +213,39 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
       <div className="mt-4 space-y-3">
         {annotations.length ? (
           annotations.map(annotation => (
-            <div key={`${annotation.errorType}-${annotation.span}`} className="border-l-2 border-stone-200 pl-3">
+            <div key={`${annotation.errorType}-${annotation.span}`} className="coach-note-card">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-serif text-stone-900">{annotation.span}</span>
                 <span className="chip">{annotation.errorType.replace(/_/g, ' ')}</span>
               </div>
-              <p className="mt-1 text-sm leading-6 text-stone-600">{annotation.hint}</p>
+              <div className="mt-3 grid gap-3 md:grid-cols-2">
+                <div className="mini-brief">
+                  <p className="section-label">What to change</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">{annotation.hint}</p>
+                </div>
+                <div className="mini-brief">
+                  <p className="section-label">Why it matters</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-700">{annotation.explanation}</p>
+                </div>
+              </div>
+              {annotation.rule ? (
+                <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
+                  <p className="section-label text-indigo-500">Try this pattern</p>
+                  <p className="mt-2 text-sm font-semibold text-slate-900">{annotation.rule}</p>
+                </div>
+              ) : null}
+              {annotation.ruleExample ? (
+                <div className="change-card mt-3">
+                  <div>
+                    <span className="change-label">From your text</span>
+                    <p>{annotation.ruleExample.before}</p>
+                  </div>
+                  <div>
+                    <span className="change-label">Change to</span>
+                    <p className="font-semibold text-emerald-900">{annotation.ruleExample.after}</p>
+                  </div>
+                </div>
+              ) : null}
             </div>
           ))
         ) : (

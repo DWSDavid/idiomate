@@ -17,6 +17,7 @@ import {
   importOwnerVocab,
   primeVocab,
   recordParagraph,
+  recordCoachDiagnosis,
   revealSentenceLabResult,
   researchEssay,
   saveChineseVocab,
@@ -71,6 +72,7 @@ describe('client api', () => {
       if (url.includes('/api/sentence-lab/result')) return jsonResponse({ id: 1, sentence: 's', rewrite: 'r', annotations: [] });
       if (url.includes('/api/coach')) return jsonResponse({ paragraphIndex: 2, annotations: [] });
       if (url.includes('/api/paragraph-result')) return jsonResponse({ id: 9 });
+      if (url.includes('/api/coach-history')) return jsonResponse({ id: 11 });
       if (url.includes('/api/sessions')) return jsonResponse({ id: 7 });
       if (url.includes('/api/vocab/import')) return jsonResponse({ count: 1 });
       if (url.includes('/api/vocab/capture')) return jsonResponse({ word: 'shore up' });
@@ -116,6 +118,12 @@ describe('client api', () => {
       rewrite: 'A clearer paragraph.',
       annotations: [],
     });
+    await recordCoachDiagnosis({
+      date: '2026-06-05',
+      paragraphIdx: 2,
+      paragraph: 'A paragraph.',
+      annotations: [],
+    });
     await submitSession({ draftText: 'A paragraph.', annotations: [] });
     await importVocab(new File(['word'], 'vocabs.txt', { type: 'text/plain' }));
     await captureWord('shore up', 'We need to shore up margins.');
@@ -142,6 +150,7 @@ describe('client api', () => {
       '/api/sentence-lab/result',
       '/api/coach',
       '/api/paragraph-result',
+      '/api/coach-history',
       '/api/sessions',
       '/api/vocab/import',
       '/api/vocab/capture',
@@ -160,6 +169,7 @@ describe('client api', () => {
     expect(fetchMock.mock.calls[12][1]).toEqual(expect.objectContaining({ method: 'POST' }));
     expect(fetchMock.mock.calls[14][1]).toEqual(expect.objectContaining({ method: 'POST' }));
     expect(fetchMock.mock.calls[19][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[20][1]).toEqual(expect.objectContaining({ method: 'POST' }));
     expect(fetchMock.mock.calls[23][1]).toEqual(expect.objectContaining({ method: 'POST' }));
     expect(localStorage.getItem('idiomate_uid')).toBe('rubi');
     expect(localStorage.getItem('idiomate_user_name')).toBe('Rubi');

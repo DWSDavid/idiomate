@@ -6,6 +6,7 @@ import {
   getPrimeCandidates,
   getMistakeLog,
   getTallies,
+  getWritingHistory,
   insertAnnotations,
   insertSession,
   insertVocab,
@@ -72,6 +73,45 @@ it('POST /api/coach returns annotations without updating error tallies', async (
     const json = await res.json();
     expect(json.annotations[0].errorType).toBe('redundancy');
     expect(getTallies(db, USER_ID)).toEqual([]);
+  });
+});
+
+it('POST /api/coach-history saves each coach diagnosis without overwriting or updating tallies', async () => {
+  await withServer(createApp({ db }), async baseUrl => {
+    for (const span of ['first vague phrase', 'second vague phrase']) {
+      const res = await fetch(`${baseUrl}/api/coach-history`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: '2026-06-09',
+          promptId: 4,
+          paragraphIdx: 0,
+          paragraph: `This is the ${span}.`,
+          annotations: [{
+            span,
+            errorType: 'word_choice',
+            hint: 'Use a more exact expression.',
+            explanation: 'The current phrase is vague.',
+            rule: 'Concrete word choice',
+            ruleExample: { before: span, after: span.replace('vague', 'specific') },
+            modelRewrite: span.replace('vague', 'specific'),
+          }],
+        }),
+      });
+      expect(res.status).toBe(201);
+    }
+
+    expect(getTallies(db, USER_ID)).toEqual([]);
+    expect(getWritingHistory(db, USER_ID, 10)).toEqual([
+      expect.objectContaining({
+        source: 'coach_review',
+        draftText: 'This is the second vague phrase.',
+      }),
+      expect.objectContaining({
+        source: 'coach_review',
+        draftText: 'This is the first vague phrase.',
+      }),
+    ]);
   });
 });
 

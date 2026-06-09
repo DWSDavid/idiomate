@@ -10,7 +10,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('renders a tabbed workspace with vocab prime above the writing surface', async () => {
+it('renders a tabbed workspace with prompt and draft visible in the same workbench', async () => {
   vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes('/api/prompt/today')) {
@@ -37,7 +37,8 @@ it('renders a tabbed workspace with vocab prime above the writing surface', asyn
   expect(screen.getByRole('navigation', { name: 'Workspace sections' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Write' })).toHaveAttribute('aria-pressed', 'true');
   expect(screen.getByLabelText('writing canvas')).toBeInTheDocument();
-  expect(screen.getByLabelText('writing prep')).toBeInTheDocument();
+  expect(screen.getByLabelText('writing reference rail')).toBeInTheDocument();
+  expect(screen.getByLabelText('draft workbench')).toBeInTheDocument();
   expect(await screen.findByText(/Today's prompt/)).toBeInTheDocument();
   expect(screen.getByText('Words to work in')).toBeInTheDocument();
   expect(screen.getByLabelText('Draft')).toBeInTheDocument();
@@ -105,6 +106,9 @@ it('records a paragraph result and refetches the profile after rewrite submit', 
     if (url.includes('/api/paragraph-result')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 10 }) } as Response);
     }
+    if (url.includes('/api/coach-history')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 11 }) } as Response);
+    }
     return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -115,6 +119,11 @@ it('records a paragraph result and refetches the profile after rewrite submit', 
     target: { value: 'We need support margins in order to calm investors.' },
   });
   fireEvent.click(screen.getByRole('button', { name: /^Coach$/ }));
+
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith('/api/coach-history', expect.objectContaining({ method: 'POST' }));
+  });
+
   fireEvent.click(await screen.findByRole('button', { name: 'Try the rewrite' }));
   fireEvent.change(screen.getByRole('textbox', { name: '' }), {
     target: { value: 'We need to shore up margins to calm investors.' },

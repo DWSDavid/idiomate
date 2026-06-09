@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { CoachResponse, Prompt } from '../../shared/types';
-import { ACCESS_DENIED_EVENT, coach, saveAccessCode, submitSession as postSession } from './api';
+import { ACCESS_DENIED_EVENT, coach, recordCoachDiagnosis, saveAccessCode, submitSession as postSession } from './api';
 import { AccessGate } from './components/AccessGate';
 import { AdminPanel } from './components/AdminPanel';
 import { CoachPanel } from './components/CoachPanel';
@@ -18,6 +18,8 @@ import { VocabularyPanel } from './components/VocabularyPanel';
 import { WriteSurface } from './components/WriteSurface';
 
 interface CoachPanelState {
+  id: string;
+  paragraphIndex: number;
   paragraph: string;
   response: CoachResponse;
 }
@@ -39,7 +41,7 @@ export function App() {
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [draft, setDraft] = useState('');
   const [coachingIndex, setCoachingIndex] = useState<number | undefined>();
-  const [coachPanels, setCoachPanels] = useState<Record<number, CoachPanelState>>({});
+  const [coachPanels, setCoachPanels] = useState<CoachPanelState[]>([]);
   const [sessionStatus, setSessionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [profileKey, setProfileKey] = useState(0);
   const [vocabKey, setVocabKey] = useState(0);
@@ -56,7 +58,22 @@ export function App() {
     setCoachingIndex(paragraphIndex);
     try {
       const response = await coach(paragraph, paragraphIndex);
-      setCoachPanels(current => ({ ...current, [paragraphIndex]: { paragraph, response } }));
+      setCoachPanels(current => [
+        {
+          id: `${paragraphIndex}-${Date.now()}-${current.length}`,
+          paragraphIndex,
+          paragraph,
+          response,
+        },
+        ...current,
+      ]);
+      void recordCoachDiagnosis({
+        date: prompt?.date,
+        promptId: prompt?.id,
+        paragraphIdx: paragraphIndex,
+        paragraph,
+        annotations: response.annotations,
+      }).then(() => setHistoryKey(key => key + 1)).catch(() => undefined);
     } finally {
       setCoachingIndex(undefined);
     }
@@ -137,42 +154,44 @@ export function App() {
         </nav>
 
         {activeSection === 'write' ? (
-          <section className="desk-center workspace-page" aria-label="writing canvas">
-            <div className="writing-prep" aria-label="writing prep">
+          <section className="writing-workbench workspace-page" aria-label="writing canvas">
+            <aside className="writing-reference-rail" aria-label="writing reference rail">
               <DailyPrompt onPrompt={setPrompt} />
               <VocabPrime promptText={prompt?.text ?? ''} refreshKey={vocabKey} />
               <ChineseToVocabBox onSaved={handleVocabSaved} />
-            </div>
+            </aside>
 
-            {sessionStatus === 'saved' ? (
-              <p className="notice notice-success">Session saved. Your profile is updated.</p>
-            ) : null}
-            {sessionStatus === 'error' ? (
-              <p className="notice notice-error">Could not save the session.</p>
-            ) : null}
+            <div className="draft-workbench" aria-label="draft workbench">
+              {sessionStatus === 'saved' ? (
+                <p className="notice notice-success">Session saved. Your profile is updated.</p>
+              ) : null}
+              {sessionStatus === 'error' ? (
+                <p className="notice notice-error">Could not save the session.</p>
+              ) : null}
 
-            <WriteSurface
-              value={draft}
-              onChange={setDraft}
-              onCoachParagraph={handleCoachParagraph}
-              coachingIndex={coachingIndex}
-            />
-
-            {Object.entries(coachPanels).map(([paragraphIndex, item]) => (
-              <CoachPanel
-                key={paragraphIndex}
-                paragraph={item.paragraph}
-                nativeVersion={item.response.nativeVersion}
-                annotations={item.response.annotations}
-                recordContext={{
-                  date: prompt?.date,
-                  promptId: prompt?.id,
-                  paragraphIdx: Number(paragraphIndex),
-                }}
-                onRecorded={() => setProfileKey(key => key + 1)}
-                onSubmit={handleCoachSubmit(Number(paragraphIndex))}
+              <WriteSurface
+                value={draft}
+                onChange={setDraft}
+                onCoachParagraph={handleCoachParagraph}
+                coachingIndex={coachingIndex}
               />
-            ))}
+
+              {coachPanels.map(item => (
+                <CoachPanel
+                  key={item.id}
+                  paragraph={item.paragraph}
+                  nativeVersion={item.response.nativeVersion}
+                  annotations={item.response.annotations}
+                  recordContext={{
+                    date: prompt?.date,
+                    promptId: prompt?.id,
+                    paragraphIdx: item.paragraphIndex,
+                  }}
+                  onRecorded={() => setProfileKey(key => key + 1)}
+                  onSubmit={handleCoachSubmit(item.paragraphIndex)}
+                />
+              ))}
+            </div>
           </section>
         ) : null}
 

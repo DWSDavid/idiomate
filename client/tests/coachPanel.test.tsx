@@ -25,10 +25,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-it('hides modelRewrite until submit', () => {
+it('shows actionable fix guidance before submit while hiding the full native rewrite', () => {
   render(<CoachPanel paragraph="We did X in order to Y" annotations={ann as any} onSubmit={() => {}} />);
   expect(screen.getByText(/Two words can do this job/)).toBeInTheDocument();
-  expect(screen.queryByText(/^to$/)).not.toBeInTheDocument();
+  expect(screen.getByText('What to change')).toBeInTheDocument();
+  expect(screen.getByText('Why it matters')).toBeInTheDocument();
+  expect(screen.getByText('Try this pattern')).toBeInTheDocument();
+  expect(screen.getByText('From your text')).toBeInTheDocument();
+  expect(screen.getByText('Change to')).toBeInTheDocument();
+  expect(screen.queryByText('Native version')).not.toBeInTheDocument();
 });
 
 it('answers paragraph follow-up questions before and after rewrite without changing the reveal flow', async () => {
@@ -92,20 +97,26 @@ it('answers paragraph follow-up questions before and after rewrite without chang
   expect(postBody.nativeVersion).toBe('We did X to Y.');
 });
 
-it('keeps the rewrite and explanation hidden while the user is drafting', () => {
+it('keeps the native version hidden while the user is drafting', () => {
   const onSubmit = vi.fn();
-  render(<CoachPanel paragraph="We did X in order to Y" annotations={ann as any} onSubmit={onSubmit} />);
+  render(
+    <CoachPanel
+      paragraph="We did X in order to Y"
+      nativeVersion="We did X to Y."
+      annotations={ann as any}
+      onSubmit={onSubmit}
+    />,
+  );
 
   fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
 
-  expect(screen.queryByText(/^to$/)).not.toBeInTheDocument();
-  expect(screen.queryByText('Redundancy.')).not.toBeInTheDocument();
+  expect(screen.queryByText('Native version')).not.toBeInTheDocument();
+  expect(screen.queryByText('We did X to Y.')).not.toBeInTheDocument();
 
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'We did X to Y' } });
   fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
 
-  expect(screen.getAllByText(/^to$/).length).toBeGreaterThan(0);
-  expect(screen.getByText('Redundancy.')).toBeInTheDocument();
+  expect(screen.getByText('Native version')).toBeInTheDocument();
   expect(onSubmit).toHaveBeenCalledWith('We did X to Y', expect.any(Array));
 });
 

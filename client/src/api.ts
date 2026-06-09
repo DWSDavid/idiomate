@@ -61,6 +61,14 @@ export interface ParagraphResultPayload {
   annotations?: Omit<SubmittedAnnotation, 'paragraphIdx' | 'userRewrite'>[];
 }
 
+export interface CoachDiagnosisPayload {
+  date?: string;
+  promptId?: number;
+  paragraphIdx: number;
+  paragraph: string;
+  annotations?: Omit<SubmittedAnnotation, 'paragraphIdx' | 'userRewrite'>[];
+}
+
 export interface FollowUpAnnotationPayload extends Partial<Annotation> {
   span: string;
   errorType: ErrorType;
@@ -172,6 +180,10 @@ export function submitSession(payload: SessionSubmitPayload): Promise<{ id: numb
 
 export function recordParagraph(payload: ParagraphResultPayload): Promise<{ id: number }> {
   return postJson<{ id: number }>('/api/paragraph-result', payload);
+}
+
+export function recordCoachDiagnosis(payload: CoachDiagnosisPayload): Promise<{ id: number }> {
+  return postJson<{ id: number }>('/api/coach-history', payload);
 }
 
 export function getProfile(): Promise<ProfileResponse> {
