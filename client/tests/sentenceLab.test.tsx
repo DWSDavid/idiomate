@@ -63,6 +63,15 @@ it('diagnoses a sentence without showing the native version until the user submi
         }),
       } as Response);
     }
+    if (url.includes('/api/follow-up')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          answer: 'It feels like noun plague because the action is hidden inside a noun.',
+          mode: 'pre_rewrite',
+        }),
+      } as Response);
+    }
     return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
   });
   vi.stubGlobal('fetch', fetchMock);
@@ -85,6 +94,14 @@ it('diagnoses a sentence without showing the native version until the user submi
   await waitFor(() => {
     expect(onRecorded).toHaveBeenCalledTimes(1);
   });
+
+  fireEvent.change(screen.getByLabelText('Follow-up question'), {
+    target: { value: 'Why is this noun plague?' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Ask follow-up' }));
+
+  expect(await screen.findByText('It feels like noun plague because the action is hidden inside a noun.')).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledWith('/api/follow-up', expect.objectContaining({ method: 'POST' }));
 
   fireEvent.change(screen.getByLabelText('Your rewrite'), {
     target: { value: 'We implemented it yesterday.' },

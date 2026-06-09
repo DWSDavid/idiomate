@@ -77,6 +77,10 @@ export interface SaveVocabResponse {
   existed: boolean;
 }
 
+export interface ChineseVocabResponse extends SaveVocabResponse {
+  vocab: Vocab;
+}
+
 export interface Prompt { id?: number; date: string; theme: string; text: string; sourceUrl?: string; }
 export interface ErrorTally { errorType: ErrorType; count: number; lastSeen: string; }
 
@@ -242,4 +246,12 @@ export interface SentenceLabResultResponse {
   rewrite: string;
   nativeVersion?: string;
   annotations: Array<Annotation & { userRewrite?: string; accepted?: boolean }>;
+}
+
+export type FollowUpScope = 'sentence_lab' | 'paragraph';
+export type FollowUpMode = 'pre_rewrite' | 'post_rewrite';
+
+export interface FollowUpResponse {
+  answer: string;
+  mode: FollowUpMode;
 }

@@ -17,6 +17,10 @@ import type {
   SaveVocabResponse,
   AdminUserDetailResponse,
   AdminUsersResponse,
+  ChineseVocabResponse,
+  FollowUpMode,
+  FollowUpResponse,
+  FollowUpScope,
   WritingHistoryResponse,
 } from '../../shared/types';
 import { getClientIdentity, setClientIdentity } from './identity';
@@ -55,6 +59,23 @@ export interface ParagraphResultPayload {
   paragraph: string;
   rewrite: string;
   annotations?: Omit<SubmittedAnnotation, 'paragraphIdx' | 'userRewrite'>[];
+}
+
+export interface FollowUpAnnotationPayload extends Partial<Annotation> {
+  span: string;
+  errorType: ErrorType;
+  userRewrite?: string;
+}
+
+export interface FollowUpPayload {
+  scope: FollowUpScope;
+  mode: FollowUpMode;
+  question: string;
+  original: string;
+  context?: string;
+  rewrite?: string;
+  nativeVersion?: string;
+  annotations?: FollowUpAnnotationPayload[];
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -200,6 +221,14 @@ export function structureDraft(draft: string): Promise<StructureResponse> {
   return postJson<StructureResponse>('/api/structure', { draft });
 }
 
+export function askFollowUp(payload: FollowUpPayload): Promise<FollowUpResponse> {
+  return postJson<FollowUpResponse>('/api/follow-up', {
+    ...payload,
+    question: payload.question.trim(),
+    context: payload.context?.trim() || undefined,
+  });
+}
+
 export function diagnoseSentenceLab(
   sentence: string,
   context?: string,
@@ -236,4 +265,11 @@ export function captureWord(word: string, contextSentence?: string): Promise<Voc
 
 export function saveVocab(vocab: Vocab): Promise<SaveVocabResponse> {
   return postJson<SaveVocabResponse>('/api/vocab/save', vocab);
+}
+
+export function saveChineseVocab(text: string, contextSentence?: string): Promise<ChineseVocabResponse> {
+  return postJson<ChineseVocabResponse>('/api/vocab/from-chinese', {
+    text: text.trim(),
+    contextSentence: contextSentence?.trim() || undefined,
+  });
 }

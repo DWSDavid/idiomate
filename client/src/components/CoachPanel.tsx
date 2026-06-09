@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { Annotation, ResearchResponse, StructureResponse } from '../../../shared/types';
 import { recordParagraph, researchEssay, structureDraft } from '../api';
 import { CompareView, type ComparedAnnotation } from './CompareView';
+import { FollowUpBox } from './FollowUpBox';
 
 type CoachPhase = 'review' | 'rewriting' | 'compared';
 type StructureStatus = StructureResponse['observations'][number]['status'];
@@ -81,6 +82,14 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
     return (
       <section className="surface" aria-label="coaching result">
         <CompareView original={paragraph} rewrite={rewrite} nativeVersion={nativeVersion} annotations={accepted} />
+        <FollowUpBox
+          scope="paragraph"
+          mode="post_rewrite"
+          original={paragraph}
+          rewrite={rewrite}
+          nativeVersion={nativeVersion}
+          annotations={accepted}
+        />
         <div className="lab-panel mt-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -216,6 +225,15 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
           <p className="text-sm text-stone-500">No notes for this paragraph. Nicely done.</p>
         )}
       </div>
+
+      {phase === 'review' ? (
+        <FollowUpBox
+          scope="paragraph"
+          mode="pre_rewrite"
+          original={paragraph}
+          annotations={annotations}
+        />
+      ) : null}
 
       {phase === 'rewriting' ? (
         <div className="mt-4 space-y-3">

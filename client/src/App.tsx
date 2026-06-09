@@ -6,6 +6,7 @@ import { AdminPanel } from './components/AdminPanel';
 import { CoachPanel } from './components/CoachPanel';
 import type { ComparedAnnotation } from './components/CompareView';
 import { CaptureWord } from './components/CaptureWord';
+import { ChineseToVocabBox } from './components/ChineseToVocabBox';
 import { DailyPrompt } from './components/DailyPrompt';
 import { HistoryPanel } from './components/HistoryPanel';
 import { OwnerVocabImport } from './components/OwnerVocabImport';
@@ -62,6 +63,11 @@ export function App() {
   };
 
   const handleCoachSubmit = (_paragraphIndex: number) => (_rewrite: string, _accepted: ComparedAnnotation[]) => {};
+
+  const handleVocabSaved = () => {
+    setVocabKey(key => key + 1);
+    setProfileKey(key => key + 1);
+  };
 
   const handleSubmitSession = async () => {
     if (!draft.trim()) return;
@@ -135,6 +141,7 @@ export function App() {
             <div className="writing-prep" aria-label="writing prep">
               <DailyPrompt onPrompt={setPrompt} />
               <VocabPrime promptText={prompt?.text ?? ''} refreshKey={vocabKey} />
+              <ChineseToVocabBox onSaved={handleVocabSaved} />
             </div>
 
             {sessionStatus === 'saved' ? (
@@ -184,7 +191,8 @@ export function App() {
                 setProfileKey(key => key + 1);
               }}
             />
-            <CaptureWord onSaved={() => setVocabKey(key => key + 1)} />
+            <ChineseToVocabBox onSaved={handleVocabSaved} />
+            <CaptureWord onSaved={handleVocabSaved} />
             <VocabularyPanel refreshKey={vocabKey + profileKey} />
           </section>
         ) : null}

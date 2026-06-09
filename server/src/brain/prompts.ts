@@ -1,5 +1,7 @@
 import type {
   ErrorType,
+  FollowUpMode,
+  FollowUpScope,
   LessonComparisonPair,
   MistakeLogItem,
   NewsItem,
@@ -55,6 +57,34 @@ export interface SentenceLabPromptContext {
   sentence: string;
   context?: string;
   topErrors: ErrorType[];
+}
+
+export interface FollowUpPromptAnnotation {
+  span: string;
+  errorType: ErrorType;
+  hint?: string;
+  explanation?: string;
+  rule?: string;
+  ruleExample?: { before: string; after: string };
+  bookReference?: {
+    source: string;
+    pattern: string;
+    quote?: string;
+    quoteStatus?: string;
+  };
+  modelRewrite?: string;
+  userRewrite?: string;
+}
+
+export interface FollowUpPromptContext {
+  scope: FollowUpScope;
+  mode: FollowUpMode;
+  question: string;
+  original: string;
+  context?: string;
+  rewrite?: string;
+  nativeVersion?: string;
+  annotations: FollowUpPromptAnnotation[];
 }
 
 function taxonomyReferenceSnippet(types: ErrorType[]): string {
@@ -268,6 +298,65 @@ export function assembleSentenceLabPrompt(ctx: SentenceLabPromptContext): { syst
       `Prioritize these recurring error types when relevant: ${topErrors}`,
       `Taxonomy:\n${snippet}`,
       `Named grammar and Chinglish rules:\n${ruleSnippet}`,
+    ].join('\n\n'),
+  };
+}
+
+function preRewriteAnnotation(annotation: FollowUpPromptAnnotation) {
+  return {
+    span: annotation.span,
+    errorType: annotation.errorType,
+    hint: annotation.hint,
+    explanation: annotation.explanation,
+    rule: annotation.rule,
+    bookReference: annotation.bookReference,
+  };
+}
+
+function postRewriteAnnotation(annotation: FollowUpPromptAnnotation) {
+  return {
+    span: annotation.span,
+    errorType: annotation.errorType,
+    hint: annotation.hint,
+    explanation: annotation.explanation,
+    rule: annotation.rule,
+    ruleExample: annotation.ruleExample,
+    bookReference: annotation.bookReference,
+    modelRewrite: annotation.modelRewrite,
+    userRewrite: annotation.userRewrite,
+  };
+}
+
+export function assembleFollowUpPrompt(ctx: FollowUpPromptContext): { system: string; user: string } {
+  const isPreRewrite = ctx.mode === 'pre_rewrite';
+  const annotations = ctx.annotations.map(annotation => (
+    isPreRewrite ? preRewriteAnnotation(annotation) : postRewriteAnnotation(annotation)
+  ));
+  const visibleContext = {
+    scope: ctx.scope,
+    mode: ctx.mode,
+    original: ctx.original,
+    context: ctx.context,
+    ...(isPreRewrite ? {} : {
+      rewrite: ctx.rewrite,
+      nativeVersion: ctx.nativeVersion,
+    }),
+    annotations,
+  };
+
+  return {
+    system: [
+      'You answer follow-up questions inside Idiomate.',
+      'The learner is an advanced Chinese-L1 English writer.',
+      'Be specific, concise, and teaching-oriented. Chinese explanations are allowed when they clarify mindset.',
+      isPreRewrite
+        ? 'Do not reveal the final answer, native version, model rewrite, exact corrected phrase, or after side of any before/after pair. If the learner asks for the answer, redirect them to try a rewrite first and give a hint or principle instead.'
+        : 'The learner has already submitted a rewrite, so you may explain the native version, model rewrite, grammar point, book connection, and comparison pairs.',
+      'Return ONLY JSON matching: {answer}.',
+    ].join(' '),
+    user: [
+      `Question: ${ctx.question}`,
+      `Visible writing context:\n${JSON.stringify(visibleContext, null, 2)}`,
     ].join('\n\n'),
   };
 }

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { SentenceLabDiagnosisResponse, SentenceLabResultResponse } from '../../../shared/types';
 import { diagnoseSentenceLab, revealSentenceLabResult } from '../api';
 import { CompareView } from './CompareView';
+import { FollowUpBox } from './FollowUpBox';
 
 interface SentenceLabProps {
   onRecorded?: () => void;
@@ -116,6 +117,14 @@ export function SentenceLab({ onRecorded }: SentenceLabProps) {
             </div>
           </div>
 
+          <FollowUpBox
+            scope="sentence_lab"
+            mode="pre_rewrite"
+            original={diagnosis.sentence}
+            context={diagnosis.context}
+            annotations={diagnosis.notes}
+          />
+
           <div>
             <label className="field-label" htmlFor="sentence-lab-rewrite">Your rewrite</label>
             <textarea
@@ -140,6 +149,15 @@ export function SentenceLab({ onRecorded }: SentenceLabProps) {
         <div className="mt-5">
           <CompareView
             original={result.sentence}
+            rewrite={result.rewrite}
+            nativeVersion={result.nativeVersion}
+            annotations={result.annotations}
+          />
+          <FollowUpBox
+            scope="sentence_lab"
+            mode="post_rewrite"
+            original={result.sentence}
+            context={result.context}
             rewrite={result.rewrite}
             nativeVersion={result.nativeVersion}
             annotations={result.annotations}

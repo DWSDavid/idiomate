@@ -8,6 +8,12 @@ interface EnrichWordContext {
   model: string;
 }
 
+interface TranslateChineseVocabContext {
+  text: string;
+  contextSentence?: string;
+  model: string;
+}
+
 function inferKind(word: string): VocabKind {
   return word.trim().includes(' ') ? 'phrase' : 'word';
 }
@@ -45,6 +51,42 @@ export async function enrichWord(provider: LLMProvider, ctx: EnrichWordContext):
     normalized: parsed.normalized?.trim().replace(/\s+/g, ' ').toLowerCase() ?? word.toLowerCase(),
     kind: parsed.kind ?? inferKind(word),
     source: 'capture',
+    contextSentence: parsed.contextSentence ?? ctx.contextSentence,
+    captureCount: 1,
+    timesSuggested: 0,
+    timesUsed: 0,
+  };
+}
+
+export async function translateChineseVocab(
+  provider: LLMProvider,
+  ctx: TranslateChineseVocabContext,
+): Promise<Vocab> {
+  const raw = await provider.complete({
+    model: ctx.model,
+    system: [
+      'You convert a Chinese expression into one natural English vocabulary item for a local writing companion.',
+      'Choose a word, phrase, or collocation that the learner can reuse in finance, tech, or professional English writing.',
+      'Return ONLY JSON matching: {word,normalized?,kind?,ipa?,defCn?,pos?,contextSentence?,examples?,collocations?,register?}.',
+      'defCn should preserve the Chinese meaning; examples should be short and useful.',
+    ].join(' '),
+    user: [
+      `Chinese expression: ${ctx.text}`,
+      `Context or intended use: ${ctx.contextSentence ?? 'none'}`,
+    ].join('\n'),
+  });
+
+  const json = JSON.parse(raw) as Record<string, unknown>;
+  const suggestedWord = typeof json.word === 'string' ? json.word : ctx.text;
+  json.kind = normalizeKind(json.kind, suggestedWord);
+  const parsed = enrichedVocabZ.parse(json);
+  const word = parsed.word.trim().replace(/\s+/g, ' ');
+  return {
+    ...parsed,
+    word,
+    normalized: parsed.normalized?.trim().replace(/\s+/g, ' ').toLowerCase() ?? word.toLowerCase(),
+    kind: parsed.kind ?? inferKind(word),
+    source: 'chinese_input',
     contextSentence: parsed.contextSentence ?? ctx.contextSentence,
     captureCount: 1,
     timesSuggested: 0,

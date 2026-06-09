@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  askFollowUp,
   coach,
   captureWord,
   diagnoseSentenceLab,
@@ -18,6 +19,7 @@ import {
   recordParagraph,
   revealSentenceLabResult,
   researchEssay,
+  saveChineseVocab,
   saveVocab,
   structureDraft,
   switchToRubiProfile,
@@ -64,6 +66,7 @@ describe('client api', () => {
       if (url.includes('/api/lesson')) return jsonResponse({ errorType: 'redundancy', rules: [], principle: 'p', mindset: 'm', pastInstances: [], comparisonPairs: [] });
       if (url.includes('/api/research')) return jsonResponse({ analysis: 'a', otherAngles: [], sources: [], integratedEssay: 'e', integrationNotes: [] });
       if (url.includes('/api/structure')) return jsonResponse({ idealOutline: [], observations: [] });
+      if (url.includes('/api/follow-up')) return jsonResponse({ answer: 'a', mode: 'pre_rewrite' });
       if (url.includes('/api/sentence-lab/diagnose')) return jsonResponse({ id: 1, sentence: 's', notes: [] });
       if (url.includes('/api/sentence-lab/result')) return jsonResponse({ id: 1, sentence: 's', rewrite: 'r', annotations: [] });
       if (url.includes('/api/coach')) return jsonResponse({ paragraphIndex: 2, annotations: [] });
@@ -72,6 +75,12 @@ describe('client api', () => {
       if (url.includes('/api/vocab/import')) return jsonResponse({ count: 1 });
       if (url.includes('/api/vocab/capture')) return jsonResponse({ word: 'shore up' });
       if (url.includes('/api/vocab/save')) return jsonResponse({ id: 8, captureCount: 2, existed: true });
+      if (url.includes('/api/vocab/from-chinese')) return jsonResponse({
+        id: 9,
+        captureCount: 1,
+        existed: false,
+        vocab: { id: 9, word: 'margin pressure', timesSuggested: 0, timesUsed: 0 },
+      });
       return jsonResponse({});
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -90,6 +99,13 @@ describe('client api', () => {
     await getLesson('redundancy');
     await researchEssay('AI capex may pressure margins.');
     await structureDraft('AI capex may pressure margins.');
+    await askFollowUp({
+      scope: 'sentence_lab',
+      mode: 'pre_rewrite',
+      question: 'Why is this wordy?',
+      original: 'This is wordy.',
+      annotations: [{ span: 'wordy', errorType: 'redundancy' }],
+    });
     await diagnoseSentenceLab('This sounds strange.', 'Slack message');
     await revealSentenceLabResult(1, 'This sounds natural.');
     await coach('A paragraph.', 2);
@@ -104,6 +120,7 @@ describe('client api', () => {
     await importVocab(new File(['word'], 'vocabs.txt', { type: 'text/plain' }));
     await captureWord('shore up', 'We need to shore up margins.');
     await saveVocab({ word: 'shore up', timesSuggested: 0, timesUsed: 0 });
+    await saveChineseVocab('\u5229\u6da6\u7387\u538b\u529b', 'AI capex may create this.');
 
     expect(fetchMock.mock.calls.map(call => String(call[0]))).toEqual([
       '/api/prompt/today',
@@ -120,6 +137,7 @@ describe('client api', () => {
       '/api/lesson?type=redundancy',
       '/api/research',
       '/api/structure',
+      '/api/follow-up',
       '/api/sentence-lab/diagnose',
       '/api/sentence-lab/result',
       '/api/coach',
@@ -128,6 +146,7 @@ describe('client api', () => {
       '/api/vocab/import',
       '/api/vocab/capture',
       '/api/vocab/save',
+      '/api/vocab/from-chinese',
     ]);
 
     for (const [, init] of fetchMock.mock.calls) {
@@ -139,7 +158,9 @@ describe('client api', () => {
     expect(new Headers((fetchMock.mock.calls[5][1] as RequestInit).headers).get('x-admin-code')).toBe('admin-code');
     expect(fetchMock.mock.calls[7][1]).toEqual(expect.objectContaining({ method: 'POST' }));
     expect(fetchMock.mock.calls[12][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[14][1]).toEqual(expect.objectContaining({ method: 'POST' }));
     expect(fetchMock.mock.calls[19][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[23][1]).toEqual(expect.objectContaining({ method: 'POST' }));
     expect(localStorage.getItem('idiomate_uid')).toBe('rubi');
     expect(localStorage.getItem('idiomate_user_name')).toBe('Rubi');
   });

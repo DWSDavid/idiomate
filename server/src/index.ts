@@ -10,6 +10,7 @@ import { accessMiddleware } from './middleware/access.js';
 import { userMiddleware } from './middleware/user.js';
 import { createAdminRouter } from './routes/admin.js';
 import { createCoachRouter } from './routes/coach.js';
+import { createFollowUpRouter } from './routes/followUp.js';
 import { createHistoryRouter } from './routes/history.js';
 import { createLessonsRouter } from './routes/lessons.js';
 import { createMistakesRouter } from './routes/mistakes.js';
@@ -45,6 +46,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}, options: Cre
   app.use('/api', userMiddleware(db, config.seedVocabPath, config.autoSeedVocab));
   app.use('/api/admin', createAdminRouter(deps));
   app.use('/api/coach', createCoachRouter(deps));
+  app.use('/api/follow-up', createFollowUpRouter(deps));
   app.use('/api/history', createHistoryRouter(deps));
   app.use('/api/lesson', createLessonsRouter(deps));
   app.use('/api/mistakes', createMistakesRouter(deps));

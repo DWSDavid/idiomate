@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, it, expect, vi } from 'vitest';
 import { CoachPanel } from '../src/components/CoachPanel';
 
@@ -29,6 +29,67 @@ it('hides modelRewrite until submit', () => {
   render(<CoachPanel paragraph="We did X in order to Y" annotations={ann as any} onSubmit={() => {}} />);
   expect(screen.getByText(/Two words can do this job/)).toBeInTheDocument();
   expect(screen.queryByText(/^to$/)).not.toBeInTheDocument();
+});
+
+it('answers paragraph follow-up questions before and after rewrite without changing the reveal flow', async () => {
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes('/api/follow-up')) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { mode: string };
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          answer: body.mode === 'pre_rewrite'
+            ? 'Think about whether those three words add a new idea.'
+            : 'The native version keeps the same meaning with a lighter structure.',
+          mode: body.mode,
+        }),
+      } as Response);
+    }
+    if (url.includes('/api/paragraph-result')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 9 }) } as Response);
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+
+  render(
+    <CoachPanel
+      paragraph="We did X in order to Y"
+      nativeVersion="We did X to Y."
+      annotations={ann as any}
+      recordContext={{ paragraphIdx: 0 }}
+      onSubmit={() => {}}
+    />,
+  );
+
+  fireEvent.change(screen.getByLabelText('Follow-up question'), {
+    target: { value: 'Why is this wordy?' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Ask follow-up' }));
+
+  expect(await screen.findByText('Think about whether those three words add a new idea.')).toBeInTheDocument();
+  const preBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body ?? '{}')) as { mode: string };
+  expect(preBody.mode).toBe('pre_rewrite');
+  expect(screen.queryByText('We did X to Y.')).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'We did X to Y.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
+
+  fireEvent.change(screen.getByLabelText('Follow-up question'), {
+    target: { value: 'Why is the native version better?' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Ask follow-up' }));
+
+  expect(await screen.findByText('The native version keeps the same meaning with a lighter structure.')).toBeInTheDocument();
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith('/api/paragraph-result', expect.objectContaining({ method: 'POST' }));
+  });
+  const followUpCalls = fetchMock.mock.calls.filter(call => String(call[0]).includes('/api/follow-up'));
+  const postBody = JSON.parse(String(followUpCalls[1][1]?.body ?? '{}')) as { mode: string; nativeVersion?: string };
+  expect(postBody.mode).toBe('post_rewrite');
+  expect(postBody.nativeVersion).toBe('We did X to Y.');
 });
 
 it('keeps the rewrite and explanation hidden while the user is drafting', () => {

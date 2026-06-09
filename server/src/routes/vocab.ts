@@ -2,7 +2,7 @@ import express, { Router } from 'express';
 import { existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 import type { AppDependencies } from '../appContext.js';
-import { enrichWord } from '../brain/enrich.js';
+import { enrichWord, translateChineseVocab } from '../brain/enrich.js';
 import { selectPrimeWords } from '../brain/prompts.js';
 import { config } from '../config.js';
 import { parseYoudaoTxt } from '../import/youdao.js';
@@ -41,6 +41,11 @@ const saveVocabZ = z.object({
 
 const captureVocabZ = z.object({
   word: z.string().min(1),
+  contextSentence: z.string().optional(),
+});
+
+const chineseVocabZ = z.object({
+  text: z.string().min(1),
   contextSentence: z.string().optional(),
 });
 
@@ -93,6 +98,33 @@ export function createVocabRouter(deps: AppDependencies): Router {
         id,
         captureCount: saved?.captureCount ?? body.captureCount ?? 1,
         existed,
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/from-chinese', async (req, res, next) => {
+    try {
+      const body = chineseVocabZ.parse(req.body);
+      const translated = await translateChineseVocab(deps.utilityProvider, {
+        text: body.text.trim(),
+        contextSentence: body.contextSentence?.trim() || undefined,
+        model: config.modelUtility,
+      });
+      const normalized = normalizeVocabWord(translated.normalized ?? translated.word);
+      const existed = Boolean(getVocabCaptureMeta(deps.db, req.userId, normalized));
+      const id = upsertVocab(deps.db, req.userId, translated);
+      const saved = getVocabCaptureMeta(deps.db, req.userId, normalized);
+      res.status(201).json({
+        id,
+        captureCount: saved?.captureCount ?? translated.captureCount ?? 1,
+        existed,
+        vocab: {
+          ...translated,
+          id,
+          captureCount: saved?.captureCount ?? translated.captureCount ?? 1,
+        },
       });
     } catch (err) {
       next(err);

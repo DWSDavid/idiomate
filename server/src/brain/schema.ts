@@ -109,3 +109,7 @@ export const structureResponseZ = z.object({
   idealOutline: z.array(structureOutlinePartZ).default([]),
   observations: z.array(structureObservationZ).default([]),
 });
+
+export const followUpResponseZ = z.object({
+  answer: z.string().min(1),
+});

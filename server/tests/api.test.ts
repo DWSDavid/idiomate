@@ -305,6 +305,85 @@ it('shows every Sentence Lab diagnosis in history immediately and keeps separate
   });
 }, 10_000);
 
+it('POST /api/follow-up keeps pre-rewrite answers reveal-safe and allows post-rewrite analysis', async () => {
+  const captured: Array<{ system: string; user: string; model: string }> = [];
+  const utilityProvider: LLMProvider = {
+    async complete(opts) {
+      captured.push(opts);
+      return JSON.stringify({
+        answer: captured.length === 1
+          ? 'This is a noun-plague pattern. Try locating the action first.'
+          : 'The native version uses a direct verb, so the sentence feels more active.',
+      });
+    },
+  };
+
+  await withServer(createApp({ db, utilityProvider }), async baseUrl => {
+    const pre = await fetch(`${baseUrl}/api/follow-up`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scope: 'paragraph',
+        mode: 'pre_rewrite',
+        question: 'Can you just show me the correct sentence?',
+        original: 'We carried out the implementation of the policy.',
+        annotations: [{
+          span: 'implementation of the policy',
+          errorType: 'noun_plague',
+          hint: 'Find the action.',
+          explanation: 'The action is hidden in a noun.',
+          rule: 'Prefer a verb over a noun string',
+          ruleExample: { before: 'implementation of the policy', after: 'implemented the policy' },
+          modelRewrite: 'implemented the policy',
+        }],
+        nativeVersion: 'We implemented the policy.',
+      }),
+    });
+
+    expect(pre.status).toBe(200);
+    await expect(pre.json()).resolves.toEqual({
+      answer: 'This is a noun-plague pattern. Try locating the action first.',
+      mode: 'pre_rewrite',
+    });
+    expect(captured[0].system).toContain('Do not reveal');
+    expect(captured[0].user).not.toContain('We implemented the policy.');
+    expect(captured[0].user).not.toContain('implemented the policy');
+    expect(captured[0].user).not.toContain('modelRewrite');
+    expect(captured[0].user).not.toContain('"after"');
+
+    const post = await fetch(`${baseUrl}/api/follow-up`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scope: 'sentence_lab',
+        mode: 'post_rewrite',
+        question: 'Why is the native version better?',
+        original: 'We carried out the implementation of the policy.',
+        rewrite: 'We implemented the policy.',
+        nativeVersion: 'We implemented the policy.',
+        annotations: [{
+          span: 'implementation of the policy',
+          errorType: 'noun_plague',
+          hint: 'Find the action.',
+          explanation: 'The action is hidden in a noun.',
+          rule: 'Prefer a verb over a noun string',
+          ruleExample: { before: 'implementation of the policy', after: 'implemented the policy' },
+          modelRewrite: 'implemented the policy',
+        }],
+      }),
+    });
+
+    expect(post.status).toBe(200);
+    await expect(post.json()).resolves.toEqual({
+      answer: 'The native version uses a direct verb, so the sentence feels more active.',
+      mode: 'post_rewrite',
+    });
+    expect(captured[1].user).toContain('We implemented the policy.');
+    expect(captured[1].user).toContain('modelRewrite');
+    expect(captured[1].user).toContain('implemented the policy');
+  });
+});
+
 it('POST /api/sessions records errors and increments accepted vocab suggestions', async () => {
   insertVocab(db, USER_ID, [{ word: 'shore up', kind: 'phrase', timesSuggested: 0, timesUsed: 0 }]);
 
@@ -553,6 +632,66 @@ it('POST /api/vocab/save returns existed true and incremented captureCount for a
       existed: true,
     });
     expect(getPrimeCandidates(db, USER_ID, 1)[0].captureCount).toBe(2);
+  });
+});
+
+it('POST /api/vocab/from-chinese translates a Chinese expression and saves it to vocab', async () => {
+  let captured: { system: string; user: string; model: string } | undefined;
+  const utilityProvider: LLMProvider = {
+    async complete(opts) {
+      captured = opts;
+      return JSON.stringify({
+        word: 'margin pressure',
+        normalized: 'margin pressure',
+        kind: 'collocation',
+        defCn: '利润率压力',
+        contextSentence: 'AI infrastructure spending may create margin pressure.',
+        examples: ['Investors are watching margin pressure from AI capex.'],
+        collocations: ['near-term margin pressure'],
+        register: 'finance',
+      });
+    },
+  };
+
+  await withServer(createApp({ db, utilityProvider }), async baseUrl => {
+    const first = await fetch(`${baseUrl}/api/vocab/from-chinese`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: '利润率压力',
+        contextSentence: '想说 AI capex 会带来利润率压力',
+      }),
+    });
+    const duplicate = await fetch(`${baseUrl}/api/vocab/from-chinese`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: ' 利润率压力 ' }),
+    });
+
+    expect(first.status).toBe(201);
+    expect(duplicate.status).toBe(201);
+    const firstJson = await first.json();
+    const duplicateJson = await duplicate.json();
+    expect(firstJson).toEqual(expect.objectContaining({
+      existed: false,
+      captureCount: 1,
+      vocab: expect.objectContaining({
+        word: 'margin pressure',
+        kind: 'collocation',
+        defCn: '利润率压力',
+        source: 'chinese_input',
+      }),
+    }));
+    expect(duplicateJson).toEqual(expect.objectContaining({
+      existed: true,
+      captureCount: 2,
+    }));
+    expect(getPrimeCandidates(db, USER_ID, 1)[0]).toEqual(expect.objectContaining({
+      word: 'margin pressure',
+      captureCount: 2,
+    }));
+    expect(captured!.system).toContain('Chinese expression');
+    expect(captured!.user).toContain('利润率压力');
   });
 });
 
