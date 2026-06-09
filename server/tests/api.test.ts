@@ -214,6 +214,97 @@ it('POST /api/sentence-lab diagnoses without revealing fixes, then records after
   });
 });
 
+it('shows every Sentence Lab diagnosis in history immediately and keeps separate same-day rewrites', async () => {
+  let calls = 0;
+  const coachProvider: LLMProvider = {
+    async complete() {
+      calls += 1;
+      return JSON.stringify({
+        paragraphIndex: 0,
+        annotations: [{
+          span: calls === 1 ? 'discussed about' : 'more better',
+          errorType: 'small_grammar',
+          hint: 'Tighten the grammar.',
+          explanation: 'This phrasing is not idiomatic.',
+          rule: calls === 1 ? 'Discuss takes a direct object' : 'Avoid double comparatives',
+          modelRewrite: calls === 1 ? 'discussed' : 'better',
+        }],
+        nativeVersion: calls === 1 ? 'We discussed the roadmap.' : 'This option is better.',
+      });
+    },
+  };
+
+  await withServer(createApp({ db, coachProvider }), async baseUrl => {
+    const first = await fetch(`${baseUrl}/api/sentence-lab/diagnose`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: '2026-06-09',
+        sentence: 'We discussed about the roadmap.',
+      }),
+    });
+    const firstDiagnosis = await first.json();
+
+    const second = await fetch(`${baseUrl}/api/sentence-lab/diagnose`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: '2026-06-09',
+        sentence: 'This option is more better.',
+      }),
+    });
+    expect(second.status).toBe(201);
+
+    const historyAfterDiagnose = await fetch(`${baseUrl}/api/history`);
+    expect(historyAfterDiagnose.status).toBe(200);
+    await expect(historyAfterDiagnose.json()).resolves.toMatchObject({
+      entries: [
+        expect.objectContaining({
+          source: 'sentence_lab',
+          date: '2026-06-09',
+          draftText: 'This option is more better.',
+          annotations: [
+            expect.objectContaining({ span: 'more better', rule: 'Avoid double comparatives' }),
+          ],
+        }),
+        expect.objectContaining({
+          source: 'sentence_lab',
+          date: '2026-06-09',
+          draftText: 'We discussed about the roadmap.',
+          annotations: [
+            expect.objectContaining({ span: 'discussed about', rule: 'Discuss takes a direct object' }),
+          ],
+        }),
+      ],
+    });
+
+    const result = await fetch(`${baseUrl}/api/sentence-lab/result`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: firstDiagnosis.id,
+        rewrite: 'We discussed the roadmap.',
+      }),
+    });
+    expect(result.status).toBe(200);
+
+    const historyAfterReveal = await fetch(`${baseUrl}/api/history`);
+    const historyJson = await historyAfterReveal.json();
+    expect(historyJson.entries).toEqual([
+      expect.objectContaining({
+        source: 'sentence_lab',
+        draftText: 'This option is more better.',
+      }),
+      expect.objectContaining({
+        source: 'sentence_lab',
+        draftText: 'We discussed about the roadmap.',
+        finalText: 'We discussed the roadmap.',
+      }),
+    ]);
+    expect(historyJson.entries[0]).not.toHaveProperty('finalText');
+  });
+}, 10_000);
+
 it('POST /api/sessions records errors and increments accepted vocab suggestions', async () => {
   insertVocab(db, USER_ID, [{ word: 'shore up', kind: 'phrase', timesSuggested: 0, timesUsed: 0 }]);
 

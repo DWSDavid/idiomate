@@ -131,7 +131,7 @@ npx vitest run
 npm run build
 ```
 
-Latest local run: `96 passed / 0 failed`, build passed.
+Latest local run: `99 passed / 0 failed`, build passed.
 
 Manual smoke path after adding `.env`:
 

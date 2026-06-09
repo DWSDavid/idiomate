@@ -6,16 +6,21 @@ function sourceLabel(source: WritingHistoryEntry['source']): string {
   return source.replace(/_/g, ' ');
 }
 
+interface HistoryPanelProps {
+  refreshKey?: number;
+}
+
 function dateLabel(entry: WritingHistoryEntry): string {
   return entry.date?.slice(0, 10) ?? entry.createdAt?.slice(0, 10) ?? 'No date';
 }
 
-export function HistoryPanel() {
+export function HistoryPanel({ refreshKey = 0 }: HistoryPanelProps) {
   const [history, setHistory] = useState<WritingHistoryResponse>({ entries: [] });
   const [status, setStatus] = useState<'loading' | 'idle' | 'error'>('loading');
 
   useEffect(() => {
     let alive = true;
+    setStatus('loading');
     getHistory()
       .then(result => {
         if (!alive) return;
@@ -28,7 +33,7 @@ export function HistoryPanel() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   return (
     <section className="surface" aria-label="writing history">

@@ -79,6 +79,7 @@ interface SentenceLabDraftRow {
   sentence: string;
   context: string | null;
   response_json: string;
+  created_at: string | null;
 }
 
 interface UserSummaryRow {
@@ -104,6 +105,15 @@ interface HistorySessionRow {
 
 interface HistoryAnnotationRow {
   session_id: number;
+  span_text: string;
+  error_type: ErrorType;
+  rule: string | null;
+  user_rewrite: string | null;
+  accepted: number;
+}
+
+interface SentenceLabHistoryAnnotationRow {
+  draft_id: number;
   span_text: string;
   error_type: ErrorType;
   rule: string | null;
@@ -209,7 +219,9 @@ function mapVocab(row: VocabRow): Vocab {
 }
 
 function mapVocabListItem(row: VocabRow): VocabListItem {
-  const capturedAt = row.last_captured ?? row.date_added ?? undefined;
+  const capturedAt = row.source === 'youdao'
+    ? undefined
+    : row.last_captured ?? row.date_added ?? undefined;
   return {
     word: row.word,
     kind: row.kind,
@@ -709,25 +721,49 @@ function mapHistoryAnnotation(row: HistoryAnnotationRow): WritingHistoryAnnotati
   };
 }
 
+function mapSentenceLabHistoryAnnotation(row: SentenceLabHistoryAnnotationRow): WritingHistoryAnnotation {
+  return {
+    span: row.span_text,
+    errorType: row.error_type,
+    rule: row.rule ?? undefined,
+    userRewrite: row.user_rewrite ?? undefined,
+    accepted: Boolean(row.accepted),
+  };
+}
+
+function sentenceLabDraftAnnotations(row: SentenceLabDraftRow): WritingHistoryAnnotation[] {
+  try {
+    const response = JSON.parse(row.response_json) as CoachResponse;
+    return response.annotations.map(annotation => ({
+      span: annotation.span,
+      errorType: annotation.errorType,
+      rule: annotation.rule,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export function getWritingHistory(db: Database.Database, userId: string, limit = 100): WritingHistoryEntry[] {
   const safeLimit = boundedPositiveInt(limit, 100, 500);
   const sessions = db.prepare(`
     SELECT id, date, draft_text, final_text, COALESCE(source, 'daily_writing') AS source, created_at
     FROM sessions
     WHERE user_id = ?
+      AND COALESCE(source, 'daily_writing') != 'sentence_lab'
     ORDER BY COALESCE(created_at, date) DESC, id DESC
     LIMIT ?
   `).all(userId, safeLimit) as HistorySessionRow[];
-  if (!sessions.length) return [];
 
   const sessionIds = sessions.map(session => session.id);
-  const placeholders = sessionIds.map(() => '?').join(', ');
-  const annotationRows = db.prepare(`
-    SELECT session_id, span_text, error_type, rule, user_rewrite, accepted
-    FROM annotations
-    WHERE session_id IN (${placeholders})
-    ORDER BY id ASC
-  `).all(...sessionIds) as HistoryAnnotationRow[];
+  const annotationRows = sessionIds.length
+    ? db.prepare(`
+      SELECT session_id, span_text, error_type, rule, user_rewrite, accepted
+      FROM annotations
+      WHERE session_id IN (${sessionIds.map(() => '?').join(', ')})
+      ORDER BY id ASC
+    `).all(...sessionIds) as HistoryAnnotationRow[]
+    : [];
   const annotationsBySession = new Map<number, WritingHistoryAnnotation[]>();
   for (const row of annotationRows) {
     const existing = annotationsBySession.get(row.session_id) ?? [];
@@ -735,7 +771,7 @@ export function getWritingHistory(db: Database.Database, userId: string, limit =
     annotationsBySession.set(row.session_id, existing);
   }
 
-  return sessions.map(session => ({
+  const dailyEntries = sessions.map(session => ({
     id: session.id,
     date: session.date ?? undefined,
     createdAt: session.created_at ?? undefined,
@@ -744,6 +780,63 @@ export function getWritingHistory(db: Database.Database, userId: string, limit =
     finalText: session.final_text ?? undefined,
     annotations: annotationsBySession.get(session.id) ?? [],
   }));
+
+  const sentenceLabDrafts = db.prepare(`
+    SELECT id, user_id, date, sentence, context, response_json, created_at
+    FROM sentence_lab_drafts
+    WHERE user_id = ?
+    ORDER BY COALESCE(created_at, date) DESC, id DESC
+    LIMIT ?
+  `).all(userId, safeLimit) as SentenceLabDraftRow[];
+
+  const draftIds = new Set(sentenceLabDrafts.map(draft => draft.id));
+  const sentenceLabRows = draftIds.size
+    ? db.prepare(`
+      SELECT
+        annotations.paragraph_idx - @offset AS draft_id,
+        annotations.span_text,
+        annotations.error_type,
+        annotations.rule,
+        annotations.user_rewrite,
+        annotations.accepted
+      FROM annotations
+      JOIN sessions ON sessions.id = annotations.session_id
+      WHERE sessions.user_id = @userId
+        AND COALESCE(sessions.source, 'daily_writing') = 'sentence_lab'
+        AND annotations.paragraph_idx >= @offset
+      ORDER BY annotations.id ASC
+    `).all({ userId, offset: SENTENCE_LAB_PARAGRAPH_OFFSET })
+      .filter(row => draftIds.has((row as SentenceLabHistoryAnnotationRow).draft_id)) as SentenceLabHistoryAnnotationRow[]
+    : [];
+
+  const annotationsByDraft = new Map<number, WritingHistoryAnnotation[]>();
+  for (const row of sentenceLabRows) {
+    const existing = annotationsByDraft.get(row.draft_id) ?? [];
+    existing.push(mapSentenceLabHistoryAnnotation(row));
+    annotationsByDraft.set(row.draft_id, existing);
+  }
+
+  const sentenceLabEntries = sentenceLabDrafts.map(draft => {
+    const annotations = annotationsByDraft.get(draft.id) ?? sentenceLabDraftAnnotations(draft);
+    return {
+      id: draft.id,
+      date: draft.date ?? undefined,
+      createdAt: draft.created_at ?? undefined,
+      source: 'sentence_lab' as const,
+      draftText: draft.sentence,
+      finalText: annotations.find(annotation => annotation.userRewrite)?.userRewrite,
+      annotations,
+    };
+  });
+
+  return [...dailyEntries, ...sentenceLabEntries]
+    .sort((a, b) => {
+      const aDate = a.createdAt ?? a.date ?? '';
+      const bDate = b.createdAt ?? b.date ?? '';
+      if (aDate !== bDate) return bDate.localeCompare(aDate);
+      return b.id - a.id;
+    })
+    .slice(0, safeLimit);
 }
 
 export function insertSession(db: Database.Database, userId: string, input: InsertSessionInput): number {

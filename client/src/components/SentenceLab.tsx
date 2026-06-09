@@ -24,6 +24,7 @@ export function SentenceLab({ onRecorded }: SentenceLabProps) {
         setDiagnosis(next);
         setRewrite(sentence);
         setStatus('idle');
+        onRecorded?.();
       })
       .catch(() => setStatus('error'));
   };

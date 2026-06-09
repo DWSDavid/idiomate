@@ -82,6 +82,9 @@ it('diagnoses a sentence without showing the native version until the user submi
   expect(screen.getByText("The Translator's Guide to Chinglish")).toBeInTheDocument();
   expect(screen.queryByText('We implemented it yesterday.')).not.toBeInTheDocument();
   expect(screen.queryByText('implemented')).not.toBeInTheDocument();
+  await waitFor(() => {
+    expect(onRecorded).toHaveBeenCalledTimes(1);
+  });
 
   fireEvent.change(screen.getByLabelText('Your rewrite'), {
     target: { value: 'We implemented it yesterday.' },
@@ -89,7 +92,7 @@ it('diagnoses a sentence without showing the native version until the user submi
   fireEvent.click(screen.getByRole('button', { name: 'Reveal after my rewrite' }));
 
   await waitFor(() => {
-    expect(onRecorded).toHaveBeenCalled();
+    expect(onRecorded).toHaveBeenCalledTimes(2);
   });
   expect(await screen.findByText('Native version')).toBeInTheDocument();
   expect(screen.getByText('We implemented it yesterday.')).toBeInTheDocument();

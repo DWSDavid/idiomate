@@ -114,6 +114,41 @@ it('lists vocab by the same priority order used for prime candidates', () => {
   });
 });
 
+it('does not label original Youdao imports as newly captured daily vocab', () => {
+  upsertVocab(db, USER_ID, {
+    word: 'archival phrase',
+    kind: 'phrase',
+    source: 'youdao',
+    captureCount: 1,
+    timesSuggested: 0,
+    timesUsed: 0,
+    defCn: 'imported from the original list',
+  });
+  upsertVocab(db, USER_ID, {
+    word: 'today phrase',
+    kind: 'phrase',
+    source: 'capture',
+    captureCount: 1,
+    lastCaptured: '2026-06-09T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+    defCn: 'captured today',
+  });
+
+  const list = getVocabList(db, USER_ID, 10);
+
+  expect(list.find(item => item.word === 'archival phrase')).toEqual(expect.objectContaining({
+    word: 'archival phrase',
+    lastCaptured: undefined,
+    capturedDate: undefined,
+  }));
+  expect(list.find(item => item.word === 'today phrase')).toEqual(expect.objectContaining({
+    word: 'today phrase',
+    lastCaptured: '2026-06-09T00:00:00.000Z',
+    capturedDate: '2026-06-09',
+  }));
+});
+
 it('builds a blended prime pool from priority terms and oldest unused terms', () => {
   upsertVocab(db, USER_ID, {
     word: 'top phrase one',

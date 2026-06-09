@@ -42,6 +42,7 @@ export function App() {
   const [sessionStatus, setSessionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [profileKey, setProfileKey] = useState(0);
   const [vocabKey, setVocabKey] = useState(0);
+  const [historyKey, setHistoryKey] = useState(0);
   const [activeSection, setActiveSection] = useState<WorkspaceSection>('write');
 
   useEffect(() => {
@@ -74,6 +75,7 @@ export function App() {
       });
       setSessionStatus('saved');
       setProfileKey(key => key + 1); // refetch profile so tallies + activation update after submit
+      setHistoryKey(key => key + 1);
     } catch {
       setSessionStatus('error');
     }
@@ -189,13 +191,18 @@ export function App() {
 
         {activeSection === 'history' ? (
           <section className="workspace-page" aria-label="history page">
-            <HistoryPanel />
+            <HistoryPanel refreshKey={historyKey} />
           </section>
         ) : null}
 
         {activeSection === 'sentence-lab' ? (
           <section className="workspace-page" aria-label="sentence lab page">
-            <SentenceLab onRecorded={() => setProfileKey(key => key + 1)} />
+            <SentenceLab
+              onRecorded={() => {
+                setProfileKey(key => key + 1);
+                setHistoryKey(key => key + 1);
+              }}
+            />
           </section>
         ) : null}
 

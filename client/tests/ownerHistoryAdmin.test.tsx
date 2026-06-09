@@ -78,6 +78,29 @@ it('renders saved daily writing and sentence lab history', async () => {
   expect(getHistory).toHaveBeenCalled();
 });
 
+it('reloads writing history when refreshKey changes', async () => {
+  vi.mocked(getHistory)
+    .mockResolvedValueOnce({ entries: [] })
+    .mockResolvedValueOnce({
+      entries: [{
+        id: 9,
+        date: '2026-06-09',
+        source: 'sentence_lab',
+        draftText: 'Fresh sentence lab check.',
+        annotations: [],
+      }],
+    });
+
+  const { rerender } = render(<HistoryPanel refreshKey={0} />);
+
+  expect(await screen.findByText('No reviewed writing yet.')).toBeInTheDocument();
+
+  rerender(<HistoryPanel refreshKey={1} />);
+
+  expect(await screen.findByText('Fresh sentence lab check.')).toBeInTheDocument();
+  expect(getHistory).toHaveBeenCalledTimes(2);
+});
+
 it('loads admin users and opens a user detail with vocab and writing history', async () => {
   render(<AdminPanel />);
 
