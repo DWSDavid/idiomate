@@ -150,6 +150,10 @@
     @apply bg-sky-100 text-sky-700;
   }
 
+  .chip-slate {
+    @apply bg-violet-50 text-violet-600;
+  }
+
   .status-chip {
     @apply rounded-lg px-2 py-0.5 text-xs font-semibold;
   }

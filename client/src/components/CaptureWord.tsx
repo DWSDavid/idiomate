@@ -127,6 +127,10 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
             </select>
           </label>
           <label className="field-label">
+            Part of speech
+            <input className="field mt-1" value={preview.pos ?? ''} onChange={event => setPreview({ ...preview, pos: event.target.value })} placeholder="noun, verb, adj…" />
+          </label>
+          <label className="field-label">
             IPA
             <input className="field mt-1" value={preview.ipa ?? ''} onChange={event => setPreview({ ...preview, ipa: event.target.value })} />
           </label>

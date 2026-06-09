@@ -35,17 +35,22 @@ export const primeWordsZ = z.object({
 
 const vocabKindZ = z.enum(['word', 'phrase', 'collocation']);
 
+// The model sometimes reads an optional `field?` in the prompt as a yes/no flag and
+// returns a boolean (e.g. gpt-4o emits `normalized: false` on the Chinese path). Drop
+// non-string values instead of 400ing the whole capture; callers re-derive sane defaults.
+const tolerantOptionalString = z.string().optional().catch(undefined);
+
 export const enrichedVocabZ = z.object({
   word: z.string().min(1),
-  normalized: z.string().optional(),
+  normalized: tolerantOptionalString,
   kind: vocabKindZ.optional(),
-  ipa: z.string().optional(),
-  defCn: z.string().optional(),
-  pos: z.string().optional(),
-  contextSentence: z.string().optional(),
+  ipa: tolerantOptionalString,
+  defCn: tolerantOptionalString,
+  pos: tolerantOptionalString,
+  contextSentence: tolerantOptionalString,
   examples: z.array(z.string()).optional(),
   collocations: z.array(z.string()).optional(),
-  register: z.string().optional(),
+  register: tolerantOptionalString,
 });
 
 export const lessonComparisonPairZ = z.object({

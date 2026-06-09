@@ -65,6 +65,7 @@ export function VocabularyPanel({ refreshKey = 0 }: VocabularyPanelProps) {
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-base font-semibold text-slate-950">{item.word}</h2>
                       <span className="chip">{item.kind}</span>
+                      {item.pos ? <span className="chip chip-slate">{item.pos}</span> : null}
                       <span className="chip chip-blue">met {item.captureCount}x</span>
                     </div>
                     {item.defCn ? <p className="mt-2 text-sm text-slate-600">{item.defCn}</p> : null}

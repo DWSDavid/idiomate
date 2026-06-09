@@ -85,6 +85,7 @@ export function ChineseToVocabBox({ onSaved }: ChineseToVocabBoxProps) {
         <div className="result-block mt-4">
           <p className="font-semibold text-slate-950">Saved: {saved.word}</p>
           <div className="mt-2 flex flex-wrap gap-2">
+            {saved.pos ? <span className="chip chip-slate">{saved.pos}</span> : null}
             {saved.kind ? <span className="chip">{saved.kind}</span> : null}
             <span className="chip chip-blue">met {saved.captureCount ?? 1}x</span>
           </div>

@@ -32,7 +32,9 @@ export async function enrichWord(provider: LLMProvider, ctx: EnrichWordContext):
     model: ctx.model,
     system: [
       'You enrich a user-captured English vocabulary item for a local writing companion.',
-      'Return ONLY JSON matching: {word,normalized?,kind?,ipa?,defCn?,pos?,contextSentence?,examples?,collocations?,register?}.',
+      'Return ONLY JSON. Every field is a string (or array of strings) when present; never use booleans.',
+    'Shape: {word, normalized, kind, ipa, defCn, pos, contextSentence, examples, collocations, register}.',
+    'normalized is the lowercase string form of word. Omit any field you cannot fill rather than guessing a type.',
       'Keep examples short and useful for professional English writing.',
     ].join(' '),
     user: [
@@ -67,7 +69,9 @@ export async function translateChineseVocab(
     system: [
       'You convert a Chinese expression into one natural English vocabulary item for a local writing companion.',
       'Choose a word, phrase, or collocation that the learner can reuse in finance, tech, or professional English writing.',
-      'Return ONLY JSON matching: {word,normalized?,kind?,ipa?,defCn?,pos?,contextSentence?,examples?,collocations?,register?}.',
+      'Return ONLY JSON. Every field is a string (or array of strings) when present; never use booleans.',
+    'Shape: {word, normalized, kind, ipa, defCn, pos, contextSentence, examples, collocations, register}.',
+    'normalized is the lowercase string form of word. Omit any field you cannot fill rather than guessing a type.',
       'defCn should preserve the Chinese meaning; examples should be short and useful.',
     ].join(' '),
     user: [

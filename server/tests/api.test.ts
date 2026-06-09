@@ -695,6 +695,41 @@ it('POST /api/vocab/from-chinese translates a Chinese expression and saves it to
   });
 });
 
+it('POST /api/vocab/from-chinese tolerates a non-string normalized from the model', async () => {
+  // gpt-4o reads the prompt's `normalized?` notation as a yes/no flag and returns
+  // a boolean for the Chinese-translation path, which used to 400 the whole capture.
+  const utilityProvider: LLMProvider = {
+    async complete() {
+      return JSON.stringify({
+        word: 'rat race',
+        normalized: false,
+        kind: 'phrase',
+        defCn: '内卷',
+        examples: ['She is tired of the corporate rat race.'],
+      });
+    },
+  };
+
+  await withServer(createApp({ db, utilityProvider }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/vocab/from-chinese`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: '内卷' }),
+    });
+
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json).toEqual(expect.objectContaining({
+      existed: false,
+      vocab: expect.objectContaining({
+        word: 'rat race',
+        normalized: 'rat race',
+        source: 'chinese_input',
+      }),
+    }));
+  });
+});
+
 it('POST /api/vocab/capture returns an enriched preview without saving', async () => {
   const utilityProvider: LLMProvider = {
     async complete() {
