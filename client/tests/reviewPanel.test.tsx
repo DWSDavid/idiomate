@@ -94,7 +94,7 @@ it('reveals cards, records review outcomes, advances, and can go write', async (
   expect(onGoWrite).toHaveBeenCalledTimes(1);
 });
 
-it('shows the empty state when no review items exist', async () => {
+it('shows the SM-2 empty state when no words are due', async () => {
   vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({
     ok: true,
     json: () => Promise.resolve({ items: [] }),
@@ -102,5 +102,5 @@ it('shows the empty state when no review items exist', async () => {
 
   render(<ReviewPanel onGoWrite={() => undefined} />);
 
-  expect(await screen.findByText('Capture some words first - they will appear here for review.')).toBeInTheDocument();
+  expect(await screen.findByText(/no words due/i)).toBeInTheDocument();
 });

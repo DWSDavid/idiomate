@@ -62,7 +62,7 @@ export function ReviewPanel({ onGoWrite }: ReviewPanelProps) {
     return (
       <section className="surface" aria-label="review">
         <span className="section-label">Review</span>
-        <p className="mt-4 text-sm text-stone-500">Capture some words first - they will appear here for review.</p>
+        <p className="mt-4 text-sm text-stone-500">No words due - come back later or capture new words to review.</p>
       </section>
     );
   }
