@@ -41,6 +41,7 @@ export interface WordDeepDiveResponse {
   wordFamily: string[];
   nearSynonyms: Array<{ word: string; distinction: string }>;
   usageExamples: string[];
+  usageExamplesRich?: Array<{ sentence: string; role?: string }>;
   relatedInYourList: string[];
 }
 

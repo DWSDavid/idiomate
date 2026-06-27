@@ -47,5 +47,31 @@ it('parses a word deep dive from the utility provider', async () => {
       'A poor allocation can weaken the product runway.',
       'The budget was allocated before the roadmap changed.',
     ],
+    usageExamplesRich: [
+      { sentence: 'The finance team allocated more capital to cloud infrastructure.' },
+      { sentence: 'A poor allocation can weaken the product runway.' },
+      { sentence: 'The budget was allocated before the roadmap changed.' },
+    ],
+  });
+});
+
+it('derives plain usage examples from rich deep-dive examples', async () => {
+  const provider: LLMProvider = {
+    async complete() {
+      return JSON.stringify({
+        wordFamily: ['run', 'running'],
+        usageExamplesRich: [
+          { sentence: 'The team is running a tighter forecast review.', role: 'verb in progress' },
+        ],
+      });
+    },
+  };
+
+  await expect(deepDiveWord(provider, 'run', 'utility-test')).resolves.toEqual({
+    wordFamily: ['run', 'running'],
+    usageExamples: ['The team is running a tighter forecast review.'],
+    usageExamplesRich: [
+      { sentence: 'The team is running a tighter forecast review.', role: 'verb in progress' },
+    ],
   });
 });

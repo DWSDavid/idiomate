@@ -31,6 +31,39 @@ function normalizeKind(kind: unknown, word: string): VocabKind {
   return inferKind(word);
 }
 
+function plainExamplesFromRich(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const sentences = value
+    .map(item => {
+      if (!item || typeof item !== 'object' || !('sentence' in item)) return '';
+      const sentence = (item as { sentence?: unknown }).sentence;
+      return typeof sentence === 'string' ? sentence.trim() : '';
+    })
+    .filter(Boolean);
+  return sentences.length ? sentences : undefined;
+}
+
+function richExamplesFromPlain(value: unknown): Array<{ sentence: string }> | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const examples = value
+    .map(item => typeof item === 'string' ? item.trim() : '')
+    .filter(Boolean)
+    .map(sentence => ({ sentence }));
+  return examples.length ? examples : undefined;
+}
+
+function normalizeDeepDiveJson(json: Record<string, unknown>): Record<string, unknown> {
+  if (!Array.isArray(json.usageExamples) || json.usageExamples.length === 0) {
+    const fromRich = plainExamplesFromRich(json.usageExamplesRich);
+    if (fromRich) json.usageExamples = fromRich;
+  }
+  if (!Array.isArray(json.usageExamplesRich) || json.usageExamplesRich.length === 0) {
+    const fromPlain = richExamplesFromPlain(json.usageExamples);
+    if (fromPlain) json.usageExamplesRich = fromPlain;
+  }
+  return json;
+}
+
 export async function enrichWord(provider: LLMProvider, ctx: EnrichWordContext): Promise<Vocab> {
   const raw = await provider.complete({
     model: ctx.model,
@@ -116,12 +149,13 @@ export async function deepDiveWord(provider: LLMProvider, word: string, model: s
     system: [
       'You are a vocabulary analyst for a professional English writing assistant.',
       'Return ONLY JSON. Every field is a string or array of strings; never use booleans.',
-      'Shape: { wordFamily, nearSynonyms, usageExamples }.',
+      'Shape: { wordFamily, nearSynonyms, usageExamples, usageExamplesRich }.',
       'wordFamily: all common inflected and derived forms including the base form. Max 12 items.',
       'nearSynonyms: up to 4 near-synonyms each with a one-sentence "distinction" explaining when to prefer one over the other in professional writing - be specific about register, formality, and domain.',
       'usageExamples: exactly 3 short sentences in finance, tech, or professional writing contexts. Each must use the word or one of its family forms naturally.',
+      'usageExamplesRich: exactly 3 objects shaped {sentence, role}; sentence mirrors usageExamples, role names how the word functions in that sentence.',
     ].join(' '),
     user: `Word: ${word}`,
   });
-  return wordDeepDiveZ.parse(JSON.parse(raw));
+  return wordDeepDiveZ.parse(normalizeDeepDiveJson(JSON.parse(raw) as Record<string, unknown>));
 }

@@ -166,6 +166,10 @@
     @apply bg-violet-50 text-violet-600;
   }
 
+  .vocab-highlight {
+    @apply rounded bg-amber-100 px-0.5 font-semibold text-amber-800 not-italic;
+  }
+
   .status-chip {
     @apply rounded-lg px-2 py-0.5 text-xs font-semibold;
   }

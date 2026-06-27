@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { captureWord, saveVocab } from '../src/api';
+import { captureWord, getWordDeepDive, saveVocab } from '../src/api';
 import { CaptureWord } from '../src/components/CaptureWord';
 
 vi.mock('../src/api', () => ({
@@ -20,6 +20,17 @@ vi.mock('../src/api', () => ({
     timesUsed: 0,
   })),
   saveVocab: vi.fn(async () => ({ id: 9, captureCount: 1, existed: false })),
+  getWordDeepDive: vi.fn(async () => ({
+    wordFamily: ['shore up', 'shoring up'],
+    nearSynonyms: [
+      { word: 'strengthen', distinction: 'Use strengthen for a direct improvement in condition.' },
+    ],
+    usageExamples: ['They moved quickly to shore up confidence.'],
+    usageExamplesRich: [
+      { sentence: 'They moved quickly to shore up confidence.', role: 'business phrase' },
+    ],
+    relatedInYourList: [],
+  })),
 }));
 
 afterEach(() => {
@@ -78,4 +89,18 @@ it('shows a priority-raised note when saving an existing word', async () => {
   fireEvent.click(screen.getByRole('button', { name: 'Save to my words' }));
 
   expect(await screen.findByText('Already in your list - met 2 times, priority raised.')).toBeInTheDocument();
+});
+
+it('shows word intelligence after saving a captured word', async () => {
+  render(<CaptureWord onSaved={() => {}} />);
+
+  fireEvent.change(screen.getByLabelText('Word or phrase'), { target: { value: 'shore up' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Enrich' }));
+
+  expect(await screen.findByDisplayValue('support')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Save to my words' }));
+
+  await waitFor(() => expect(getWordDeepDive).toHaveBeenCalledWith(9));
+  expect(await screen.findByText('business phrase')).toBeInTheDocument();
+  expect(screen.getByText('strengthen')).toBeInTheDocument();
 });

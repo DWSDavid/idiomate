@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import type { Vocab, VocabKind } from '../../../shared/types';
-import { captureWord, saveVocab } from '../api';
+import { captureWord, getWordDeepDive, saveVocab, type WordDeepDiveResponse } from '../api';
+import { WordIntelCard } from './WordIntelCard';
 
 interface CaptureWordProps {
   onSaved?: (vocab: Vocab) => void;
@@ -33,11 +34,13 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
   const [collocationsText, setCollocationsText] = useState('');
   const [status, setStatus] = useState<'idle' | 'capturing' | 'saving' | 'saved' | 'error'>('idle');
   const [saveNote, setSaveNote] = useState('');
+  const [intelCard, setIntelCard] = useState<(WordDeepDiveResponse & { word: string }) | null>(null);
 
   const handleCapture = async () => {
     if (!word.trim()) return;
     setStatus('capturing');
     setSaveNote('');
+    setIntelCard(null);
     try {
       const enriched = await captureWord(word.trim(), contextSentence.trim());
       setPreview(enriched);
@@ -67,6 +70,9 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
       }
       onSaved?.(savedVocab);
       setStatus('saved');
+      void getWordDeepDive(saved.id)
+        .then(data => setIntelCard({ ...data, word: savedVocab.word }))
+        .catch(() => {});
     } catch {
       setStatus('error');
     }
@@ -80,7 +86,14 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
       <div className="mt-4 grid gap-3">
         <label className="field-label">
           Word or phrase
-          <input className="field mt-1" value={word} onChange={event => setWord(event.target.value)} />
+          <input
+            className="field mt-1"
+            value={word}
+            onChange={event => {
+              setWord(event.target.value);
+              setIntelCard(null);
+            }}
+          />
         </label>
         <label className="field-label">
           Where you saw it (optional)
@@ -161,6 +174,18 @@ export function CaptureWord({ onSaved }: CaptureWordProps) {
             ) : null}
             {status === 'error' ? <span className="text-sm text-red-700">Could not complete that.</span> : null}
           </div>
+          {intelCard ? (
+            <div className="md:col-span-2">
+              <WordIntelCard
+                word={intelCard.word}
+                wordFamily={intelCard.wordFamily}
+                usageExamplesRich={intelCard.usageExamplesRich}
+                usageExamples={intelCard.usageExamples}
+                nearSynonyms={intelCard.nearSynonyms}
+                onDismiss={() => setIntelCard(null)}
+              />
+            </div>
+          ) : null}
         </div>
       ) : status === 'error' ? (
         <p className="mt-3 text-sm text-red-700">Could not complete that.</p>

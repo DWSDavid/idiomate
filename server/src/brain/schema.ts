@@ -59,10 +59,17 @@ export const nearSynonymZ = z.object({
   distinction: z.string().min(1),
 });
 
+export const usageExampleRichZ = z.object({
+  sentence: z.string().min(1),
+  role: tolerantOptionalString,
+});
+export type UsageExampleRich = z.infer<typeof usageExampleRichZ>;
+
 export const wordDeepDiveZ = z.object({
   wordFamily: z.array(z.string().min(1)).min(1).max(12),
   nearSynonyms: z.array(nearSynonymZ).max(4).optional().catch(undefined),
   usageExamples: z.array(z.string().min(1)).min(1).max(3),
+  usageExamplesRich: z.array(usageExampleRichZ).min(1).max(3).optional().catch(undefined),
 });
 export type WordDeepDive = z.infer<typeof wordDeepDiveZ>;
 
