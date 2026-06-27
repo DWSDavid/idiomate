@@ -49,6 +49,12 @@ export function migrate(db: Database.Database) {
   `);
   ensureColumn(db, 'annotations', 'rule', 'TEXT');
   ensureColumn(db, 'annotations', 'rule_example', 'TEXT');
+  ensureColumn(db, 'vocab', 'sm2_interval', 'INTEGER DEFAULT 1');
+  ensureColumn(db, 'vocab', 'sm2_ease', 'REAL DEFAULT 2.5');
+  ensureColumn(db, 'vocab', 'sm2_reps', 'INTEGER DEFAULT 0');
+  ensureColumn(db, 'vocab', 'next_review_at', 'TEXT');
+  ensureColumn(db, 'vocab', 'graduated', 'INTEGER DEFAULT 0');
+  ensureColumn(db, 'vocab', 'graduated_at', 'TEXT');
 }
 
 function ensureColumn(db: Database.Database, table: string, column: string, definition: string) {
