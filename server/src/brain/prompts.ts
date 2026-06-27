@@ -19,6 +19,7 @@ export interface CoachPromptContext {
   paragraphIndex: number;
   topErrors: ErrorType[];
   vocabCandidates: Pick<Vocab, 'word' | 'defCn'>[];
+  memoryContext?: PromptMemoryContext;
 }
 
 export interface LessonPromptRule {
@@ -57,6 +58,12 @@ export interface SentenceLabPromptContext {
   sentence: string;
   context?: string;
   topErrors: ErrorType[];
+  memoryContext?: PromptMemoryContext;
+}
+
+export interface PromptMemoryContext {
+  topWeaknesses: string[];
+  relevantSnippets: string[];
 }
 
 export interface FollowUpPromptAnnotation {
@@ -106,6 +113,18 @@ function rulesReferenceSnippet(rules: GrammarRule[] = GRAMMAR_RULES): string {
     .join('\n');
 }
 
+function memoryContextLines(memoryContext?: PromptMemoryContext): string[] {
+  if (!memoryContext) return [];
+  const lines: string[] = [];
+  const weaknesses = memoryContext.topWeaknesses.filter(Boolean);
+  if (weaknesses.length) {
+    lines.push(`Persistent weaknesses to watch: ${weaknesses.join(', ')}.`);
+  }
+  const snippets = memoryContext.relevantSnippets.filter(snippet => snippet.trim());
+  lines.push(...snippets.map((s, i) => `Past writing context [${i + 1}]: ${s}`));
+  return lines;
+}
+
 export function assembleCoachPrompt(ctx: CoachPromptContext): { system: string; user: string } {
   const snippet = taxonomyReferenceSnippet(ALL_ERROR_TYPES);
   const focusedRules = rulesForTypes(ctx.topErrors);
@@ -130,6 +149,7 @@ export function assembleCoachPrompt(ctx: CoachPromptContext): { system: string; 
       'Also produce nativeVersion: a fully natural version of the whole paragraph. The UI hides both modelRewrite and nativeVersion until the user submits their own rewrite.',
       'Use vocab_suggestion only for optional vocabulary opportunities. Suggest, never force.',
       'Return ONLY JSON matching: {paragraphIndex,nativeVersion,annotations:[{span,errorType,rule,ruleExample:{before,after},hint,explanation,modelRewrite,vocabWord?}]}.',
+      ...memoryContextLines(ctx.memoryContext),
     ].join(' '),
     user: [
       `Paragraph index: ${ctx.paragraphIndex}`,
@@ -294,6 +314,7 @@ export function assembleSentenceLabPrompt(ctx: SentenceLabPromptContext): { syst
       `The errorType field MUST be EXACTLY one of: ${ERROR_TYPES.join(', ')}. Put the specific principle name in the "rule" field, never in errorType.`,
       'Also produce nativeVersion: a natural version of the whole sentence for the provided context.',
       'Return ONLY JSON matching: {paragraphIndex,nativeVersion,annotations:[{span,errorType,rule,ruleExample:{before,after},hint,explanation,modelRewrite,vocabWord?}]}.',
+      ...memoryContextLines(ctx.memoryContext),
     ].join(' '),
     user: [
       'Sentence Lab input:',

@@ -223,6 +223,7 @@ function mapVocabListItem(row: VocabRow): VocabListItem {
     ? undefined
     : row.last_captured ?? row.date_added ?? undefined;
   return {
+    id: row.id,
     word: row.word,
     kind: row.kind,
     defCn: row.def_cn ?? undefined,

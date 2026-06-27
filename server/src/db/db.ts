@@ -28,6 +28,19 @@ export function migrate(db: Database.Database) {
   ensureColumn(db, 'sentence_lab_drafts', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
   rebuildVocabIfLegacy(db);
   rebuildErrorTallyIfLegacy(db);
+  ensureColumn(db, 'vocab', 'ease', "TEXT DEFAULT 'new' CHECK(ease IN ('new','hard','easy'))");
+  ensureColumn(db, 'vocab', 'last_reviewed', 'TEXT');
+  ensureColumn(db, 'vocab', 'word_family', 'TEXT');
+  ensureColumn(db, 'vocab', 'near_synonyms', 'TEXT');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS session_embeddings (
+      session_id INTEGER PRIMARY KEY,
+      user_id    TEXT NOT NULL,
+      content    TEXT NOT NULL,
+      embedding  TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
   ensureColumn(db, 'annotations', 'rule', 'TEXT');
   ensureColumn(db, 'annotations', 'rule_example', 'TEXT');
 }

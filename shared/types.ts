@@ -51,11 +51,16 @@ export interface Vocab {
   register?: string;
   captureCount?: number;
   lastCaptured?: string;
+  ease?: 'new' | 'hard' | 'easy';
+  lastReviewed?: string;
+  wordFamily?: string[];
+  nearSynonyms?: Array<{ word: string; distinction: string }>;
   timesSuggested: number;
   timesUsed: number;
 }
 
 export interface VocabListItem {
+  id: number;
   word: string;
   kind: VocabKind;
   defCn?: string;

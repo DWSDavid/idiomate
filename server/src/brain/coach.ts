@@ -1,6 +1,6 @@
 import type { ErrorType } from '../../../shared/types.js';
 import type { LLMProvider } from './provider.js';
-import { assembleCoachPrompt } from './prompts.js';
+import { assembleCoachPrompt, type PromptMemoryContext } from './prompts.js';
 import { coachResponseZ } from './schema.js';
 import type { CoachResponse } from '../../../shared/types.js';
 
@@ -9,6 +9,7 @@ export interface CoachContext {
   paragraphIndex: number;
   topErrors: ErrorType[];
   vocabCandidates: { word: string; defCn?: string }[];
+  memoryContext?: PromptMemoryContext;
   model: string;
 }
 

@@ -1,6 +1,6 @@
 import type { Vocab, VocabKind } from '../../../shared/types.js';
 import type { LLMProvider } from './provider.js';
-import { enrichedVocabZ } from './schema.js';
+import { enrichedVocabZ, wordDeepDiveZ, type WordDeepDive } from './schema.js';
 
 interface EnrichWordContext {
   word: string;
@@ -96,4 +96,20 @@ export async function translateChineseVocab(
     timesSuggested: 0,
     timesUsed: 0,
   };
+}
+
+export async function deepDiveWord(provider: LLMProvider, word: string, model: string): Promise<WordDeepDive> {
+  const raw = await provider.complete({
+    model,
+    system: [
+      'You are a vocabulary analyst for a professional English writing assistant.',
+      'Return ONLY JSON. Every field is a string or array of strings; never use booleans.',
+      'Shape: { wordFamily, nearSynonyms, usageExamples }.',
+      'wordFamily: all common inflected and derived forms including the base form. Max 12 items.',
+      'nearSynonyms: up to 4 near-synonyms each with a one-sentence "distinction" explaining when to prefer one over the other in professional writing - be specific about register, formality, and domain.',
+      'usageExamples: exactly 3 short sentences in finance, tech, or professional writing contexts. Each must use the word or one of its family forms naturally.',
+    ].join(' '),
+    user: `Word: ${word}`,
+  });
+  return wordDeepDiveZ.parse(JSON.parse(raw));
 }

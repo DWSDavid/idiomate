@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppDependencies } from './appContext.js';
 import { OpenAIProvider } from './brain/openai.js';
+import { OpenAIEmbeddingProvider } from './brain/openaiEmbedding.js';
 import { config } from './config.js';
 import { migrate, openDb } from './db/db.js';
 import { accessMiddleware } from './middleware/access.js';
@@ -37,6 +38,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}, options: Cre
     db,
     coachProvider: overrides.coachProvider ?? new OpenAIProvider(config.apiKey),
     utilityProvider: overrides.utilityProvider ?? new OpenAIProvider(config.apiKey),
+    embeddingProvider: overrides.embeddingProvider ?? new OpenAIEmbeddingProvider(config.apiKey),
     headlineFetcher: overrides.headlineFetcher,
     newsFetcher: overrides.newsFetcher,
   };

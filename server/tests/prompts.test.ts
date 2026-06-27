@@ -52,6 +52,22 @@ it('injects focused named grammar rules for recurring errors', () => {
   expect(prompt.system).toContain('ruleExample');
 });
 
+it('adds memory context to the coach system prompt when available', () => {
+  const prompt = assembleCoachPrompt({
+    paragraph: 'We made a discussion about the forecast.',
+    paragraphIndex: 0,
+    topErrors: ['noun_plague'],
+    vocabCandidates: [],
+    memoryContext: {
+      topWeaknesses: ['noun_plague', 'article_misuse'],
+      relevantSnippets: ['Earlier draft about margin pressure and budget timing.'],
+    },
+  });
+
+  expect(prompt.system).toContain('Persistent weaknesses to watch: noun_plague, article_misuse.');
+  expect(prompt.system).toContain('Past writing context [1]: Earlier draft about margin pressure and budget timing.');
+});
+
 it('requires ruleExample to be contextual and keeps reference examples out of coach snippets', () => {
   const prompt = assembleCoachPrompt({
     paragraph: 'The rain made a huge effect on our sales and we discussed about it.',

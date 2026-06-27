@@ -1,12 +1,13 @@
 import type { CoachResponse, ErrorType } from '../../../shared/types.js';
 import type { LLMProvider } from './provider.js';
-import { assembleSentenceLabPrompt } from './prompts.js';
+import { assembleSentenceLabPrompt, type PromptMemoryContext } from './prompts.js';
 import { coachResponseZ } from './schema.js';
 
 export interface SentenceLabContext {
   sentence: string;
   context?: string;
   topErrors: ErrorType[];
+  memoryContext?: PromptMemoryContext;
   model: string;
 }
 

@@ -28,6 +28,23 @@ it('inserts and samples vocab', () => {
   expect(getVocabSample(db, USER_ID, 5).length).toBe(1);
 });
 
+it('migrates review metadata and session embedding storage', () => {
+  const vocabColumns = db.prepare('PRAGMA table_info(vocab)').all() as Array<{ name: string }>;
+  expect(vocabColumns.map(column => column.name)).toEqual(expect.arrayContaining([
+    'ease',
+    'last_reviewed',
+    'word_family',
+    'near_synonyms',
+  ]));
+
+  const embeddingTable = db.prepare(`
+    SELECT name
+    FROM sqlite_master
+    WHERE type = 'table' AND name = 'session_embeddings'
+  `).get() as { name: string } | undefined;
+  expect(embeddingTable?.name).toBe('session_embeddings');
+});
+
 it('upserts vocab by normalized text and accumulates capture count', () => {
   insertVocab(db, USER_ID, [
     { word: ' Risk   premium ', kind: 'phrase', defCn: 'risk return spread', timesSuggested: 0, timesUsed: 0 },
@@ -103,6 +120,7 @@ it('lists vocab by the same priority order used for prime candidates', () => {
   expect(getVocabCount(db, USER_ID)).toBe(3);
   expect(list.map(item => item.word)).toEqual(getPrimeCandidates(db, USER_ID, 10).map(item => item.word));
   expect(list[0]).toEqual({
+    id: expect.any(Number),
     word: 'well worn phrase',
     kind: 'phrase',
     defCn: 'seen many times',

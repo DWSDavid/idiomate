@@ -635,6 +635,7 @@ it('GET /api/vocab/list returns priority-ordered vocab with total count', async 
     expect(json.total).toBe(2);
     expect(json.items).toEqual([
       {
+        id: expect.any(Number),
         word: 'well worn phrase',
         kind: 'phrase',
         defCn: 'seen many times',

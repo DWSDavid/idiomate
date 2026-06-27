@@ -53,6 +53,18 @@ export const enrichedVocabZ = z.object({
   register: tolerantOptionalString,
 });
 
+export const nearSynonymZ = z.object({
+  word: z.string().min(1),
+  distinction: z.string().min(1),
+});
+
+export const wordDeepDiveZ = z.object({
+  wordFamily: z.array(z.string().min(1)).min(1).max(12),
+  nearSynonyms: z.array(nearSynonymZ).max(4).optional().catch(undefined),
+  usageExamples: z.array(z.string().min(1)).min(1).max(3),
+});
+export type WordDeepDive = z.infer<typeof wordDeepDiveZ>;
+
 export const lessonComparisonPairZ = z.object({
   before: z.string().min(1),
   after: z.string().min(1),

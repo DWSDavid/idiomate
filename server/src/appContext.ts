@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import type { EmbeddingProvider } from './brain/embedding.js';
 import type { LLMProvider } from './brain/provider.js';
 import type { NewsItem } from '../../shared/types.js';
 
@@ -9,6 +10,7 @@ export interface AppDependencies {
   db: Database.Database;
   coachProvider: LLMProvider;
   utilityProvider: LLMProvider;
+  embeddingProvider?: EmbeddingProvider;
   headlineFetcher?: HeadlineFetcher;
   newsFetcher?: NewsFetcher;
 }
