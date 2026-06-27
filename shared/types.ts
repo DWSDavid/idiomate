@@ -26,6 +26,7 @@ export interface Annotation {
   bookReference?: BookReference;
   modelRewrite: string;    // hidden until user submits their rewrite
   vocabWord?: string;      // set when errorType === 'vocab_suggestion'
+  distinction?: string;    // nuanced comparison for vocab_suggestion
 }
 
 export interface CoachResponse {
@@ -89,7 +90,7 @@ export interface ChineseVocabResponse extends SaveVocabResponse {
   vocab: Vocab;
 }
 
-export interface Prompt { id?: number; date: string; theme: string; text: string; sourceUrl?: string; }
+export interface Prompt { id?: number; date: string; theme: string; text: string; sourceUrl?: string; newsItems?: NewsItem[]; }
 export interface ErrorTally { errorType: ErrorType; count: number; lastSeen: string; }
 
 export interface MistakeExample {

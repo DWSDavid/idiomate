@@ -37,6 +37,28 @@ export function DailyPrompt({ onPrompt }: DailyPromptProps) {
       <p className="prose mt-4 text-xl">
         {prompt?.text ?? (status === 'error' ? 'Could not load a prompt.' : 'Loading a prompt for you.')}
       </p>
+      {prompt?.newsItems?.length ? (
+        <div className="mt-4">
+          <p className="section-label">For context</p>
+          <ul className="mt-2 space-y-2">
+            {prompt.newsItems.map(item => (
+              <li key={item.link ?? item.title} className="text-sm leading-6">
+                <a
+                  href={item.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-slate-800 underline-offset-2 hover:text-violet-700 hover:underline"
+                >
+                  {item.title}
+                </a>
+                {item.source ? (
+                  <span className="ml-2 text-xs text-slate-400">{item.source}</span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -265,13 +265,11 @@ it('assembles a news-grounded discussion prompt from headlines', () => {
     ],
   });
 
-  expect(prompt.system).toContain('academic writing');
-  expect(prompt.system).toContain('professional discussion');
-  expect(prompt.system).toContain('one or two sentences');
+  expect(prompt.system).toContain('25 words');
+  expect(prompt.system).toContain('3 to 5 sentences');
   expect(prompt.system).toContain('Return ONLY JSON');
   expect(prompt.user).toContain('humanoid robotics');
   expect(prompt.user).toContain('Humanoid robots enter warehouses');
-  expect(prompt.user).toContain("What's your view");
 });
 
 it('validates generated news prompt JSON and sends headlines to the provider', async () => {

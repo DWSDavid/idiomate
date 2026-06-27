@@ -233,3 +233,73 @@ it('offers structure guidance only after the user submits a rewrite', async () =
   expect(screen.getByText('weak')).toHaveClass('status-weak');
   expect(fetchMock).toHaveBeenCalledWith('/api/structure', expect.objectContaining({ method: 'POST' }));
 });
+
+it('shows distinction text and inline save buttons for vocab_suggestion; saves on "New to me"', async () => {
+  let capturedWord = '';
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input);
+    if (url.includes('/api/vocab/capture-save')) {
+      const body = JSON.parse(String(init?.body ?? '{}')) as { word: string };
+      capturedWord = body.word;
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ id: 99, captureCount: 1, existed: false, vocab: { word: body.word } }),
+      } as Response);
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+
+  const vocabAnnotation = [{
+    span: 'give out',
+    errorType: 'vocab_suggestion' as const,
+    hint: 'A more precise verb exists.',
+    explanation: 'Native writers use allocate here.',
+    modelRewrite: 'allocate',
+    vocabWord: 'allocate',
+    distinction: 'give out is generic and informal; allocate implies intentional distribution with planning and authority.',
+  }];
+
+  render(<CoachPanel paragraph="We give out resources." annotations={vocabAnnotation} onSubmit={() => {}} />);
+
+  // distinction text visible
+  expect(await screen.findByText(/give out is generic and informal/)).toBeInTheDocument();
+
+  // inline save buttons
+  expect(screen.getByRole('button', { name: 'I know it' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'New to me — save' })).toBeInTheDocument();
+
+  // click save
+  fireEvent.click(screen.getByRole('button', { name: 'New to me — save' }));
+
+  await waitFor(() => {
+    expect(capturedWord).toBe('allocate');
+  });
+
+  // confirmation shown, buttons gone
+  expect(await screen.findByText(/Saved to your words/)).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'New to me — save' })).not.toBeInTheDocument();
+});
+
+it('"I know it" dismisses the save prompt without calling the API', () => {
+  const fetchMock = vi.fn();
+  vi.stubGlobal('fetch', fetchMock);
+
+  const vocabAnnotation = [{
+    span: 'give out',
+    errorType: 'vocab_suggestion' as const,
+    hint: 'A more precise verb exists.',
+    explanation: 'Native writers use allocate here.',
+    modelRewrite: 'allocate',
+    vocabWord: 'allocate',
+    distinction: 'give out is generic; allocate is the professional term.',
+  }];
+
+  render(<CoachPanel paragraph="We give out resources." annotations={vocabAnnotation} onSubmit={() => {}} />);
+
+  fireEvent.click(screen.getByRole('button', { name: 'I know it' }));
+
+  expect(screen.queryByRole('button', { name: 'I know it' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'New to me — save' })).not.toBeInTheDocument();
+  expect(fetchMock).not.toHaveBeenCalledWith(expect.stringContaining('capture-save'), expect.anything());
+});

@@ -147,8 +147,8 @@ export function assembleCoachPrompt(ctx: CoachPromptContext): { system: string; 
       "For ruleExample, ruleExample.before MUST come from the user's own text for this exact issue, or be closely based on that text. ruleExample.after MUST be the corrected form of that same minimal pair. NEVER copy the example sentences from the Taxonomy or Rules sections; those references are for classification only, not output. If no faithful minimal pair fits, generate a fresh pair specific to this user's error and do not reuse a reference example.",
       `The errorType field MUST be EXACTLY one of: ${ERROR_TYPES.join(', ')}. Put the specific principle name (for example "Gerund after certain verbs") in the "rule" field, never in errorType.`,
       'Also produce nativeVersion: a fully natural version of the whole paragraph. The UI hides both modelRewrite and nativeVersion until the user submits their own rewrite.',
-      'Use vocab_suggestion only for optional vocabulary opportunities. Suggest, never force.',
-      'Return ONLY JSON matching: {paragraphIndex,nativeVersion,annotations:[{span,errorType,rule,ruleExample:{before,after},hint,explanation,modelRewrite,vocabWord?}]}.',
+      'Use vocab_suggestion in two situations: (1) the word or chunk is a calque or direct translation that sounds unnatural — suggest the natural English equivalent; (2) the word or chunk already works but a more idiomatic, native, or domain-specific alternative would elevate the writing — suggest it as an upgrade. For every vocab_suggestion, set vocabWord to the suggested word and add a distinction field: one or two sentences explaining what is wrong or limited about the original AND why the alternative is more natural, precise, or native — include register, domain, or connotation differences. Suggest, never force.',
+      'Return ONLY JSON matching: {paragraphIndex,nativeVersion,annotations:[{span,errorType,rule,ruleExample:{before,after},hint,explanation,modelRewrite,vocabWord?,distinction?}]}.',
       ...memoryContextLines(ctx.memoryContext),
     ].join(' '),
     user: [
@@ -408,11 +408,10 @@ export function assembleNewsPrompt(ctx: { topic: string; headlines: string[] }):
 
   return {
     system: [
-      'You generate one fresh discussion-style writing prompt for Idiomate.',
-      'Aim it at academic writing and professional discussion prep for an advanced Chinese-L1 English writer.',
-      'Ground the prompt in the supplied headlines when they are available.',
-      'The prompt should start naturally, often with "What\'s your view on", and invite a paragraph-length argument rather than a list.',
-      'Keep the prompt to one or two sentences.',
+      'You generate one short daily writing prompt for Idiomate.',
+      'The learner is an advanced Chinese-L1 English writer in tech, finance, or startups.',
+      'Rules: maximum 25 words for the prompt question. Concrete and specific: name an industry, technology, company type, or real scenario. Opinion OR story format: "Do you think X?", "Would you rather X?", or "Describe a time when X". The answer must fit in 3 to 5 sentences. Avoid geopolitics, sports diplomacy, abstract philosophy, or questions that need expert knowledge the writer may not have.',
+      'Ground the prompt in the supplied headlines when they are available, but make it answerable from personal experience or opinion.',
       'Return ONLY JSON matching: {theme,text}.',
     ].join(' '),
     user: [

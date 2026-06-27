@@ -1243,6 +1243,7 @@ it('GET /api/prompt/today generates a fresh news-grounded prompt through the uti
     db,
     utilityProvider,
     headlineFetcher: async () => ['Humanoid robots enter warehouses', 'Robotics firms sign chip deals'],
+    newsFetcher: async () => [],
   }), async baseUrl => {
     const first = await fetch(`${baseUrl}/api/prompt/today`);
     const second = await fetch(`${baseUrl}/api/prompt/today`);
@@ -1275,6 +1276,7 @@ it('GET /api/prompt/today falls back to LLM-only generation when news fetch fail
     headlineFetcher: async () => {
       throw new Error('offline');
     },
+    newsFetcher: async () => [],
   }), async baseUrl => {
     const res = await fetch(`${baseUrl}/api/prompt/today`);
 

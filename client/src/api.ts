@@ -349,3 +349,17 @@ export function saveChineseVocab(text: string, contextSentence?: string): Promis
     contextSentence: contextSentence?.trim() || undefined,
   });
 }
+
+export interface CaptureAndSaveResponse {
+  id: number;
+  captureCount: number;
+  existed: boolean;
+  vocab: Vocab;
+}
+
+export function captureAndSaveVocab(word: string, contextSentence?: string): Promise<CaptureAndSaveResponse> {
+  return postJson<CaptureAndSaveResponse>('/api/vocab/capture-save', {
+    word,
+    contextSentence: contextSentence?.trim() || undefined,
+  });
+}

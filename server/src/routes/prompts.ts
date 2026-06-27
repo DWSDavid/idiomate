@@ -2,7 +2,7 @@ import { Router } from 'express';
 import type { AppDependencies } from '../appContext.js';
 import { generateNewsPrompt } from '../brain/prompts.js';
 import { config } from '../config.js';
-import { fetchHeadlines, NEWS_TOPICS } from '../news.js';
+import { fetchHeadlines, fetchNews, NEWS_TOPICS } from '../news.js';
 
 const OFFLINE_FALLBACK = {
   theme: 'professional discussion',
@@ -27,15 +27,21 @@ export function createPromptsRouter(deps: AppDependencies): Router {
       headlines = [];
     }
 
+    const newsFetcher = deps.newsFetcher ?? fetchNews;
+    const newsItemsPromise = newsFetcher(topic).catch(() => []);
+
     try {
-      const prompt = await generateNewsPrompt(deps.utilityProvider, {
-        topic,
-        headlines,
-        model: config.modelUtility,
-      });
-      res.json({ date, ...prompt });
+      const [prompt, newsItems] = await Promise.all([
+        generateNewsPrompt(deps.utilityProvider, {
+          topic,
+          headlines,
+          model: config.modelUtility,
+        }),
+        newsItemsPromise,
+      ]);
+      res.json({ date, ...prompt, newsItems: newsItems.slice(0, 3) });
     } catch {
-      res.json({ date, ...OFFLINE_FALLBACK });
+      res.json({ date, ...OFFLINE_FALLBACK, newsItems: [] });
     }
   });
 

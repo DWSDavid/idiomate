@@ -16,6 +16,7 @@ export const annotationZ = z.object({
   ruleExample: ruleExampleZ.optional(),
   modelRewrite: z.string(),
   vocabWord: z.string().optional(),
+  distinction: z.string().optional(),
 });
 
 export const coachResponseZ = z.object({

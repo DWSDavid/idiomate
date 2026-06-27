@@ -169,6 +169,31 @@ export function createVocabRouter(deps: AppDependencies): Router {
     }
   });
 
+  router.post('/capture-save', async (req, res, next) => {
+    try {
+      const body = captureVocabZ.parse(req.body);
+      const enriched = await enrichWord(deps.utilityProvider, {
+        word: body.word,
+        contextSentence: body.contextSentence,
+        model: config.modelUtility,
+      });
+      const result = upsertVocabWithResult(deps.db, req.userId, {
+        ...enriched,
+        source: 'capture',
+        timesSuggested: 0,
+        timesUsed: 0,
+      });
+      res.status(result.existed ? 200 : 201).json({
+        id: result.id,
+        captureCount: result.captureCount,
+        existed: result.existed,
+        vocab: { ...enriched, id: result.id, captureCount: result.captureCount },
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.get('/list', (req, res, next) => {
     try {
       const query = vocabListQueryZ.parse(req.query);

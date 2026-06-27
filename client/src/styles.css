@@ -292,6 +292,15 @@
     @apply rounded-xl bg-slate-50 p-3 text-sm leading-6;
   }
 
+  .part-subject     { @apply rounded bg-blue-100 px-1 font-medium text-blue-800; }
+  .part-verb        { @apply rounded bg-violet-100 px-1 font-medium text-violet-800; }
+  .part-object      { @apply rounded bg-emerald-100 px-1 font-medium text-emerald-800; }
+  .part-adjective   { @apply rounded bg-amber-100 px-1 font-medium text-amber-800; }
+  .part-adverb      { @apply rounded bg-orange-100 px-1 font-medium text-orange-800; }
+  .part-clause      { @apply rounded bg-slate-100 px-1 text-slate-600; }
+  .part-prep-phrase { @apply rounded bg-rose-100 px-1 font-medium text-rose-800; }
+  .part-conjunction { @apply rounded bg-slate-100 px-1 text-slate-500; }
+
   @media (max-width: 640px) {
     .desk-header,
     .surface {

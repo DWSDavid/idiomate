@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import type { Annotation, ResearchResponse, StructureResponse } from '../../../shared/types';
-import { recordParagraph, researchEssay, structureDraft } from '../api';
+import { captureAndSaveVocab, recordParagraph, researchEssay, structureDraft } from '../api';
 import { CompareView, type ComparedAnnotation } from './CompareView';
 import { FollowUpBox } from './FollowUpBox';
 
@@ -24,6 +24,60 @@ interface CoachPanelProps {
 
 function statusClass(status: StructureStatus): string {
   return `status-chip status-${status}`;
+}
+
+type VocabSaveState = 'idle' | 'saving' | 'saved' | 'known';
+
+function VocabSuggestCard({ annotation }: { annotation: Annotation }) {
+  const [saveState, setSaveState] = useState<VocabSaveState>('idle');
+
+  const handleSave = async () => {
+    if (!annotation.vocabWord) return;
+    setSaveState('saving');
+    try {
+      await captureAndSaveVocab(annotation.vocabWord, annotation.span);
+      setSaveState('saved');
+    } catch {
+      setSaveState('idle');
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/60 p-3 space-y-2">
+      {annotation.distinction ? (
+        <p className="text-sm leading-6 text-slate-700">{annotation.distinction}</p>
+      ) : null}
+      {annotation.vocabWord ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-semibold text-slate-900">{annotation.vocabWord}</span>
+          {saveState === 'idle' ? (
+            <>
+              <button
+                type="button"
+                className="btn-ghost text-xs"
+                onClick={() => setSaveState('known')}
+              >
+                I know it
+              </button>
+              <button
+                type="button"
+                className="btn-primary text-xs py-1 px-3"
+                onClick={() => void handleSave()}
+              >
+                New to me — save
+              </button>
+            </>
+          ) : saveState === 'saving' ? (
+            <span className="text-xs text-slate-400">Saving…</span>
+          ) : saveState === 'saved' ? (
+            <span className="text-xs text-emerald-600">✓ Saved to your words</span>
+          ) : (
+            <span className="text-xs text-slate-400">Got it</span>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function CoachPanel({ paragraph, nativeVersion, annotations, recordContext, onRecorded, onSubmit }: CoachPanelProps) {
@@ -245,6 +299,9 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
                     <p className="font-semibold text-emerald-900">{annotation.ruleExample.after}</p>
                   </div>
                 </div>
+              ) : null}
+              {annotation.errorType === 'vocab_suggestion' ? (
+                <VocabSuggestCard annotation={annotation} />
               ) : null}
             </div>
           ))

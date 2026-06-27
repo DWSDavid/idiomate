@@ -14,6 +14,7 @@ import { MemoryProfileCard } from './components/MemoryProfileCard';
 import { ProfileDashboard } from './components/ProfileDashboard';
 import { ProgressPanel } from './components/ProgressPanel';
 import { ReviewPanel } from './components/ReviewPanel';
+import { SentencePatterns } from './components/SentencePatterns';
 import { TodayStrip } from './components/TodayStrip';
 import { VocabPrime } from './components/VocabPrime';
 import { VocabularyPanel } from './components/VocabularyPanel';
@@ -26,13 +27,14 @@ interface CoachPanelState {
   response: CoachResponse;
 }
 
-type WorkspaceSection = 'write' | 'words' | 'review' | 'me' | 'admin';
+type WorkspaceSection = 'write' | 'words' | 'review' | 'me' | 'patterns' | 'admin';
 
 const workspaceSections: Array<{ id: WorkspaceSection; label: string }> = [
   { id: 'write', label: 'Write' },
   { id: 'words', label: 'Words' },
   { id: 'review', label: 'Review' },
   { id: 'me', label: 'Me' },
+  { id: 'patterns', label: 'Patterns' },
 ];
 
 export function App() {
@@ -209,6 +211,10 @@ export function App() {
           <ProgressPanel refreshKey={profileKey} />
           <MemoryProfileCard />
           <HistoryPanel refreshKey={historyKey} />
+        </section>
+
+        <section className={`workspace-page${activeSection === 'patterns' ? '' : ' hidden'}`} aria-label="sentence patterns">
+          <SentencePatterns />
         </section>
 
         {activeSection === 'admin' ? (
