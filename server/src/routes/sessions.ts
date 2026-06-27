@@ -6,6 +6,7 @@ import {
   insertAnnotations,
   insertSession,
   recordErrors,
+  upsertSessionEmbedding,
 } from '../db/dal.js';
 import { submittedAnnotationZ } from './schemas.js';
 
@@ -45,6 +46,15 @@ export function createSessionsRouter(deps: AppDependencies): Router {
         if (annotation.errorType === 'vocab_suggestion' && annotation.accepted && annotation.vocabWord) {
           incrementVocabUsed(deps.db, req.userId, annotation.vocabWord);
         }
+      }
+
+      const content = [body.draftText, body.finalText].filter(Boolean).join('\n\n').slice(0, 4000);
+      try {
+        deps.embeddingProvider?.embed(content)
+          .then(vec => upsertSessionEmbedding(deps.db, sessionId, req.userId, content, vec))
+          .catch(err => console.error('embed error:', err));
+      } catch (err) {
+        console.error('embed error:', err);
       }
 
       res.status(201).json({ id: sessionId });

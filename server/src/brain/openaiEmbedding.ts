@@ -4,6 +4,7 @@ export class OpenAIEmbeddingProvider implements EmbeddingProvider {
   constructor(private readonly apiKey: string) {}
 
   async embed(text: string): Promise<number[]> {
+    if (!this.apiKey) throw new Error('Embedding API key is not configured.');
     const res = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST',
       headers: { Authorization: `Bearer ${this.apiKey}`, 'Content-Type': 'application/json' },

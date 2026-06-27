@@ -1,9 +1,14 @@
 ﻿import { describe, it, expect, beforeEach } from 'vitest';
 import { openDb, migrate } from '../src/db/db.js';
 import {
+  getDeepDiveCache,
   getPrimeCandidates,
   getPrimeCandidatePool,
   getDailyMistakeCounts,
+  getMemoryProfile,
+  getReviewQueue,
+  getSessionEmbeddings,
+  getTodayVocab,
   getVocabCount,
   getVocabList,
   getVocabSample,
@@ -14,8 +19,11 @@ import {
   insertAnnotations,
   insertSession,
   insertVocab,
+  recordReview,
   recordErrors,
+  saveDeepDive,
   getTallies,
+  upsertSessionEmbedding,
   upsertVocab,
 } from '../src/db/dal.js';
 
@@ -55,6 +63,124 @@ it('upserts vocab by normalized text and accumulates capture count', () => {
   expect(vocab).toHaveLength(1);
   expect(vocab[0].normalized).toBe('risk premium');
   expect(vocab[0].captureCount).toBe(2);
+});
+
+it('maps review and deep-dive vocab metadata through upsert and review queue reads', () => {
+  const allocationId = upsertVocab(db, USER_ID, {
+    word: 'allocation',
+    kind: 'word',
+    ease: 'hard',
+    lastReviewed: '2026-06-20T00:00:00.000Z',
+    wordFamily: ['allocate', 'allocated', 'allocation'],
+    nearSynonyms: [{ word: 'assign', distinction: 'Use assign for ownership or tasks.' }],
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+  upsertVocab(db, USER_ID, {
+    word: 'fresh',
+    kind: 'word',
+    ease: 'new',
+    lastCaptured: '2026-06-22T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+  upsertVocab(db, USER_ID, {
+    word: 'confident',
+    kind: 'word',
+    ease: 'easy',
+    lastReviewed: '2026-06-23T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  const queue = getReviewQueue(db, USER_ID, 10);
+
+  expect(queue.map(item => item.word)).toEqual(['fresh', 'allocation', 'confident']);
+  expect(queue.find(item => item.id === allocationId)).toEqual(expect.objectContaining({
+    ease: 'hard',
+    lastReviewed: '2026-06-20T00:00:00.000Z',
+    wordFamily: ['allocate', 'allocated', 'allocation'],
+    nearSynonyms: [{ word: 'assign', distinction: 'Use assign for ownership or tasks.' }],
+  }));
+});
+
+it('records review results only for the scoped user', () => {
+  const localId = upsertVocab(db, USER_ID, { word: 'local word', timesSuggested: 0, timesUsed: 0 });
+  const otherId = upsertVocab(db, 'other-user', { word: 'other word', timesSuggested: 0, timesUsed: 0 });
+
+  recordReview(db, USER_ID, localId, 'easy');
+  recordReview(db, USER_ID, otherId, 'hard');
+
+  expect(getReviewQueue(db, USER_ID, 10).find(item => item.id === localId)).toEqual(expect.objectContaining({
+    ease: 'easy',
+    lastReviewed: expect.any(String),
+  }));
+  const other = db.prepare('SELECT ease, last_reviewed FROM vocab WHERE id = ?').get(otherId) as {
+    ease: string;
+    last_reviewed: string | null;
+  };
+  expect(other).toEqual({ ease: 'new', last_reviewed: null });
+});
+
+it('saves and reads cached deep dives from vocab metadata', () => {
+  const id = upsertVocab(db, USER_ID, {
+    word: 'allocate',
+    examples: ['The team allocated capital carefully.'],
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  expect(getDeepDiveCache(db, USER_ID, id)).toBeNull();
+
+  saveDeepDive(db, USER_ID, id, {
+    wordFamily: ['allocate', 'allocated', 'allocation'],
+    nearSynonyms: [{ word: 'assign', distinction: 'Use assign for tasks or ownership.' }],
+    usageExamples: ['Generated examples are returned on the first request.'],
+  });
+
+  expect(getDeepDiveCache(db, USER_ID, id)).toEqual({
+    wordFamily: ['allocate', 'allocated', 'allocation'],
+    nearSynonyms: [{ word: 'assign', distinction: 'Use assign for tasks or ownership.' }],
+    usageExamples: ['The team allocated capital carefully.'],
+  });
+});
+
+it('stores session embeddings and filters them by user', () => {
+  upsertSessionEmbedding(db, 1, USER_ID, 'local content', [1, 0, 0]);
+  upsertSessionEmbedding(db, 2, 'other-user', 'other content', [0, 1, 0]);
+
+  expect(getSessionEmbeddings(db, USER_ID)).toEqual([
+    { sessionId: 1, content: 'local content', embedding: [1, 0, 0] },
+  ]);
+});
+
+it('returns today vocab and memory profile summaries by user', () => {
+  upsertVocab(db, USER_ID, { word: 'today new', timesSuggested: 0, timesUsed: 0 });
+  const hardId = upsertVocab(db, USER_ID, { word: 'today hard', ease: 'hard', timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, USER_ID, {
+    word: 'old easy',
+    ease: 'easy',
+    lastCaptured: '2000-01-01T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+  recordErrors(db, USER_ID, ['noun_plague', 'noun_plague', 'word_choice']);
+  const sessionId = insertSession(db, USER_ID, { draftText: 'draft', finalText: 'final' });
+  upsertSessionEmbedding(db, sessionId, USER_ID, 'draft final', [0.5, 0.5]);
+  upsertVocab(db, 'other-user', { word: 'other today', timesSuggested: 0, timesUsed: 0 });
+
+  expect(getTodayVocab(db, USER_ID, 10).map(item => item.id)).toContain(hardId);
+  expect(getTodayVocab(db, USER_ID, 10).map(item => item.word)).not.toContain('old easy');
+  expect(getMemoryProfile(db, USER_ID)).toEqual({
+    topWeaknesses: [
+      { errorType: 'noun_plague', count: 2 },
+      { errorType: 'word_choice', count: 1 },
+    ],
+    totalSessions: 1,
+    sessionEmbeddingsCount: 1,
+    vocabCount: 3,
+    vocabByEase: { new: 1, hard: 1, easy: 1 },
+  });
 });
 
 it('selects prime candidates by deterministic weighted priority', () => {

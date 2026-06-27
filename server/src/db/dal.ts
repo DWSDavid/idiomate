@@ -1,4 +1,5 @@
 import type Database from 'better-sqlite3';
+import type { WordDeepDive } from '../brain/schema.js';
 import type {
   Annotation,
   AdminUserSummary,
@@ -38,6 +39,10 @@ interface VocabRow {
   date_added: string | null;
   times_suggested: number;
   times_used: number;
+  ease: 'new' | 'hard' | 'easy' | null;
+  last_reviewed: string | null;
+  word_family: string | null;
+  near_synonyms: string | null;
 }
 
 interface ErrorTallyRow {
@@ -45,6 +50,17 @@ interface ErrorTallyRow {
   error_type: ErrorType;
   count: number;
   last_seen: string;
+}
+
+interface SessionEmbeddingRow {
+  session_id: number;
+  content: string;
+  embedding: string;
+}
+
+interface EaseCountRow {
+  ease: 'new' | 'hard' | 'easy';
+  count: number;
 }
 
 interface StoredAnnotationRow {
@@ -196,6 +212,21 @@ function fromJson(value: string | null): string[] | undefined {
   }
 }
 
+function nearSynonymsFromJson(value: string | null): Array<{ word: string; distinction: string }> | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return undefined;
+    return parsed
+      .filter((item): item is { word: unknown; distinction: unknown } => (
+        item && typeof item === 'object' && 'word' in item && 'distinction' in item
+      ))
+      .map(item => ({ word: String(item.word), distinction: String(item.distinction) }));
+  } catch {
+    return undefined;
+  }
+}
+
 function mapVocab(row: VocabRow): Vocab {
   return {
     id: row.id,
@@ -213,6 +244,10 @@ function mapVocab(row: VocabRow): Vocab {
     register: row.register ?? undefined,
     captureCount: row.capture_count,
     lastCaptured: row.last_captured ?? undefined,
+    ease: row.ease ?? 'new',
+    lastReviewed: row.last_reviewed ?? undefined,
+    wordFamily: fromJson(row.word_family),
+    nearSynonyms: nearSynonymsFromJson(row.near_synonyms),
     timesSuggested: row.times_suggested,
     timesUsed: row.times_used,
   };
@@ -253,6 +288,10 @@ function vocabParams(userId: string, item: Vocab) {
     register: item.register ?? null,
     captureCount: item.captureCount ?? 1,
     lastCaptured: item.lastCaptured ?? null,
+    ease: item.ease ?? 'new',
+    lastReviewed: item.lastReviewed ?? null,
+    wordFamily: toJson(item.wordFamily),
+    nearSynonyms: item.nearSynonyms ? JSON.stringify(item.nearSynonyms) : null,
     timesSuggested: item.timesSuggested ?? 0,
     timesUsed: item.timesUsed ?? 0,
   };
@@ -263,12 +302,14 @@ export function upsertVocab(db: Database.Database, userId: string, vocab: Vocab)
     INSERT INTO vocab (
       user_id, word, normalized, kind, ipa, def_cn, pos, status, source,
       context_sentence, examples, collocations, register, capture_count,
-      last_captured, times_suggested, times_used
+      last_captured, times_suggested, times_used, ease, last_reviewed,
+      word_family, near_synonyms
     )
     VALUES (
       @userId, @word, @normalized, @kind, @ipa, @defCn, @pos, @status, @source,
       @contextSentence, @examples, @collocations, @register, @captureCount,
-      COALESCE(@lastCaptured, datetime('now')), @timesSuggested, @timesUsed
+      COALESCE(@lastCaptured, datetime('now')), @timesSuggested, @timesUsed, @ease,
+      @lastReviewed, @wordFamily, @nearSynonyms
     )
     ON CONFLICT(user_id, normalized) DO UPDATE SET
       word = excluded.word,
@@ -285,7 +326,11 @@ export function upsertVocab(db: Database.Database, userId: string, vocab: Vocab)
       capture_count = vocab.capture_count + excluded.capture_count,
       last_captured = excluded.last_captured,
       times_suggested = vocab.times_suggested + excluded.times_suggested,
-      times_used = vocab.times_used + excluded.times_used
+      times_used = vocab.times_used + excluded.times_used,
+      ease = excluded.ease,
+      last_reviewed = COALESCE(excluded.last_reviewed, vocab.last_reviewed),
+      word_family = COALESCE(excluded.word_family, vocab.word_family),
+      near_synonyms = COALESCE(excluded.near_synonyms, vocab.near_synonyms)
   `);
   const normalized = normalizeVocabWord(vocab.normalized ?? vocab.word);
   stmt.run(vocabParams(userId, vocab));
@@ -373,6 +418,151 @@ export function getVocabList(db: Database.Database, userId: string, limit = 200)
 export function getVocabCount(db: Database.Database, userId: string): number {
   const row = db.prepare('SELECT COUNT(*) AS count FROM vocab WHERE user_id = ?').get(userId) as { count: number };
   return row.count;
+}
+
+export function getReviewQueue(db: Database.Database, userId: string, limit = 10): Vocab[] {
+  const safeLimit = boundedPositiveInt(limit, 10, 100);
+  const rows = db.prepare(`
+    SELECT *
+    FROM vocab
+    WHERE user_id = ?
+    ORDER BY
+      CASE COALESCE(ease, 'new') WHEN 'new' THEN 0 WHEN 'hard' THEN 1 WHEN 'easy' THEN 2 END,
+      CASE WHEN COALESCE(ease, 'new') = 'easy' THEN last_reviewed ELSE last_captured END DESC
+    LIMIT ?
+  `).all(userId, safeLimit) as VocabRow[];
+  return rows.map(mapVocab);
+}
+
+export function recordReview(
+  db: Database.Database,
+  userId: string,
+  vocabId: number,
+  ease: 'easy' | 'hard',
+): void {
+  db.prepare(`
+    UPDATE vocab
+    SET ease = ?, last_reviewed = datetime('now')
+    WHERE id = ? AND user_id = ?
+  `).run(ease, vocabId, userId);
+}
+
+export function saveDeepDive(
+  db: Database.Database,
+  userId: string,
+  vocabId: number,
+  dive: WordDeepDive,
+): void {
+  db.prepare(`
+    UPDATE vocab
+    SET word_family = ?, near_synonyms = ?
+    WHERE id = ? AND user_id = ?
+  `).run(
+    JSON.stringify(dive.wordFamily),
+    JSON.stringify(dive.nearSynonyms ?? []),
+    vocabId,
+    userId,
+  );
+}
+
+export function getDeepDiveCache(
+  db: Database.Database,
+  userId: string,
+  vocabId: number,
+): (WordDeepDive & { usageExamples: string[] }) | null {
+  const row = db.prepare(`
+    SELECT word_family, near_synonyms, examples
+    FROM vocab
+    WHERE id = ? AND user_id = ?
+  `).get(vocabId, userId) as Pick<VocabRow, 'word_family' | 'near_synonyms' | 'examples'> | undefined;
+  if (!row?.word_family) return null;
+  return {
+    wordFamily: fromJson(row.word_family) ?? [],
+    nearSynonyms: nearSynonymsFromJson(row.near_synonyms) ?? [],
+    usageExamples: fromJson(row.examples) ?? [],
+  };
+}
+
+export function upsertSessionEmbedding(
+  db: Database.Database,
+  sessionId: number,
+  userId: string,
+  content: string,
+  embedding: number[],
+): void {
+  db.prepare(`
+    INSERT INTO session_embeddings (session_id, user_id, content, embedding)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(session_id) DO UPDATE SET
+      user_id = excluded.user_id,
+      content = excluded.content,
+      embedding = excluded.embedding
+  `).run(sessionId, userId, content, JSON.stringify(embedding));
+}
+
+export function getSessionEmbeddings(
+  db: Database.Database,
+  userId: string,
+): Array<{ sessionId: number; content: string; embedding: number[] }> {
+  const rows = db.prepare(`
+    SELECT session_id, content, embedding
+    FROM session_embeddings
+    WHERE user_id = ?
+    ORDER BY created_at DESC, session_id DESC
+  `).all(userId) as SessionEmbeddingRow[];
+  return rows.map(row => ({
+    sessionId: row.session_id,
+    content: row.content,
+    embedding: JSON.parse(row.embedding) as number[],
+  }));
+}
+
+export function getTodayVocab(db: Database.Database, userId: string, limit = 20): Vocab[] {
+  const safeLimit = boundedPositiveInt(limit, 20, 100);
+  const rows = db.prepare(`
+    SELECT *
+    FROM vocab
+    WHERE user_id = ? AND date(last_captured) = date('now')
+    ORDER BY last_captured DESC
+    LIMIT ?
+  `).all(userId, safeLimit) as VocabRow[];
+  return rows.map(mapVocab);
+}
+
+export function getMemoryProfile(db: Database.Database, userId: string): {
+  topWeaknesses: Array<{ errorType: string; count: number }>;
+  totalSessions: number;
+  sessionEmbeddingsCount: number;
+  vocabCount: number;
+  vocabByEase: { new: number; hard: number; easy: number };
+} {
+  const totalSessions = db.prepare('SELECT COUNT(*) AS count FROM sessions WHERE user_id = ?')
+    .get(userId) as { count: number };
+  const sessionEmbeddingsCount = db.prepare('SELECT COUNT(*) AS count FROM session_embeddings WHERE user_id = ?')
+    .get(userId) as { count: number };
+  const vocabCount = db.prepare('SELECT COUNT(*) AS count FROM vocab WHERE user_id = ?')
+    .get(userId) as { count: number };
+  const easeRows = db.prepare(`
+    SELECT COALESCE(ease, 'new') AS ease, COUNT(*) AS count
+    FROM vocab
+    WHERE user_id = ?
+    GROUP BY COALESCE(ease, 'new')
+  `).all(userId) as EaseCountRow[];
+  const vocabByEase = { new: 0, hard: 0, easy: 0 };
+  for (const row of easeRows) {
+    vocabByEase[row.ease] = row.count;
+  }
+
+  return {
+    topWeaknesses: getTallies(db, userId).slice(0, 5).map(tally => ({
+      errorType: tally.errorType,
+      count: tally.count,
+    })),
+    totalSessions: totalSessions.count,
+    sessionEmbeddingsCount: sessionEmbeddingsCount.count,
+    vocabCount: vocabCount.count,
+    vocabByEase,
+  };
 }
 
 export function getVocabCaptureMeta(

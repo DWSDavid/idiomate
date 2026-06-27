@@ -2,23 +2,35 @@ import express, { Router } from 'express';
 import { existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 import type { AppDependencies } from '../appContext.js';
-import { enrichWord, translateChineseVocab } from '../brain/enrich.js';
+import { deepDiveWord, enrichWord, translateChineseVocab } from '../brain/enrich.js';
+import type { WordDeepDive } from '../brain/schema.js';
 import { selectPrimeWords } from '../brain/prompts.js';
 import { config } from '../config.js';
 import { parseYoudaoTxt } from '../import/youdao.js';
 import {
+  getDeepDiveCache,
   getVocabCaptureMeta,
   getVocabCount,
   getVocabList,
   getPrimeCandidatePool,
+  getReviewQueue,
+  getTodayVocab,
   incrementVocabSuggested,
   insertMissingVocab,
   insertVocab,
   normalizeVocabWord,
+  recordReview,
+  saveDeepDive,
   upsertVocab,
 } from '../db/dal.js';
 
 const vocabKindZ = z.enum(['word', 'phrase', 'collocation']);
+const easeZ = z.enum(['new', 'hard', 'easy']);
+const reviewEaseZ = z.enum(['easy', 'hard']);
+const nearSynonymZ = z.object({
+  word: z.string().min(1),
+  distinction: z.string().min(1),
+});
 
 const saveVocabZ = z.object({
   word: z.string().min(1),
@@ -35,6 +47,10 @@ const saveVocabZ = z.object({
   collocations: z.array(z.string()).optional(),
   register: z.string().optional(),
   captureCount: z.number().int().positive().optional(),
+  ease: easeZ.optional(),
+  lastReviewed: z.string().optional(),
+  wordFamily: z.array(z.string()).optional(),
+  nearSynonyms: z.array(nearSynonymZ).optional(),
   timesSuggested: z.number().int().nonnegative().optional(),
   timesUsed: z.number().int().nonnegative().optional(),
 });
@@ -53,6 +69,22 @@ const vocabListQueryZ = z.object({
   limit: z.coerce.number().int().positive().max(500).default(200),
 });
 
+const reviewQueueQueryZ = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(10),
+});
+
+const todayQueryZ = z.object({
+  limit: z.coerce.number().int().positive().max(100).default(20),
+});
+
+const idParamZ = z.object({
+  id: z.coerce.number().int().positive(),
+});
+
+const reviewBodyZ = z.object({
+  ease: reviewEaseZ,
+});
+
 const ownerImportZ = z.object({
   code: z.string().min(1),
 });
@@ -63,6 +95,21 @@ function acceptsOwnerVocabCode(code: string): boolean {
     config.rubiProfileCode,
     'rubi-vocab',
   ].filter(Boolean)).has(code);
+}
+
+function relatedInYourList(deps: AppDependencies, userId: string, dive: WordDeepDive): string[] {
+  const candidates = Array.from(new Set([
+    ...dive.wordFamily,
+    ...(dive.nearSynonyms ?? []).map(item => item.word),
+  ].map(normalizeVocabWord)));
+  if (!candidates.length) return [];
+  const rows = deps.db.prepare(`
+    SELECT word
+    FROM vocab
+    WHERE user_id = ? AND normalized IN (${candidates.map(() => '?').join(', ')})
+    ORDER BY word COLLATE NOCASE ASC
+  `).all(userId, ...candidates) as Array<{ word: string }>;
+  return rows.map(row => row.word);
 }
 
 export function createVocabRouter(deps: AppDependencies): Router {
@@ -137,6 +184,66 @@ export function createVocabRouter(deps: AppDependencies): Router {
       res.json({
         total: getVocabCount(deps.db, req.userId),
         items: getVocabList(deps.db, req.userId, query.limit),
+      });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/review-queue', (req, res, next) => {
+    try {
+      const query = reviewQueueQueryZ.parse(req.query);
+      res.json({ items: getReviewQueue(deps.db, req.userId, query.limit) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/today', (req, res, next) => {
+    try {
+      const query = todayQueryZ.parse(req.query);
+      res.json({ items: getTodayVocab(deps.db, req.userId, query.limit) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/:id/review', (req, res, next) => {
+    try {
+      const params = idParamZ.parse(req.params);
+      const body = reviewBodyZ.parse(req.body);
+      const existing = deps.db.prepare('SELECT id FROM vocab WHERE id = ? AND user_id = ?')
+        .get(params.id, req.userId) as { id: number } | undefined;
+      if (!existing) {
+        res.status(404).json({ error: 'Vocabulary item not found.' });
+        return;
+      }
+      recordReview(deps.db, req.userId, params.id, body.ease);
+      res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/:id/deep-dive', async (req, res, next) => {
+    try {
+      const params = idParamZ.parse(req.params);
+      const item = deps.db.prepare('SELECT word FROM vocab WHERE id = ? AND user_id = ?')
+        .get(params.id, req.userId) as { word: string } | undefined;
+      if (!item) {
+        res.status(404).json({ error: 'Vocabulary item not found.' });
+        return;
+      }
+
+      const cached = getDeepDiveCache(deps.db, req.userId, params.id);
+      const dive = cached ?? await deepDiveWord(deps.utilityProvider, item.word, config.modelUtility);
+      if (!cached) {
+        saveDeepDive(deps.db, req.userId, params.id, dive);
+      }
+      res.json({
+        ...dive,
+        nearSynonyms: dive.nearSynonyms ?? [],
+        relatedInYourList: relatedInYourList(deps, req.userId, dive),
       });
     } catch (err) {
       next(err);

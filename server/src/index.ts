@@ -15,6 +15,7 @@ import { createCoachHistoryRouter } from './routes/coachHistory.js';
 import { createFollowUpRouter } from './routes/followUp.js';
 import { createHistoryRouter } from './routes/history.js';
 import { createLessonsRouter } from './routes/lessons.js';
+import { createMemoryRouter } from './routes/memory.js';
 import { createMistakesRouter } from './routes/mistakes.js';
 import { createParagraphsRouter } from './routes/paragraphs.js';
 import { createProfileRouter } from './routes/profile.js';
@@ -33,12 +34,13 @@ interface CreateAppOptions {
 export function createApp(overrides: Partial<AppDependencies> = {}, options: CreateAppOptions = {}) {
   const db = overrides.db ?? openDb();
   migrate(db);
+  const hasEmbeddingOverride = Object.prototype.hasOwnProperty.call(overrides, 'embeddingProvider');
 
   const deps: AppDependencies = {
     db,
     coachProvider: overrides.coachProvider ?? new OpenAIProvider(config.apiKey),
     utilityProvider: overrides.utilityProvider ?? new OpenAIProvider(config.apiKey),
-    embeddingProvider: overrides.embeddingProvider ?? new OpenAIEmbeddingProvider(config.apiKey),
+    embeddingProvider: hasEmbeddingOverride ? overrides.embeddingProvider : new OpenAIEmbeddingProvider(config.apiKey),
     headlineFetcher: overrides.headlineFetcher,
     newsFetcher: overrides.newsFetcher,
   };
@@ -53,6 +55,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}, options: Cre
   app.use('/api/follow-up', createFollowUpRouter(deps));
   app.use('/api/history', createHistoryRouter(deps));
   app.use('/api/lesson', createLessonsRouter(deps));
+  app.use('/api/memory', createMemoryRouter(deps));
   app.use('/api/mistakes', createMistakesRouter(deps));
   app.use('/api/paragraph-result', createParagraphsRouter(deps));
   app.use('/api/prompt', createPromptsRouter(deps));

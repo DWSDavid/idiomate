@@ -14,6 +14,7 @@ import {
   upsertVocab,
 } from '../src/db/dal.js';
 import type { LLMProvider } from '../src/brain/provider.js';
+import type { EmbeddingProvider } from '../src/brain/embedding.js';
 
 let db: ReturnType<typeof openDb>;
 const USER_ID = 'local';
@@ -73,6 +74,60 @@ it('POST /api/coach returns annotations without updating error tallies', async (
     const json = await res.json();
     expect(json.annotations[0].errorType).toBe('redundancy');
     expect(getTallies(db, USER_ID)).toEqual([]);
+  });
+});
+
+it('POST /api/coach passes persistent weaknesses and retrieved snippets to the coach prompt', async () => {
+  recordErrors(db, USER_ID, ['noun_plague', 'noun_plague', 'word_choice']);
+  db.prepare(`
+    INSERT INTO session_embeddings (session_id, user_id, content, embedding)
+    VALUES (?, ?, ?, ?)
+  `).run(77, USER_ID, 'Past draft about budget allocation and margin pressure.', JSON.stringify([1, 0]));
+  let captured: { system: string; user: string; model: string } | undefined;
+  const coachProvider: LLMProvider = {
+    async complete(opts) {
+      captured = opts;
+      return JSON.stringify({ paragraphIndex: 0, annotations: [] });
+    },
+  };
+  const embeddingProvider: EmbeddingProvider = {
+    async embed(text) {
+      expect(text).toContain('We made a discussion');
+      return [1, 0];
+    },
+  };
+
+  await withServer(createApp({ db, coachProvider, embeddingProvider }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/coach`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paragraphIndex: 0, paragraph: 'We made a discussion about the budget.' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(captured!.system).toContain('Persistent weaknesses to watch: noun_plague, word_choice.');
+    expect(captured!.system).toContain('Past writing context [1]: Past draft about budget allocation and margin pressure.');
+  });
+});
+
+it('POST /api/coach succeeds when memory embedding is disabled', async () => {
+  let captured: { system: string; user: string; model: string } | undefined;
+  const coachProvider: LLMProvider = {
+    async complete(opts) {
+      captured = opts;
+      return JSON.stringify({ paragraphIndex: 0, annotations: [] });
+    },
+  };
+
+  await withServer(createApp({ db, coachProvider, embeddingProvider: undefined }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/coach`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paragraphIndex: 0, paragraph: 'This sentence is natural.' }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(captured!.system).not.toContain('Past writing context');
   });
 });
 
@@ -251,6 +306,39 @@ it('POST /api/sentence-lab diagnoses without revealing fixes, then records after
     expect(getTallies(db, USER_ID)).toEqual([
       expect.objectContaining({ errorType: 'noun_plague', count: 1 }),
     ]);
+  });
+});
+
+it('POST /api/sentence-lab passes persistent weaknesses and retrieved snippets to the prompt', async () => {
+  recordErrors(db, USER_ID, ['noun_plague']);
+  db.prepare(`
+    INSERT INTO session_embeddings (session_id, user_id, content, embedding)
+    VALUES (?, ?, ?, ?)
+  `).run(88, USER_ID, 'Past sentence about implementation and budget timing.', JSON.stringify([0, 1]));
+  let captured: { system: string; user: string; model: string } | undefined;
+  const coachProvider: LLMProvider = {
+    async complete(opts) {
+      captured = opts;
+      return JSON.stringify({ paragraphIndex: 0, annotations: [], nativeVersion: 'We implemented the policy.' });
+    },
+  };
+  const embeddingProvider: EmbeddingProvider = {
+    async embed(text) {
+      expect(text).toContain('made the implementation');
+      return [0, 1];
+    },
+  };
+
+  await withServer(createApp({ db, coachProvider, embeddingProvider }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/sentence-lab/diagnose`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sentence: 'We made the implementation of the policy.' }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(captured!.system).toContain('Persistent weaknesses to watch: noun_plague.');
+    expect(captured!.system).toContain('Past writing context [1]: Past sentence about implementation and budget timing.');
   });
 });
 
@@ -480,6 +568,69 @@ it('POST /api/sessions records errors and increments accepted vocab suggestions'
   });
 });
 
+it('POST /api/sessions stores embeddings asynchronously when a provider is present', async () => {
+  let resolveEmbedding: ((value: number[]) => void) | undefined;
+  let embedCalls = 0;
+  const embeddingProvider: EmbeddingProvider = {
+    embed(text) {
+      embedCalls += 1;
+      expect(text).toBe('draft text\n\nfinal text');
+      return new Promise(resolve => {
+        resolveEmbedding = resolve;
+      });
+    },
+  };
+
+  await withServer(createApp({ db, embeddingProvider }), async baseUrl => {
+    const responsePromise = fetch(`${baseUrl}/api/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        draftText: 'draft text',
+        finalText: 'final text',
+      }),
+    });
+
+    const res = await Promise.race([
+      responsePromise,
+      new Promise<Response>((_, reject) => setTimeout(() => reject(new Error('response blocked on embedding')), 300)),
+    ]);
+    expect(res.status).toBe(201);
+    const json = await res.json() as { id: number };
+    expect(embedCalls).toBe(1);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM session_embeddings').get()).toEqual({ count: 0 });
+
+    resolveEmbedding!([0.25, 0.75]);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const row = db.prepare('SELECT session_id, user_id, content, embedding FROM session_embeddings').get() as {
+      session_id: number;
+      user_id: string;
+      content: string;
+      embedding: string;
+    };
+    expect(row).toEqual({
+      session_id: json.id,
+      user_id: USER_ID,
+      content: 'draft text\n\nfinal text',
+      embedding: JSON.stringify([0.25, 0.75]),
+    });
+  });
+});
+
+it('POST /api/sessions succeeds when embedding is disabled', async () => {
+  await withServer(createApp({ db, embeddingProvider: undefined }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ draftText: 'draft only' }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(db.prepare('SELECT COUNT(*) AS count FROM session_embeddings').get()).toEqual({ count: 0 });
+  });
+});
+
 it('POST /api/paragraph-result records a paragraph rewrite idempotently', async () => {
   insertVocab(db, USER_ID, [{ word: 'shore up', kind: 'phrase', timesSuggested: 0, timesUsed: 0 }]);
 
@@ -646,6 +797,141 @@ it('GET /api/vocab/list returns priority-ordered vocab with total count', async 
         capturedDate: '2026-05-10',
       },
     ]);
+  });
+});
+
+it('GET /api/vocab/review-queue returns vocab ordered new, hard, easy', async () => {
+  upsertVocab(db, USER_ID, { word: 'easy word', ease: 'easy', timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, USER_ID, { word: 'hard word', ease: 'hard', timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, USER_ID, { word: 'new word', ease: 'new', timesSuggested: 0, timesUsed: 0 });
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/vocab/review-queue`);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.items.map((item: { word: string }) => item.word)).toEqual(['new word', 'hard word', 'easy word']);
+  });
+});
+
+it('POST /api/vocab/:id/review updates own word and returns 404 for another user word', async () => {
+  const ownId = upsertVocab(db, USER_ID, { word: 'own word', timesSuggested: 0, timesUsed: 0 });
+  const otherId = upsertVocab(db, 'other-user', { word: 'other word', timesSuggested: 0, timesUsed: 0 });
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const own = await fetch(`${baseUrl}/api/vocab/${ownId}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ease: 'easy' }),
+    });
+    const other = await fetch(`${baseUrl}/api/vocab/${otherId}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ease: 'hard' }),
+    });
+
+    expect(own.status).toBe(204);
+    expect(other.status).toBe(404);
+    const ownRow = db.prepare('SELECT ease, last_reviewed FROM vocab WHERE id = ?').get(ownId) as {
+      ease: string;
+      last_reviewed: string | null;
+    };
+    expect(ownRow.ease).toBe('easy');
+    expect(ownRow.last_reviewed).toEqual(expect.any(String));
+  });
+});
+
+it('GET /api/vocab/:id/deep-dive generates on miss, caches, and includes related words', async () => {
+  const id = upsertVocab(db, USER_ID, {
+    word: 'allocate',
+    examples: [
+      'The team allocated more capital to infrastructure.',
+      'A careful allocation can protect runway.',
+    ],
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+  upsertVocab(db, USER_ID, { word: 'allocation', timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, USER_ID, { word: 'assign', timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, 'other-user', { word: 'allocated', timesSuggested: 0, timesUsed: 0 });
+  let calls = 0;
+  const utilityProvider: LLMProvider = {
+    async complete(opts) {
+      calls += 1;
+      expect(opts.user).toBe('Word: allocate');
+      return JSON.stringify({
+        wordFamily: ['allocate', 'allocated', 'allocation'],
+        nearSynonyms: [{ word: 'assign', distinction: 'Use assign for tasks or ownership.' }],
+        usageExamples: [
+          'The team allocated more capital to infrastructure.',
+          'A careful allocation can protect runway.',
+          'Capital was allocated before the forecast changed.',
+        ],
+      });
+    },
+  };
+
+  await withServer(createApp({ db, utilityProvider }), async baseUrl => {
+    const first = await fetch(`${baseUrl}/api/vocab/${id}/deep-dive`);
+    const second = await fetch(`${baseUrl}/api/vocab/${id}/deep-dive`);
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    const firstJson = await first.json();
+    const secondJson = await second.json();
+    expect(calls).toBe(1);
+    expect(firstJson.wordFamily).toEqual(['allocate', 'allocated', 'allocation']);
+    expect(firstJson.nearSynonyms).toEqual([{ word: 'assign', distinction: 'Use assign for tasks or ownership.' }]);
+    expect(firstJson.relatedInYourList).toEqual(expect.arrayContaining(['allocation', 'assign']));
+    expect(firstJson.relatedInYourList).not.toContain('allocated');
+    expect(secondJson.wordFamily).toEqual(firstJson.wordFamily);
+    expect(secondJson.relatedInYourList).toEqual(expect.arrayContaining(['allocation', 'assign']));
+  });
+});
+
+it('GET /api/vocab/today returns only today captures', async () => {
+  upsertVocab(db, USER_ID, { word: 'today word', timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, USER_ID, {
+    word: 'old word',
+    lastCaptured: '2000-01-01T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/vocab/today`);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.items.map((item: { word: string }) => item.word)).toEqual(['today word']);
+  });
+});
+
+it('GET /api/memory/profile returns weakness, session, embedding, and vocab summaries', async () => {
+  recordErrors(db, USER_ID, ['noun_plague', 'noun_plague', 'word_choice']);
+  insertSession(db, USER_ID, { draftText: 'draft', finalText: 'final' });
+  db.prepare(`
+    INSERT INTO session_embeddings (session_id, user_id, content, embedding)
+    VALUES (?, ?, ?, ?)
+  `).run(1, USER_ID, 'draft final', JSON.stringify([1, 0]));
+  upsertVocab(db, USER_ID, { word: 'fresh', timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, USER_ID, { word: 'again', ease: 'hard', timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, USER_ID, { word: 'known', ease: 'easy', timesSuggested: 0, timesUsed: 0 });
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/memory/profile`);
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      topWeaknesses: [
+        { errorType: 'noun_plague', count: 2 },
+        { errorType: 'word_choice', count: 1 },
+      ],
+      totalSessions: 1,
+      sessionEmbeddingsCount: 1,
+      vocabCount: 3,
+      vocabByEase: { new: 1, hard: 1, easy: 1 },
+    });
   });
 });
 

@@ -3,10 +3,12 @@ import { z } from 'zod';
 import type { Annotation, SentenceLabNote } from '../../../shared/types.js';
 import type { AppDependencies } from '../appContext.js';
 import { attachBookReferences } from '../brain/chinglishBook.js';
+import { retrieveTopK } from '../brain/embedding.js';
 import { diagnoseSentence } from '../brain/sentenceLab.js';
 import { config } from '../config.js';
 import {
   getSentenceLabDraft,
+  getSessionEmbeddings,
   getTallies,
   insertSentenceLabDraft,
   recordSentenceLabResult,
@@ -51,15 +53,30 @@ export function createSentenceLabRouter(deps: AppDependencies): Router {
   router.post('/diagnose', async (req, res, next) => {
     try {
       const body = diagnoseRequestZ.parse(req.body);
-      const topErrors = getTallies(deps.db, req.userId)
+      const tallies = getTallies(deps.db, req.userId);
+      const topErrors = tallies
         .filter(tally => tally.errorType !== 'vocab_suggestion')
         .slice(0, 3)
         .map(tally => tally.errorType);
+      const weaknesses = tallies.slice(0, 3).map(tally => tally.errorType);
+      let snippets: string[] = [];
+      if (deps.embeddingProvider) {
+        try {
+          const stored = getSessionEmbeddings(deps.db, req.userId);
+          if (stored.length) {
+            const qvec = await deps.embeddingProvider.embed(body.sentence.slice(0, 1000));
+            snippets = retrieveTopK(stored, qvec, 3).map(result => result.content.slice(0, 200));
+          }
+        } catch {
+          // Memory retrieval should never block Sentence Lab.
+        }
+      }
 
       const response = await diagnoseSentence(deps.coachProvider, {
         sentence: body.sentence,
         context: body.context,
         topErrors,
+        memoryContext: { topWeaknesses: weaknesses, relevantSnippets: snippets },
         model: config.modelCoach,
       });
       const enriched = {
