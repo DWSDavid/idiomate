@@ -59,6 +59,12 @@ export interface Vocab {
   nearSynonyms?: Array<{ word: string; distinction: string }>;
   timesSuggested: number;
   timesUsed: number;
+  sm2Interval?: number;
+  sm2Ease?: number;
+  sm2Reps?: number;
+  nextReviewAt?: string;
+  graduated?: boolean;
+  graduatedAt?: string;
 }
 
 export interface VocabListItem {
@@ -73,6 +79,8 @@ export interface VocabListItem {
   timesUsed: number;
   lastCaptured?: string;
   capturedDate?: string;
+  graduated?: boolean;
+  nextReviewAt?: string;
 }
 
 export interface VocabListResponse {
