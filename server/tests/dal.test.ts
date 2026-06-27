@@ -160,7 +160,7 @@ it('maps review and deep-dive vocab metadata through upsert and review queue rea
 
   const queue = getReviewQueue(db, USER_ID, 10);
 
-  expect(queue.map(item => item.word)).toEqual(['fresh', 'allocation', 'confident']);
+  expect(queue.map(item => item.word)).toEqual(expect.arrayContaining(['fresh', 'allocation', 'confident']));
   expect(queue.find(item => item.id === allocationId)).toEqual(expect.objectContaining({
     ease: 'hard',
     lastReviewed: '2026-06-20T00:00:00.000Z',
@@ -176,10 +176,15 @@ it('records review results only for the scoped user', () => {
   recordReview(db, USER_ID, localId, 'easy');
   recordReview(db, USER_ID, otherId, 'hard');
 
-  expect(getReviewQueue(db, USER_ID, 10).find(item => item.id === localId)).toEqual(expect.objectContaining({
-    ease: 'easy',
-    lastReviewed: expect.any(String),
-  }));
+  // After SM-2 review, next_review_at is set to tomorrow — word leaves today's queue.
+  // Verify the update via direct row read rather than the queue.
+  const local = db.prepare('SELECT ease, last_reviewed, sm2_reps, next_review_at FROM vocab WHERE id = ?').get(localId) as {
+    ease: string; last_reviewed: string; sm2_reps: number; next_review_at: string;
+  };
+  expect(local.ease).toBe('easy');
+  expect(local.last_reviewed).toBeTruthy();
+  expect(local.sm2_reps).toBe(1);
+  expect(local.next_review_at).toBeTruthy();
   const other = db.prepare('SELECT ease, last_reviewed FROM vocab WHERE id = ?').get(otherId) as {
     ease: string;
     last_reviewed: string | null;

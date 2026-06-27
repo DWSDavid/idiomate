@@ -45,6 +45,12 @@ interface VocabRow {
   last_reviewed: string | null;
   word_family: string | null;
   near_synonyms: string | null;
+  sm2_interval: number | null;
+  sm2_ease: number | null;
+  sm2_reps: number | null;
+  next_review_at: string | null;
+  graduated: number | null;
+  graduated_at: string | null;
 }
 
 interface ErrorTallyRow {
@@ -253,6 +259,12 @@ function mapVocab(row: VocabRow): Vocab {
     nearSynonyms: nearSynonymsFromJson(row.near_synonyms),
     timesSuggested: row.times_suggested,
     timesUsed: row.times_used,
+    sm2Interval: row.sm2_interval ?? undefined,
+    sm2Ease: row.sm2_ease ?? undefined,
+    sm2Reps: row.sm2_reps ?? undefined,
+    nextReviewAt: row.next_review_at ?? undefined,
+    graduated: row.graduated === 1 ? true : undefined,
+    graduatedAt: row.graduated_at ?? undefined,
   };
 }
 
@@ -273,6 +285,8 @@ function mapVocabListItem(row: VocabRow): VocabListItem {
     timesUsed: row.times_used,
     lastCaptured: capturedAt,
     capturedDate: capturedAt?.slice(0, 10),
+    ...(row.graduated === 1 ? { graduated: true as const } : {}),
+    nextReviewAt: row.next_review_at ?? undefined,
   };
 }
 
@@ -542,12 +556,46 @@ export function getReviewQueue(db: Database.Database, userId: string, limit = 10
     SELECT *
     FROM vocab
     WHERE user_id = ?
+      AND COALESCE(graduated, 0) = 0
+      AND (
+        next_review_at IS NULL
+        OR date(next_review_at) <= date('now')
+      )
     ORDER BY
-      CASE COALESCE(ease, 'new') WHEN 'new' THEN 0 WHEN 'hard' THEN 1 WHEN 'easy' THEN 2 END,
-      CASE WHEN COALESCE(ease, 'new') = 'easy' THEN last_reviewed ELSE last_captured END DESC
+      CASE WHEN next_review_at IS NULL THEN 0 ELSE 1 END ASC,
+      next_review_at ASC,
+      last_captured DESC
     LIMIT ?
   `).all(userId, safeLimit) as VocabRow[];
   return rows.map(mapVocab);
+}
+
+export function graduateVocabWords(
+  db: Database.Database,
+  userId: string,
+  normalizedWords: string[],
+): void {
+  if (!normalizedWords.length) return;
+  const placeholders = normalizedWords.map(() => '?').join(', ');
+  db.prepare(`
+    UPDATE vocab
+    SET graduated = 1,
+        graduated_at = datetime('now')
+    WHERE user_id = ?
+      AND normalized IN (${placeholders})
+      AND COALESCE(graduated, 0) = 0
+  `).run(userId, ...normalizedWords);
+}
+
+export function getGraduatedVocab(db: Database.Database, userId: string): VocabListItem[] {
+  const rows = db.prepare(`
+    SELECT *, 0 AS priority_score
+    FROM vocab
+    WHERE user_id = ? AND COALESCE(graduated, 0) = 1
+    ORDER BY graduated_at DESC
+    LIMIT 200
+  `).all(userId) as VocabRow[];
+  return rows.map(mapVocabListItem);
 }
 
 export function recordReview(
@@ -556,11 +604,42 @@ export function recordReview(
   vocabId: number,
   ease: 'easy' | 'hard',
 ): void {
+  const row = db.prepare(`
+    SELECT sm2_interval, sm2_ease, sm2_reps
+    FROM vocab WHERE id = ? AND user_id = ?
+  `).get(vocabId, userId) as { sm2_interval: number | null; sm2_ease: number | null; sm2_reps: number | null } | undefined;
+
+  if (!row) return;
+
+  const quality = ease === 'easy' ? 5 : 2;
+  const prevInterval = row.sm2_interval ?? 1;
+  const prevEase = row.sm2_ease ?? 2.5;
+  const prevReps = row.sm2_reps ?? 0;
+
+  const newEase = Math.max(1.3, prevEase + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
+
+  let newInterval: number;
+  let newReps: number;
+  if (quality >= 3) {
+    if (prevReps === 0) newInterval = 1;
+    else if (prevReps === 1) newInterval = 6;
+    else newInterval = Math.round(prevInterval * prevEase);
+    newReps = prevReps + 1;
+  } else {
+    newInterval = 1;
+    newReps = 0;
+  }
+
   db.prepare(`
     UPDATE vocab
-    SET ease = ?, last_reviewed = datetime('now')
+    SET ease = ?,
+        last_reviewed = datetime('now'),
+        sm2_interval = ?,
+        sm2_ease = ?,
+        sm2_reps = ?,
+        next_review_at = date('now', ? || ' days')
     WHERE id = ? AND user_id = ?
-  `).run(ease, vocabId, userId);
+  `).run(ease, newInterval, newEase, newReps, String(newInterval), vocabId, userId);
 }
 
 export function saveDeepDive(
