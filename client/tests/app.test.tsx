@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import React from 'react';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { App } from '../src/App';
 
@@ -19,11 +19,20 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
     if (url.includes('/api/vocab/prime')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ topic: 'tech', vocab: [] }) } as Response);
     }
+    if (url.includes('/api/vocab/review-queue')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) } as Response);
+    }
     if (url.includes('/api/vocab/today')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [{ id: 1, word: 'today word', timesSuggested: 0, timesUsed: 0 }] }) } as Response);
     }
     if (url.includes('/api/vocab/list')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ total: 0, items: [] }) } as Response);
+    }
+    if (url.includes('/api/memory/profile')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ topWeaknesses: [], totalSessions: 0, sessionEmbeddingsCount: 0, vocabCount: 0, vocabByEase: { new: 0, hard: 0, easy: 0 } }) } as Response);
+    }
+    if (url.includes('/api/history')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ entries: [] }) } as Response);
     }
     if (url.includes('/api/profile')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ tallies: [], activation: { suggested: 0, used: 0 } }) } as Response);
@@ -37,30 +46,35 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
   render(<App />);
 
   expect(await screen.findByRole('banner', { name: 'Writing desk header' })).toBeInTheDocument();
-  expect(screen.getByRole('navigation', { name: 'Workspace sections' })).toBeInTheDocument();
-  expect(screen.getByRole('button', { name: 'Write' })).toHaveAttribute('aria-pressed', 'true');
+  const nav = screen.getByRole('navigation', { name: 'Workspace sections' });
+  expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual(['Write', 'Words', 'Review', 'Me']);
+  expect(within(nav).getByRole('button', { name: 'Write' })).toHaveAttribute('aria-pressed', 'true');
+  expect(within(nav).queryByRole('button', { name: 'Admin' })).not.toBeInTheDocument();
+  expect(within(nav).queryByRole('button', { name: 'Sentence Lab' })).not.toBeInTheDocument();
   expect(screen.getByLabelText('writing canvas')).toBeInTheDocument();
   expect(screen.getByLabelText('writing reference rail')).toBeInTheDocument();
   expect(screen.getByLabelText('draft workbench')).toBeInTheDocument();
   expect(await screen.findByText(/Today's prompt/)).toBeInTheDocument();
   expect(await screen.findByText('today word')).toBeInTheDocument();
-  expect(screen.getByText('Words to work in')).toBeInTheDocument();
+  expect(screen.queryByText('Words to work in')).not.toBeInTheDocument();
   expect(screen.getByLabelText('Draft')).toBeInTheDocument();
   expect(screen.queryByLabelText('sentence lab page')).not.toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole('button', { name: 'Patterns' }));
-
-  expect(screen.getByText('Your patterns')).toBeInTheDocument();
-  expect(screen.getByText('Progress')).toBeInTheDocument();
-
-  fireEvent.click(screen.getByRole('button', { name: 'Vocabulary' }));
+  fireEvent.click(within(nav).getByRole('button', { name: 'Words' }));
 
   expect(screen.getByText('Add a word you met today')).toBeInTheDocument();
   expect(screen.getByText('My vocabulary (0)')).toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole('button', { name: 'Sentence Lab' }));
+  fireEvent.click(within(nav).getByRole('button', { name: 'Review' }));
 
-  expect(screen.getByLabelText('sentence lab page')).toBeInTheDocument();
+  expect(await screen.findByText('Capture some words first - they will appear here for review.')).toBeInTheDocument();
+
+  fireEvent.click(within(nav).getByRole('button', { name: 'Me' }));
+
+  expect(screen.getByText('Your patterns')).toBeInTheDocument();
+  expect(screen.getByText('Progress')).toBeInTheDocument();
+  expect(screen.getByText('What I know about you')).toBeInTheDocument();
+  expect(screen.getByText('Writing history')).toBeInTheDocument();
 });
 
 it('records a paragraph result and refetches the profile after rewrite submit', async () => {
@@ -83,6 +97,12 @@ it('records a paragraph result and refetches the profile after rewrite submit', 
     }
     if (url.includes('/api/vocab/today')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) } as Response);
+    }
+    if (url.includes('/api/memory/profile')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ topWeaknesses: [], totalSessions: 0, sessionEmbeddingsCount: 0, vocabCount: 0, vocabByEase: { new: 0, hard: 0, easy: 0 } }) } as Response);
+    }
+    if (url.includes('/api/history')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ entries: [] }) } as Response);
     }
     if (url.includes('/api/vocab/list')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ total: 0, items: [] }) } as Response);
@@ -141,7 +161,7 @@ it('records a paragraph result and refetches the profile after rewrite submit', 
     expect(fetchMock).toHaveBeenCalledWith('/api/paragraph-result', expect.objectContaining({ method: 'POST' }));
   });
 
-  fireEvent.click(screen.getByRole('button', { name: 'Patterns' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Me' }));
 
   await waitFor(() => {
     expect(profileCalls).toBeGreaterThanOrEqual(1);

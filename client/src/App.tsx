@@ -9,12 +9,11 @@ import { CaptureWord } from './components/CaptureWord';
 import { ChineseToVocabBox } from './components/ChineseToVocabBox';
 import { DailyPrompt } from './components/DailyPrompt';
 import { HistoryPanel } from './components/HistoryPanel';
-import { OwnerVocabImport } from './components/OwnerVocabImport';
+import { MemoryProfileCard } from './components/MemoryProfileCard';
 import { ProfileDashboard } from './components/ProfileDashboard';
 import { ProgressPanel } from './components/ProgressPanel';
-import { SentenceLab } from './components/SentenceLab';
+import { ReviewPanel } from './components/ReviewPanel';
 import { TodayStrip } from './components/TodayStrip';
-import { VocabPrime } from './components/VocabPrime';
 import { VocabularyPanel } from './components/VocabularyPanel';
 import { WriteSurface } from './components/WriteSurface';
 
@@ -25,15 +24,13 @@ interface CoachPanelState {
   response: CoachResponse;
 }
 
-type WorkspaceSection = 'write' | 'patterns' | 'vocabulary' | 'history' | 'sentence-lab' | 'admin';
+type WorkspaceSection = 'write' | 'words' | 'review' | 'me' | 'admin';
 
 const workspaceSections: Array<{ id: WorkspaceSection; label: string }> = [
   { id: 'write', label: 'Write' },
-  { id: 'patterns', label: 'Patterns' },
-  { id: 'vocabulary', label: 'Vocabulary' },
-  { id: 'history', label: 'History' },
-  { id: 'sentence-lab', label: 'Sentence Lab' },
-  { id: 'admin', label: 'Admin' },
+  { id: 'words', label: 'Words' },
+  { id: 'review', label: 'Review' },
+  { id: 'me', label: 'Me' },
 ];
 
 export function App() {
@@ -157,10 +154,8 @@ export function App() {
         {activeSection === 'write' ? (
           <section className="writing-workbench workspace-page" aria-label="writing canvas">
             <aside className="writing-reference-rail" aria-label="writing reference rail">
-              <DailyPrompt onPrompt={setPrompt} />
               <TodayStrip refreshKey={vocabKey} />
-              <VocabPrime promptText={prompt?.text ?? ''} refreshKey={vocabKey} />
-              <ChineseToVocabBox onSaved={handleVocabSaved} />
+              <DailyPrompt onPrompt={setPrompt} />
             </aside>
 
             <div className="draft-workbench" aria-label="draft workbench">
@@ -197,41 +192,26 @@ export function App() {
           </section>
         ) : null}
 
-        {activeSection === 'patterns' ? (
-          <section className="workspace-page two-column-page" aria-label="pattern review">
-            <ProfileDashboard refreshKey={profileKey} />
-            <ProgressPanel refreshKey={profileKey} />
-          </section>
-        ) : null}
-
-        {activeSection === 'vocabulary' ? (
+        {activeSection === 'words' ? (
           <section className="workspace-page two-column-page" aria-label="vocabulary review">
-            <OwnerVocabImport
-              onImported={() => {
-                setVocabKey(key => key + 1);
-                setProfileKey(key => key + 1);
-              }}
-            />
             <ChineseToVocabBox onSaved={handleVocabSaved} />
             <CaptureWord onSaved={handleVocabSaved} />
             <VocabularyPanel refreshKey={vocabKey + profileKey} />
           </section>
         ) : null}
 
-        {activeSection === 'history' ? (
-          <section className="workspace-page" aria-label="history page">
-            <HistoryPanel refreshKey={historyKey} />
+        {activeSection === 'review' ? (
+          <section className="workspace-page" aria-label="review page">
+            <ReviewPanel onGoWrite={() => setActiveSection('write')} />
           </section>
         ) : null}
 
-        {activeSection === 'sentence-lab' ? (
-          <section className="workspace-page" aria-label="sentence lab page">
-            <SentenceLab
-              onRecorded={() => {
-                setProfileKey(key => key + 1);
-                setHistoryKey(key => key + 1);
-              }}
-            />
+        {activeSection === 'me' ? (
+          <section className="workspace-page two-column-page" aria-label="me page">
+            <ProfileDashboard refreshKey={profileKey} />
+            <ProgressPanel refreshKey={profileKey} />
+            <MemoryProfileCard />
+            <HistoryPanel refreshKey={historyKey} />
           </section>
         ) : null}
 
