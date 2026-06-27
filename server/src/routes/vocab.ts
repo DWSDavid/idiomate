@@ -9,6 +9,7 @@ import { config } from '../config.js';
 import { parseYoudaoTxt } from '../import/youdao.js';
 import {
   getDeepDiveCache,
+  getGraduatedVocab,
   getVocabCount,
   getVocabList,
   getPrimeCandidatePool,
@@ -300,6 +301,14 @@ export function createVocabRouter(deps: AppDependencies): Router {
       const imported = insertMissingVocab(deps.db, req.userId, vocab);
       const total = getVocabCount(deps.db, req.userId);
       res.status(imported ? 201 : 200).json({ imported, total });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.get('/graduated', (req, res, next) => {
+    try {
+      res.json({ items: getGraduatedVocab(deps.db, req.userId) });
     } catch (err) {
       next(err);
     }

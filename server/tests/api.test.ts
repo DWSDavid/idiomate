@@ -721,6 +721,31 @@ it('POST /api/paragraph-result records a paragraph rewrite idempotently', async 
   });
 });
 
+it('POST /api/paragraph-result graduates vocab words used correctly in rewrite', async () => {
+  upsertVocab(db, USER_ID, { word: 'leverage', normalized: 'leverage', kind: 'word', timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, USER_ID, { word: 'moat', normalized: 'moat', kind: 'word', timesSuggested: 0, timesUsed: 0 });
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/paragraph-result`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        paragraphIdx: 0,
+        paragraph: 'We use every advantage we have.',
+        rewrite: 'We leverage every advantage we have.',
+        annotations: [],
+      }),
+    });
+    expect(res.status).toBe(201);
+
+    const graduated = await fetch(`${baseUrl}/api/vocab/graduated`);
+    expect(graduated.status).toBe(200);
+    const json = await graduated.json();
+    expect(json.items.map((v: { word: string }) => v.word)).toContain('leverage');
+    expect(json.items.map((v: { word: string }) => v.word)).not.toContain('moat');
+  });
+});
+
 it('POST /api/vocab/save upserts and GET /api/vocab/prime returns LLM-selected topic-fit candidates', async () => {
   upsertVocab(db, USER_ID, { word: 'plain', kind: 'word', captureCount: 1, timesSuggested: 0, timesUsed: 0 });
   upsertVocab(db, USER_ID, { word: 'overused', kind: 'word', captureCount: 9, timesSuggested: 0, timesUsed: 12 });
@@ -800,7 +825,7 @@ it('GET /api/vocab/list returns priority-ordered vocab with total count', async 
   });
 });
 
-it('GET /api/vocab/review-queue returns vocab ordered new, hard, easy', async () => {
+it('GET /api/vocab/review-queue returns all unscheduled words (SM-2: due today or no next_review_at)', async () => {
   upsertVocab(db, USER_ID, { word: 'easy word', ease: 'easy', timesSuggested: 0, timesUsed: 0 });
   upsertVocab(db, USER_ID, { word: 'hard word', ease: 'hard', timesSuggested: 0, timesUsed: 0 });
   upsertVocab(db, USER_ID, { word: 'new word', ease: 'new', timesSuggested: 0, timesUsed: 0 });
@@ -810,7 +835,10 @@ it('GET /api/vocab/review-queue returns vocab ordered new, hard, easy', async ()
 
     expect(res.status).toBe(200);
     const json = await res.json();
-    expect(json.items.map((item: { word: string }) => item.word)).toEqual(['new word', 'hard word', 'easy word']);
+    expect(json.items.map((item: { word: string }) => item.word)).toEqual(
+      expect.arrayContaining(['new word', 'hard word', 'easy word']),
+    );
+    expect(json.items).toHaveLength(3);
   });
 });
 
