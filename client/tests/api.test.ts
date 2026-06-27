@@ -9,7 +9,11 @@ import {
   getLesson,
   getTodayPrompt,
   getProgress,
+  getMemoryProfile,
+  getReviewQueue,
+  getTodayVocab,
   getVocabList,
+  getWordDeepDive,
   getAdminUserDetail,
   getAdminUsers,
   getHistory,
@@ -18,6 +22,7 @@ import {
   primeVocab,
   recordParagraph,
   recordCoachDiagnosis,
+  recordReview,
   revealSentenceLabResult,
   researchEssay,
   saveChineseVocab,
@@ -55,6 +60,10 @@ describe('client api', () => {
       const url = String(input);
       if (url.includes('/api/prompt/today')) return jsonResponse({ date: '2026-06-04', theme: 'tech', text: 'Write.' });
       if (url.includes('/api/vocab/list')) return jsonResponse({ total: 1, items: [] });
+      if (url.includes('/api/vocab/review-queue')) return jsonResponse({ items: [] });
+      if (url.includes('/api/vocab/today')) return jsonResponse({ items: [] });
+      if (url.includes('/api/vocab/12/deep-dive')) return jsonResponse({ wordFamily: ['allocate'], nearSynonyms: [], usageExamples: [], relatedInYourList: [] });
+      if (url.includes('/api/vocab/12/review')) return jsonResponse({});
       if (url.includes('/api/vocab/owner-import')) return jsonResponse({ imported: 2, total: 2 });
       if (url.includes('/api/vocab/prime')) return jsonResponse({ topic: 'tech', vocab: [] });
       if (url.includes('/api/history')) return jsonResponse({ entries: [] });
@@ -62,6 +71,7 @@ describe('client api', () => {
       if (url.includes('/api/admin/users')) return jsonResponse({ users: [] });
       if (url.includes('/api/profile/rubi')) return jsonResponse({ user: { id: 'rubi', name: 'Rubi' }, imported: 2, total: 2, ownerVocabAvailable: true });
       if (url.includes('/api/profile')) return jsonResponse({ tallies: [], activation: { suggested: 0, used: 0 } });
+      if (url.includes('/api/memory/profile')) return jsonResponse({ topWeaknesses: [], totalSessions: 0, sessionEmbeddingsCount: 0, vocabCount: 0, vocabByEase: { new: 0, hard: 0, easy: 0 } });
       if (url.includes('/api/progress')) return jsonResponse({ daily: [], trend: [] });
       if (url.includes('/api/mistakes')) return jsonResponse({ mistakes: [] });
       if (url.includes('/api/lesson')) return jsonResponse({ errorType: 'redundancy', rules: [], principle: 'p', mindset: 'm', pastInstances: [], comparisonPairs: [] });
@@ -89,6 +99,10 @@ describe('client api', () => {
 
     await getTodayPrompt();
     await getVocabList();
+    await getReviewQueue();
+    await getTodayVocab();
+    await getWordDeepDive(12);
+    await recordReview(12, 'hard');
     await importOwnerVocab('owner-code');
     await primeVocab('tech risk');
     await getHistory();
@@ -96,6 +110,7 @@ describe('client api', () => {
     await getAdminUserDetail('admin-code', 'alice');
     await switchToRubiProfile('rubi-code');
     await getProfile();
+    await getMemoryProfile();
     await getProgress();
     await getMistakes('redundancy');
     await getLesson('redundancy');
@@ -133,6 +148,10 @@ describe('client api', () => {
     expect(fetchMock.mock.calls.map(call => String(call[0]))).toEqual([
       '/api/prompt/today',
       '/api/vocab/list?limit=200',
+      '/api/vocab/review-queue',
+      '/api/vocab/today',
+      '/api/vocab/12/deep-dive',
+      '/api/vocab/12/review',
       '/api/vocab/owner-import',
       '/api/vocab/prime?promptText=tech+risk&limit=10',
       '/api/history?limit=100',
@@ -140,6 +159,7 @@ describe('client api', () => {
       '/api/admin/users/alice',
       '/api/profile/rubi',
       '/api/profile',
+      '/api/memory/profile',
       '/api/progress',
       '/api/mistakes?type=redundancy&limit=50',
       '/api/lesson?type=redundancy',
@@ -163,14 +183,15 @@ describe('client api', () => {
       expect(headers.get('x-user-id')).toBeTruthy();
       expect(headers.get('x-user-name')).toBeTruthy();
     }
-    expect(fetchMock.mock.calls[2][1]).toEqual(expect.objectContaining({ method: 'POST' }));
-    expect(new Headers((fetchMock.mock.calls[5][1] as RequestInit).headers).get('x-admin-code')).toBe('admin-code');
-    expect(fetchMock.mock.calls[7][1]).toEqual(expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock.mock.calls[12][1]).toEqual(expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock.mock.calls[14][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[5][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[6][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(new Headers((fetchMock.mock.calls[9][1] as RequestInit).headers).get('x-admin-code')).toBe('admin-code');
+    expect(fetchMock.mock.calls[11][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[17][1]).toEqual(expect.objectContaining({ method: 'POST' }));
     expect(fetchMock.mock.calls[19][1]).toEqual(expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock.mock.calls[20][1]).toEqual(expect.objectContaining({ method: 'POST' }));
-    expect(fetchMock.mock.calls[23][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[24][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[25][1]).toEqual(expect.objectContaining({ method: 'POST' }));
+    expect(fetchMock.mock.calls[28][1]).toEqual(expect.objectContaining({ method: 'POST' }));
     expect(localStorage.getItem('idiomate_uid')).toBe('rubi');
     expect(localStorage.getItem('idiomate_user_name')).toBe('Rubi');
   });

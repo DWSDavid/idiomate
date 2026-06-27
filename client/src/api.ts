@@ -37,6 +37,25 @@ export interface ProfileResponse {
   };
 }
 
+export interface WordDeepDiveResponse {
+  wordFamily: string[];
+  nearSynonyms: Array<{ word: string; distinction: string }>;
+  usageExamples: string[];
+  relatedInYourList: string[];
+}
+
+export interface MemoryProfileResponse {
+  topWeaknesses: Array<{ errorType: string; count: number }>;
+  totalSessions: number;
+  sessionEmbeddingsCount: number;
+  vocabCount: number;
+  vocabByEase: {
+    new: number;
+    hard: number;
+    easy: number;
+  };
+}
+
 export interface SubmittedAnnotation extends Annotation {
   paragraphIdx: number;
   userRewrite?: string;
@@ -103,6 +122,22 @@ async function readJson<T>(response: Response): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function readVoid(response: Response): Promise<void> {
+  if (response.status === 401) {
+    globalThis.dispatchEvent?.(new Event(ACCESS_DENIED_EVENT));
+  }
+  if (!response.ok) {
+    let message = `Request failed: ${response.status}`;
+    try {
+      const body = await response.json() as { error?: string };
+      if (body.error) message = body.error;
+    } catch {
+      // Keep the status fallback when the server does not return JSON.
+    }
+    throw new Error(message);
+  }
+}
+
 export function getStoredAccessCode(): string {
   return globalThis.localStorage?.getItem(ACCESS_CODE_KEY)?.trim() ?? '';
 }
@@ -150,6 +185,26 @@ export function getVocabList(limit = 200): Promise<VocabListResponse> {
   return apiFetch(`/api/vocab/list?${params.toString()}`).then(readJson<VocabListResponse>);
 }
 
+export function getReviewQueue(): Promise<{ items: Vocab[] }> {
+  return apiFetch('/api/vocab/review-queue').then(readJson<{ items: Vocab[] }>);
+}
+
+export function getTodayVocab(): Promise<{ items: Vocab[] }> {
+  return apiFetch('/api/vocab/today').then(readJson<{ items: Vocab[] }>);
+}
+
+export function getWordDeepDive(id: number): Promise<WordDeepDiveResponse> {
+  return apiFetch(`/api/vocab/${id}/deep-dive`).then(readJson<WordDeepDiveResponse>);
+}
+
+export function recordReview(id: number, ease: 'easy' | 'hard'): Promise<void> {
+  return apiFetch(`/api/vocab/${id}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ease }),
+  }).then(readVoid);
+}
+
 export function importOwnerVocab(code: string): Promise<{ imported: number; total: number }> {
   return postJson<{ imported: number; total: number }>('/api/vocab/owner-import', { code });
 }
@@ -188,6 +243,10 @@ export function recordCoachDiagnosis(payload: CoachDiagnosisPayload): Promise<{ 
 
 export function getProfile(): Promise<ProfileResponse> {
   return apiFetch('/api/profile').then(readJson<ProfileResponse>);
+}
+
+export function getMemoryProfile(): Promise<MemoryProfileResponse> {
+  return apiFetch('/api/memory/profile').then(readJson<MemoryProfileResponse>);
 }
 
 export function getProgress(): Promise<ProgressResponse> {

@@ -19,6 +19,9 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
     if (url.includes('/api/vocab/prime')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ topic: 'tech', vocab: [] }) } as Response);
     }
+    if (url.includes('/api/vocab/today')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [{ id: 1, word: 'today word', timesSuggested: 0, timesUsed: 0 }] }) } as Response);
+    }
     if (url.includes('/api/vocab/list')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ total: 0, items: [] }) } as Response);
     }
@@ -40,6 +43,7 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
   expect(screen.getByLabelText('writing reference rail')).toBeInTheDocument();
   expect(screen.getByLabelText('draft workbench')).toBeInTheDocument();
   expect(await screen.findByText(/Today's prompt/)).toBeInTheDocument();
+  expect(await screen.findByText('today word')).toBeInTheDocument();
   expect(screen.getByText('Words to work in')).toBeInTheDocument();
   expect(screen.getByLabelText('Draft')).toBeInTheDocument();
   expect(screen.queryByLabelText('sentence lab page')).not.toBeInTheDocument();
@@ -76,6 +80,9 @@ it('records a paragraph result and refetches the profile after rewrite submit', 
     }
     if (url.includes('/api/vocab/prime')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ topic: 'finance', vocab: [] }) } as Response);
+    }
+    if (url.includes('/api/vocab/today')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) } as Response);
     }
     if (url.includes('/api/vocab/list')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ total: 0, items: [] }) } as Response);
@@ -153,6 +160,9 @@ it('shows the access gate after a 401 and retries after saving the code', async 
     }
     if (url.includes('/api/vocab/prime')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ topic: 'tech', vocab: [] }) } as Response);
+    }
+    if (url.includes('/api/vocab/today')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) } as Response);
     }
     if (url.includes('/api/vocab/list')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ total: 0, items: [] }) } as Response);
