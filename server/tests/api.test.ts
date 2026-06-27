@@ -1035,6 +1035,49 @@ it('POST /api/vocab/save deduplicates inflected verb captures by base form', asy
   });
 });
 
+it('POST /api/vocab/merge-families merges related vocab rows and is idempotent', async () => {
+  upsertVocab(db, USER_ID, {
+    word: 'fortune',
+    normalized: 'fortune',
+    wordFamily: ['fortune', 'fortunes'],
+    captureCount: 2,
+    lastCaptured: '2026-06-04T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+  upsertVocab(db, USER_ID, {
+    word: 'fortunes',
+    normalized: 'fortunes',
+    captureCount: 3,
+    lastCaptured: '2026-06-05T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const first = await fetch(`${baseUrl}/api/vocab/merge-families`, { method: 'POST' });
+    const second = await fetch(`${baseUrl}/api/vocab/merge-families`, { method: 'POST' });
+
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    await expect(first.json()).resolves.toEqual({ merged: 1 });
+    await expect(second.json()).resolves.toEqual({ merged: 0 });
+    const rows = db.prepare(`
+      SELECT word, capture_count, last_captured
+      FROM vocab
+      WHERE user_id = ?
+      ORDER BY id
+    `).all(USER_ID);
+    expect(rows).toEqual([
+      {
+        word: 'fortune',
+        capture_count: 5,
+        last_captured: '2026-06-05T00:00:00.000Z',
+      },
+    ]);
+  });
+});
+
 it('POST /api/vocab/from-chinese translates a Chinese expression and saves it to vocab', async () => {
   let captured: { system: string; user: string; model: string } | undefined;
   const utilityProvider: LLMProvider = {

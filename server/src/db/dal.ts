@@ -484,6 +484,55 @@ export function getVocabCount(db: Database.Database, userId: string): number {
   return row.count;
 }
 
+function latestTimestamp(a: string | null, b: string | null): string | null {
+  if (!a) return b;
+  if (!b) return a;
+  const aMs = Date.parse(a);
+  const bMs = Date.parse(b);
+  if (Number.isFinite(aMs) && Number.isFinite(bMs)) return aMs >= bMs ? a : b;
+  return a >= b ? a : b;
+}
+
+export function mergeVocabFamilies(db: Database.Database, userId: string): { merged: number } {
+  const merge = db.transaction(() => {
+    const rows = db.prepare(`
+      SELECT *
+      FROM vocab
+      WHERE user_id = ?
+      ORDER BY CASE WHEN word_family IS NULL THEN 1 ELSE 0 END, id ASC
+    `).all(userId) as VocabRow[];
+    const deletedIds = new Set<number>();
+    let merged = 0;
+
+    for (const primary of rows) {
+      if (deletedIds.has(primary.id)) continue;
+      const familyKeys = new Set((fromJson(primary.word_family) ?? []).map(normalizeVocabWord));
+      if (!familyKeys.size) continue;
+
+      for (const secondary of rows) {
+        if (primary.id === secondary.id || deletedIds.has(secondary.id)) continue;
+        const secondaryKeys = [secondary.normalized, secondary.base_form].filter(Boolean) as string[];
+        if (!secondaryKeys.some(key => familyKeys.has(normalizeVocabWord(key)))) continue;
+
+        primary.capture_count += secondary.capture_count;
+        primary.last_captured = latestTimestamp(primary.last_captured, secondary.last_captured);
+        db.prepare(`
+          UPDATE vocab
+          SET capture_count = ?,
+              last_captured = COALESCE(?, last_captured)
+          WHERE id = ? AND user_id = ?
+        `).run(primary.capture_count, primary.last_captured, primary.id, userId);
+        db.prepare('DELETE FROM vocab WHERE id = ? AND user_id = ?').run(secondary.id, userId);
+        deletedIds.add(secondary.id);
+        merged += 1;
+      }
+    }
+
+    return { merged };
+  });
+  return merge();
+}
+
 export function getReviewQueue(db: Database.Database, userId: string, limit = 10): Vocab[] {
   const safeLimit = boundedPositiveInt(limit, 10, 100);
   const rows = db.prepare(`

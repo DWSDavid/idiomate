@@ -120,3 +120,52 @@ it('opens one deep-dive panel under the selected vocabulary row', async () => {
 
   expect(screen.queryByText('Word family')).not.toBeInTheDocument();
 });
+
+it('merges families from the vocabulary panel and reloads the list', async () => {
+  let listCalls = 0;
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes('/api/vocab/merge-families')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ merged: 1 }),
+      } as Response);
+    }
+    if (url.includes('/api/vocab/list')) {
+      listCalls += 1;
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          total: 1,
+          items: [
+            {
+              id: 1,
+              word: 'fortune',
+              kind: 'word',
+              defCn: 'luck or wealth',
+              captureCount: listCalls === 1 ? 2 : 5,
+              timesSuggested: 0,
+              timesUsed: 0,
+              lastCaptured: '2026-06-05T00:00:00.000Z',
+              capturedDate: '2026-06-05',
+            },
+          ],
+        }),
+      } as Response);
+    }
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({}),
+    } as Response);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+
+  render(<VocabularyPanel />);
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Merge families' }));
+
+  await waitFor(() => {
+    expect(fetchMock).toHaveBeenCalledWith('/api/vocab/merge-families', expect.objectContaining({ method: 'POST' }));
+    expect(listCalls).toBe(2);
+  });
+});

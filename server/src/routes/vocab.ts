@@ -17,6 +17,7 @@ import {
   incrementVocabSuggested,
   insertMissingVocab,
   insertVocab,
+  mergeVocabFamilies,
   normalizeVocabWord,
   recordReview,
   saveDeepDive,
@@ -175,6 +176,14 @@ export function createVocabRouter(deps: AppDependencies): Router {
         total: getVocabCount(deps.db, req.userId),
         items: getVocabList(deps.db, req.userId, query.limit),
       });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/merge-families', (req, res, next) => {
+    try {
+      res.json(mergeVocabFamilies(deps.db, req.userId));
     } catch (err) {
       next(err);
     }

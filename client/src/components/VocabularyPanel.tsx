@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { VocabListResponse } from '../../../shared/types';
-import { getVocabList } from '../api';
+import { getVocabList, mergeVocabFamilies } from '../api';
 import { WordDeepDivePanel } from './WordDeepDivePanel';
 
 interface VocabularyPanelProps {
@@ -22,6 +22,8 @@ export function VocabularyPanel({ refreshKey = 0 }: VocabularyPanelProps) {
   const [open, setOpen] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [revealedIds, setRevealedIds] = useState<Set<number>>(new Set());
+  const [mergeStatus, setMergeStatus] = useState<'idle' | 'merging' | 'error'>('idle');
+  const [mergeKey, setMergeKey] = useState(0);
 
   useEffect(() => {
     let alive = true;
@@ -39,7 +41,19 @@ export function VocabularyPanel({ refreshKey = 0 }: VocabularyPanelProps) {
     return () => {
       alive = false;
     };
-  }, [refreshKey]);
+  }, [refreshKey, mergeKey]);
+
+  const handleMergeFamilies = async () => {
+    if (mergeStatus === 'merging') return;
+    setMergeStatus('merging');
+    try {
+      await mergeVocabFamilies();
+      setMergeStatus('idle');
+      setMergeKey(value => value + 1);
+    } catch {
+      setMergeStatus('error');
+    }
+  };
 
   return (
     <section className="surface" aria-label="my vocabulary">
@@ -48,11 +62,24 @@ export function VocabularyPanel({ refreshKey = 0 }: VocabularyPanelProps) {
           <span className="section-label">My vocabulary ({vocab.total})</span>
           <p className="mt-2 text-sm leading-6 text-slate-500">Top 30 by activation priority, weighted by how often you have met each word.</p>
         </div>
-        <button type="button" className="btn-ghost shrink-0 text-xs" onClick={() => setOpen(value => !value)}>
-          {open ? 'Close vocabulary' : 'Open vocabulary'}
-        </button>
+        <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          {status === 'idle' && vocab.total > 0 ? (
+            <button
+              type="button"
+              className="btn-ghost text-xs"
+              disabled={mergeStatus === 'merging'}
+              onClick={handleMergeFamilies}
+            >
+              {mergeStatus === 'merging' ? 'Merging' : 'Merge families'}
+            </button>
+          ) : null}
+          <button type="button" className="btn-ghost text-xs" onClick={() => setOpen(value => !value)}>
+            {open ? 'Close vocabulary' : 'Open vocabulary'}
+          </button>
+        </div>
       </div>
       {status === 'error' ? <p className="mt-4 text-sm text-red-700">Could not load vocabulary.</p> : null}
+      {mergeStatus === 'error' ? <p className="mt-4 text-sm text-red-700">Could not merge word families.</p> : null}
       {status === 'loading' ? <p className="mt-4 text-sm text-stone-500">Loading vocabulary.</p> : null}
       {status === 'idle' && vocab.items.length === 0 ? (
         <p className="mt-4 text-sm text-stone-500">No saved words yet.</p>

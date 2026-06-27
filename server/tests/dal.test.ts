@@ -19,6 +19,7 @@ import {
   insertAnnotations,
   insertSession,
   insertVocab,
+  mergeVocabFamilies,
   recordReview,
   recordErrors,
   saveDeepDive,
@@ -82,6 +83,51 @@ it('stores base-form metadata for captured vocab', () => {
     word: 'running',
     baseForm: 'run',
   }));
+});
+
+it('merges vocab families into one primary row and is idempotent', () => {
+  upsertVocab(db, USER_ID, {
+    word: 'fortune',
+    normalized: 'fortune',
+    wordFamily: ['fortune', 'fortunes'],
+    captureCount: 2,
+    lastCaptured: '2026-06-04T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+  upsertVocab(db, USER_ID, {
+    word: 'fortunes',
+    normalized: 'fortunes',
+    captureCount: 3,
+    lastCaptured: '2026-06-05T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+  upsertVocab(db, 'other-user', {
+    word: 'fortunes',
+    normalized: 'fortunes',
+    captureCount: 7,
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  expect(mergeVocabFamilies(db, USER_ID)).toEqual({ merged: 1 });
+  expect(mergeVocabFamilies(db, USER_ID)).toEqual({ merged: 0 });
+
+  const rows = db.prepare(`
+    SELECT word, capture_count, last_captured
+    FROM vocab
+    WHERE user_id = ?
+    ORDER BY id
+  `).all(USER_ID);
+  expect(rows).toEqual([
+    {
+      word: 'fortune',
+      capture_count: 5,
+      last_captured: '2026-06-05T00:00:00.000Z',
+    },
+  ]);
+  expect(db.prepare('SELECT COUNT(*) AS count FROM vocab WHERE user_id = ?').get('other-user')).toEqual({ count: 1 });
 });
 
 it('maps review and deep-dive vocab metadata through upsert and review queue reads', () => {

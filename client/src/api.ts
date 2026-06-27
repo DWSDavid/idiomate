@@ -198,6 +198,10 @@ export function getWordDeepDive(id: number): Promise<WordDeepDiveResponse> {
   return apiFetch(`/api/vocab/${id}/deep-dive`).then(readJson<WordDeepDiveResponse>);
 }
 
+export function mergeVocabFamilies(): Promise<{ merged: number }> {
+  return postJson<{ merged: number }>('/api/vocab/merge-families', {});
+}
+
 export function recordReview(id: number, ease: 'easy' | 'hard'): Promise<void> {
   return apiFetch(`/api/vocab/${id}/review`, {
     method: 'POST',
