@@ -36,7 +36,7 @@ export function TodayStrip({ refreshKey = 0 }: TodayStripProps) {
         {visible.map(item => (
           <span key={`${item.id ?? item.word}-${item.word}`} className="chip chip-blue">{item.word}</span>
         ))}
-        {overflow > 0 ? <span className="chip">+{overflow} more</span> : null}
+        {overflow > 0 ? <span className="text-sm text-slate-500">+{overflow} more</span> : null}
       </div>
     </section>
   );

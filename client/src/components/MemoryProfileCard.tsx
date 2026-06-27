@@ -49,7 +49,7 @@ export function MemoryProfileCard() {
           {topWeaknesses.length ? (
             <div className="flex flex-wrap gap-2">
               {topWeaknesses.slice(0, 3).map(item => (
-                <span key={item.errorType} className="chip chip-blue">{labelErrorType(item.errorType)}</span>
+                <span key={item.errorType} className="chip">{labelErrorType(item.errorType)}</span>
               ))}
             </div>
           ) : null}

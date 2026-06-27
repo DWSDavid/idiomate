@@ -31,7 +31,7 @@ it('renders today vocab chips and a compact overflow count', async () => {
   expect(screen.getByText('alpha')).toHaveClass('chip-blue');
   expect(screen.getByText('epsilon')).toBeInTheDocument();
   expect(screen.queryByText('zeta')).not.toBeInTheDocument();
-  expect(screen.getByText('+1 more')).toBeInTheDocument();
+  expect(screen.getByText('+1 more')).not.toHaveClass('chip');
 });
 
 it('renders nothing when there are no captures today', async () => {

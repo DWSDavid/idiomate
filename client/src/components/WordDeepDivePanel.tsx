@@ -8,6 +8,8 @@ interface WordDeepDivePanelProps {
 
 type DeepDiveStatus = 'idle' | 'loading' | 'loaded' | 'error';
 
+const deepDiveCache = new Map<number, WordDeepDiveResponse>();
+
 function normalizeDeepDive(data: WordDeepDiveResponse): WordDeepDiveResponse {
   return {
     wordFamily: data.wordFamily ?? [],
@@ -43,12 +45,23 @@ export function WordDeepDivePanel({ vocabId, word }: WordDeepDivePanelProps) {
 
   useEffect(() => {
     let alive = true;
+    const cached = deepDiveCache.get(vocabId);
+    if (cached) {
+      setDetails(cached);
+      setStatus('loaded');
+      return () => {
+        alive = false;
+      };
+    }
+
     setStatus('loading');
     setDetails(null);
     getWordDeepDive(vocabId)
       .then(result => {
         if (!alive) return;
-        setDetails(normalizeDeepDive(result));
+        const normalized = normalizeDeepDive(result);
+        deepDiveCache.set(vocabId, normalized);
+        setDetails(normalized);
         setStatus('loaded');
       })
       .catch(() => {
@@ -65,11 +78,11 @@ export function WordDeepDivePanel({ vocabId, word }: WordDeepDivePanelProps) {
   );
 
   if (status === 'idle' || status === 'loading') {
-    return <p className="mt-3 text-sm text-stone-500">Loading...</p>;
+    return <p className="mt-3 text-sm text-slate-400">Loading...</p>;
   }
 
   if (status === 'error' || !details) {
-    return <p className="mt-3 text-sm text-red-700">Could not load word details.</p>;
+    return <p className="mt-3 text-sm text-red-600">Could not load word details.</p>;
   }
 
   const familyWords = details.wordFamily.length ? details.wordFamily : [word];
@@ -78,10 +91,14 @@ export function WordDeepDivePanel({ vocabId, word }: WordDeepDivePanelProps) {
   return (
     <div className="result-block mt-3 space-y-4">
       <section>
-        <p className="section-label">Word family</p>
+        <p className="field-label">Word family</p>
         <div className="mt-2 flex flex-wrap gap-2">
           {familyWords.map(item => (
-            <span key={item} className={related.has(item.toLowerCase()) ? 'chip chip-blue' : 'chip'}>
+            <span
+              key={item}
+              className={related.has(item.toLowerCase()) ? 'chip chip-blue' : 'chip'}
+              title={related.has(item.toLowerCase()) ? 'in your list' : undefined}
+            >
               {item}
             </span>
           ))}
@@ -89,8 +106,8 @@ export function WordDeepDivePanel({ vocabId, word }: WordDeepDivePanelProps) {
       </section>
 
       <section>
-        <p className="section-label">Compare</p>
-        <div className="mt-2 space-y-2 text-sm leading-6 text-slate-600">
+        <p className="field-label">Compare</p>
+        <div className="mt-2 space-y-2 text-sm leading-6 text-slate-500">
           {details.nearSynonyms.map(item => (
             <p key={item.word}>
               <strong className="text-slate-950">{item.word}</strong> - {item.distinction}
@@ -101,8 +118,8 @@ export function WordDeepDivePanel({ vocabId, word }: WordDeepDivePanelProps) {
       </section>
 
       <section>
-        <p className="section-label">In use</p>
-        <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-600">
+        <p className="field-label">In use</p>
+        <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm leading-6 text-slate-500">
           {details.usageExamples.slice(0, 3).map(example => (
             <li key={example}>{highlightFamilyWords(example, exampleHighlightWords)}</li>
           ))}

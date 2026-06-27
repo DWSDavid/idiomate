@@ -31,6 +31,8 @@ it('shows top patterns, indexed sessions, and vocab ease breakdown', async () =>
 
   expect(await screen.findByText('What I know about you')).toBeInTheDocument();
   expect(screen.getByText('Article misuse')).toBeInTheDocument();
+  expect(screen.getByText('Article misuse')).toHaveClass('chip');
+  expect(screen.getByText('Article misuse')).not.toHaveClass('chip-blue');
   expect(screen.getByText('Noun plague')).toBeInTheDocument();
   expect(screen.getByText('Word choice')).toBeInTheDocument();
   expect(screen.queryByText('Tense')).not.toBeInTheDocument();
