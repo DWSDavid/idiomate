@@ -19,8 +19,9 @@ function groupByCapturedDate(items: VocabListResponse['items']): Array<{ date: s
 export function VocabularyPanel({ refreshKey = 0 }: VocabularyPanelProps) {
   const [vocab, setVocab] = useState<VocabListResponse>({ total: 0, items: [] });
   const [status, setStatus] = useState<'loading' | 'idle' | 'error'>('loading');
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(true);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [revealedIds, setRevealedIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     let alive = true;
@@ -66,31 +67,36 @@ export function VocabularyPanel({ refreshKey = 0 }: VocabularyPanelProps) {
                 {group.items.map(item => (
                   <article key={item.id} className="vocab-row">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        className="flex flex-wrap items-center gap-2 text-left"
+                        onClick={() => setRevealedIds(prev => {
+                          const next = new Set(prev);
+                          if (next.has(item.id)) { next.delete(item.id); } else { next.add(item.id); }
+                          return next;
+                        })}
+                        title={revealedIds.has(item.id) ? 'Hide definition' : 'Reveal definition'}
+                      >
                         <h2 className="text-base font-semibold text-slate-950">{item.word}</h2>
                         <span className="chip">{item.kind}</span>
                         {item.pos ? <span className="chip chip-slate">{item.pos}</span> : null}
                         <span className="chip chip-blue">met {item.captureCount}x</span>
-                      </div>
+                      </button>
                       <button
                         type="button"
-                        className="text-xs font-semibold text-slate-400"
-                        onClick={() => setExpandedId(item.id)}
+                        className="shrink-0 text-xs font-semibold text-slate-400"
+                        onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
                       >
-                        Details
+                        {expandedId === item.id ? 'Close' : 'Details'}
                       </button>
-                      {expandedId === item.id ? (
-                        <button
-                          type="button"
-                          className="text-xs font-semibold text-slate-400"
-                          onClick={() => setExpandedId(null)}
-                        >
-                          Close
-                        </button>
-                      ) : null}
                     </div>
-                    {item.defCn ? <p className="mt-2 text-sm text-slate-600">{item.defCn}</p> : null}
-                    <p className="mt-2 text-xs text-slate-500">
+                    {revealedIds.has(item.id) && item.defCn ? (
+                      <p className="mt-2 text-sm text-slate-600">{item.defCn}</p>
+                    ) : null}
+                    {!revealedIds.has(item.id) && item.defCn ? (
+                      <p className="mt-1 text-xs text-slate-400 select-none">tap word to reveal</p>
+                    ) : null}
+                    <p className="mt-1 text-xs text-slate-500">
                       used {item.timesUsed} / suggested {item.timesSuggested}
                     </p>
                     {expandedId === item.id ? (

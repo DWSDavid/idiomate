@@ -40,11 +40,11 @@ export function HistoryPanel({ refreshKey = 0 }: HistoryPanelProps) {
       <span className="section-label">Writing history</span>
       {status === 'loading' ? <p className="mt-4 text-sm text-slate-500">Loading history.</p> : null}
       {status === 'error' ? <p className="mt-4 text-sm text-red-700">Could not load history.</p> : null}
-      {status === 'idle' && history.entries.length === 0 ? (
+      {status === 'idle' && (history.entries?.length ?? 0) === 0 ? (
         <p className="mt-4 text-sm text-slate-500">No reviewed writing yet.</p>
       ) : null}
       <div className="mt-4 space-y-3">
-        {history.entries.map(entry => (
+        {(history.entries ?? []).map(entry => (
           <article key={`${entry.source}-${entry.id}`} className="history-card">
             <div className="flex flex-wrap items-center gap-2">
               <span className="chip">{sourceLabel(entry.source)}</span>

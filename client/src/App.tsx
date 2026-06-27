@@ -9,6 +9,7 @@ import { CaptureWord } from './components/CaptureWord';
 import { ChineseToVocabBox } from './components/ChineseToVocabBox';
 import { DailyPrompt } from './components/DailyPrompt';
 import { HistoryPanel } from './components/HistoryPanel';
+import { OwnerVocabImport } from './components/OwnerVocabImport';
 import { MemoryProfileCard } from './components/MemoryProfileCard';
 import { ProfileDashboard } from './components/ProfileDashboard';
 import { ProgressPanel } from './components/ProgressPanel';
@@ -151,72 +152,65 @@ export function App() {
           ))}
         </nav>
 
-        {activeSection === 'write' ? (
-          <section className="writing-workbench workspace-page" aria-label="writing canvas">
-            <aside className="writing-reference-rail" aria-label="writing reference rail">
-              <TodayStrip refreshKey={vocabKey} />
-              <DailyPrompt onPrompt={setPrompt} />
-            </aside>
+        <section className={`writing-workbench workspace-page${activeSection === 'write' ? '' : ' hidden'}`} aria-label="writing canvas">
+          <aside className="writing-reference-rail" aria-label="writing reference rail">
+            <TodayStrip refreshKey={vocabKey} />
+            <DailyPrompt onPrompt={setPrompt} />
+          </aside>
 
-            <div className="draft-workbench" aria-label="draft workbench">
-              {sessionStatus === 'saved' ? (
-                <p className="notice notice-success">Session saved. Your profile is updated.</p>
-              ) : null}
-              {sessionStatus === 'error' ? (
-                <p className="notice notice-error">Could not save the session.</p>
-              ) : null}
+          <div className="draft-workbench" aria-label="draft workbench">
+            {sessionStatus === 'saved' ? (
+              <p className="notice notice-success">Session saved. Your profile is updated.</p>
+            ) : null}
+            {sessionStatus === 'error' ? (
+              <p className="notice notice-error">Could not save the session.</p>
+            ) : null}
 
-              <WriteSurface
-                value={draft}
-                onChange={setDraft}
-                onCoachParagraph={handleCoachParagraph}
-                coachingIndex={coachingIndex}
+            <WriteSurface
+              value={draft}
+              onChange={setDraft}
+              onCoachParagraph={handleCoachParagraph}
+              coachingIndex={coachingIndex}
+            />
+
+            {coachPanels.map(item => (
+              <CoachPanel
+                key={item.id}
+                paragraph={item.paragraph}
+                nativeVersion={item.response.nativeVersion}
+                annotations={item.response.annotations}
+                recordContext={{
+                  date: prompt?.date,
+                  promptId: prompt?.id,
+                  paragraphIdx: item.paragraphIndex,
+                }}
+                onRecorded={() => setProfileKey(key => key + 1)}
+                onSubmit={handleCoachSubmit(item.paragraphIndex)}
               />
+            ))}
+          </div>
+        </section>
 
-              {coachPanels.map(item => (
-                <CoachPanel
-                  key={item.id}
-                  paragraph={item.paragraph}
-                  nativeVersion={item.response.nativeVersion}
-                  annotations={item.response.annotations}
-                  recordContext={{
-                    date: prompt?.date,
-                    promptId: prompt?.id,
-                    paragraphIdx: item.paragraphIndex,
-                  }}
-                  onRecorded={() => setProfileKey(key => key + 1)}
-                  onSubmit={handleCoachSubmit(item.paragraphIndex)}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
+        <section className={`workspace-page two-column-page${activeSection === 'words' ? '' : ' hidden'}`} aria-label="vocabulary">
+          <OwnerVocabImport onImported={handleVocabSaved} />
+          <ChineseToVocabBox onSaved={handleVocabSaved} />
+          <CaptureWord onSaved={handleVocabSaved} />
+          <VocabularyPanel refreshKey={vocabKey + profileKey} />
+        </section>
 
-        {activeSection === 'words' ? (
-          <section className="workspace-page two-column-page" aria-label="vocabulary review">
-            <ChineseToVocabBox onSaved={handleVocabSaved} />
-            <CaptureWord onSaved={handleVocabSaved} />
-            <VocabularyPanel refreshKey={vocabKey + profileKey} />
-          </section>
-        ) : null}
+        <section className={`workspace-page${activeSection === 'review' ? '' : ' hidden'}`} aria-label="review">
+          <ReviewPanel onGoWrite={() => setActiveSection('write')} />
+        </section>
 
-        {activeSection === 'review' ? (
-          <section className="workspace-page" aria-label="review page">
-            <ReviewPanel onGoWrite={() => setActiveSection('write')} />
-          </section>
-        ) : null}
-
-        {activeSection === 'me' ? (
-          <section className="workspace-page two-column-page" aria-label="me page">
-            <ProfileDashboard refreshKey={profileKey} />
-            <ProgressPanel refreshKey={profileKey} />
-            <MemoryProfileCard />
-            <HistoryPanel refreshKey={historyKey} />
-          </section>
-        ) : null}
+        <section className={`workspace-page two-column-page${activeSection === 'me' ? '' : ' hidden'}`} aria-label="me">
+          <ProfileDashboard refreshKey={profileKey} />
+          <ProgressPanel refreshKey={profileKey} />
+          <MemoryProfileCard />
+          <HistoryPanel refreshKey={historyKey} />
+        </section>
 
         {activeSection === 'admin' ? (
-          <section className="workspace-page" aria-label="admin page">
+          <section className="workspace-page" aria-label="admin">
             <AdminPanel />
           </section>
         ) : null}

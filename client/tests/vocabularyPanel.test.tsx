@@ -46,14 +46,11 @@ it('renders a priority-sorted vocabulary list with capture and usage counts', as
   render(<VocabularyPanel />);
 
   expect(await screen.findByText('My vocabulary (2)')).toBeInTheDocument();
-  expect(screen.queryByText('well worn phrase')).not.toBeInTheDocument();
-
-  fireEvent.click(screen.getByRole('button', { name: 'Open vocabulary' }));
-
-  expect(screen.getByText('well worn phrase')).toBeInTheDocument();
+  expect(await screen.findByText('well worn phrase')).toBeInTheDocument();
   expect(screen.getByText('2026-05-10')).toBeInTheDocument();
-  expect(screen.getByText('seen many times')).toBeInTheDocument();
   expect(screen.getByText('met 5x')).toBeInTheDocument();
+  // definition hidden until word is clicked — hint text confirms behaviour
+  expect(screen.getAllByText('tap word to reveal').length).toBeGreaterThan(0);
   expect(screen.getByText('used 1 / suggested 3')).toBeInTheDocument();
   expect(screen.getByText('fresh word')).toBeInTheDocument();
   expect(screen.getByText('2026-06-04')).toBeInTheDocument();
@@ -112,14 +109,14 @@ it('opens one deep-dive panel under the selected vocabulary row', async () => {
 
   render(<VocabularyPanel />);
 
-  fireEvent.click(await screen.findByRole('button', { name: 'Open vocabulary' }));
-  fireEvent.click(screen.getAllByRole('button', { name: 'Details' })[0]);
+  fireEvent.click((await screen.findAllByRole('button', { name: 'Details' }))[0]);
 
   expect(await screen.findByText('Word family')).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
   expect(fetchMock).toHaveBeenCalledWith('/api/vocab/1/deep-dive', expect.any(Object));
 
-  fireEvent.click(screen.getAllByRole('button', { name: 'Details' })[1]);
+  // after expanding item 1, its button shows "Close"; only item 2's Details button remains
+  fireEvent.click(screen.getAllByRole('button', { name: 'Details' })[0]);
 
   expect(screen.queryByText('Word family')).not.toBeInTheDocument();
 });
