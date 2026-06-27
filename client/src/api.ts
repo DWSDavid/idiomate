@@ -363,3 +363,11 @@ export function captureAndSaveVocab(word: string, contextSentence?: string): Pro
     contextSentence: contextSentence?.trim() || undefined,
   });
 }
+
+export interface GraduatedVocabResponse {
+  items: VocabListItem[];
+}
+
+export function getGraduatedVocab(): Promise<GraduatedVocabResponse> {
+  return apiFetch('/api/vocab/graduated').then(readJson<GraduatedVocabResponse>);
+}
