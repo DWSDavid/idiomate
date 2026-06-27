@@ -290,6 +290,8 @@ it('lists vocab by the same priority order used for prime candidates', () => {
   upsertVocab(db, USER_ID, {
     word: 'well worn phrase',
     kind: 'phrase',
+    pos: 'noun',
+    nearSynonyms: [{ word: 'familiar expression', distinction: 'Use this for a phrase readers know well.' }],
     captureCount: 5,
     lastCaptured: '2026-05-10T00:00:00.000Z',
     timesSuggested: 0,
@@ -315,6 +317,8 @@ it('lists vocab by the same priority order used for prime candidates', () => {
     word: 'well worn phrase',
     kind: 'phrase',
     defCn: 'seen many times',
+    pos: 'noun',
+    nearSynonyms: [{ word: 'familiar expression', distinction: 'Use this for a phrase readers know well.' }],
     captureCount: 5,
     timesSuggested: 0,
     timesUsed: 0,

@@ -260,11 +260,14 @@ function mapVocabListItem(row: VocabRow): VocabListItem {
   const capturedAt = row.source === 'youdao'
     ? undefined
     : row.last_captured ?? row.date_added ?? undefined;
+  const nearSynonyms = nearSynonymsFromJson(row.near_synonyms);
   return {
     id: row.id,
     word: row.word,
     kind: row.kind,
     defCn: row.def_cn ?? undefined,
+    ...(row.pos ? { pos: row.pos } : {}),
+    ...(nearSynonyms?.length ? { nearSynonyms } : {}),
     captureCount: row.capture_count,
     timesSuggested: row.times_suggested,
     timesUsed: row.times_used,

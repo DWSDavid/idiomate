@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { VocabListResponse } from '../../../shared/types';
 import { getVocabList, mergeVocabFamilies } from '../api';
+import { VocabNetworkPanel } from './VocabNetworkPanel';
 import { WordDeepDivePanel } from './WordDeepDivePanel';
 
 interface VocabularyPanelProps {
@@ -134,6 +135,7 @@ export function VocabularyPanel({ refreshKey = 0 }: VocabularyPanelProps) {
               </div>
             </div>
           ))}
+          <VocabNetworkPanel items={vocab.items} />
         </div>
       ) : null}
     </section>

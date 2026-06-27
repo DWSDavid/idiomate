@@ -65,6 +65,8 @@ export interface VocabListItem {
   word: string;
   kind: VocabKind;
   defCn?: string;
+  pos?: string;
+  nearSynonyms?: Array<{ word: string; distinction: string }>;
   captureCount: number;
   timesSuggested: number;
   timesUsed: number;
