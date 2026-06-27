@@ -15,6 +15,7 @@ import { ProfileDashboard } from './components/ProfileDashboard';
 import { ProgressPanel } from './components/ProgressPanel';
 import { ReviewPanel } from './components/ReviewPanel';
 import { TodayStrip } from './components/TodayStrip';
+import { VocabPrime } from './components/VocabPrime';
 import { VocabularyPanel } from './components/VocabularyPanel';
 import { WriteSurface } from './components/WriteSurface';
 
@@ -156,6 +157,7 @@ export function App() {
           <aside className="writing-reference-rail" aria-label="writing reference rail">
             <TodayStrip refreshKey={vocabKey} />
             <DailyPrompt onPrompt={setPrompt} />
+            <VocabPrime promptText={prompt?.text ?? ''} refreshKey={vocabKey} />
           </aside>
 
           <div className="draft-workbench" aria-label="draft workbench">

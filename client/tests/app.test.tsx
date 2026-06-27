@@ -56,7 +56,7 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
   expect(screen.getByLabelText('draft workbench')).toBeInTheDocument();
   expect(await screen.findByText(/Today's prompt/)).toBeInTheDocument();
   expect(await screen.findByText('today word')).toBeInTheDocument();
-  expect(screen.queryByText('Words to work in')).not.toBeInTheDocument();
+  expect(screen.getByText('Words to work in')).toBeInTheDocument();
   expect(screen.getByLabelText('Draft')).toBeInTheDocument();
   expect(screen.queryByLabelText('sentence lab page')).not.toBeInTheDocument();
 
