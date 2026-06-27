@@ -70,8 +70,22 @@ function NativeVersion({ rewrite, nativeVersion }: { rewrite: string; nativeVers
 }
 
 export function CompareView({ original, rewrite, nativeVersion, annotations }: CompareViewProps) {
+  const errorAnnotations = annotations.filter(annotation => annotation.errorType !== 'vocab_suggestion');
+  const addressed = errorAnnotations.filter(annotation => annotation.accepted).length;
+  const total = errorAnnotations.length;
+  const allAddressed = total > 0 && addressed === total;
+
   return (
     <div className="space-y-5" aria-label="rewrite comparison">
+      {total > 0 ? (
+        <div className={`rounded-xl border px-4 py-3 ${allAddressed ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+          <p className={`text-sm font-semibold ${allAddressed ? 'text-emerald-800' : 'text-amber-800'}`}>
+            You addressed <strong>{addressed} of {total}</strong> {total === 1 ? 'issue' : 'issues'}.
+            {allAddressed ? ' Excellent work.' : ' Keep refining - the remaining issues are shown below.'}
+          </p>
+        </div>
+      ) : null}
+
       {nativeVersion ? <NativeVersion rewrite={rewrite} nativeVersion={nativeVersion} /> : null}
 
       <div className="space-y-3">
