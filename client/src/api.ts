@@ -13,6 +13,7 @@ import type {
   SentenceLabResultResponse,
   StructureResponse,
   Vocab,
+  VocabListItem,
   VocabListResponse,
   SaveVocabResponse,
   AdminUserDetailResponse,

@@ -9,7 +9,7 @@ export function GraduatedShelf() {
   useEffect(() => {
     getGraduatedVocab()
       .then(res => {
-        setItems(res.items);
+        setItems(Array.isArray(res.items) ? res.items : []);
         setStatus('idle');
       })
       .catch(() => setStatus('idle'));
@@ -28,11 +28,11 @@ export function GraduatedShelf() {
     <section className="surface" aria-label="mastered words">
       <div>
         <span className="section-label">Mastered ({items.length})</span>
-        <p className="mt-1 text-sm text-slate-500">Words you used correctly in a rewrite — graduated from active review.</p>
+        <p className="mt-1 text-sm text-slate-500">Words you used correctly in a rewrite - graduated from active review.</p>
       </div>
 
       {items.length === 0 ? (
-        <p className="mt-4 text-sm text-stone-500">No mastered words yet — use a word correctly in your rewrite to graduate it here.</p>
+        <p className="mt-4 text-sm text-stone-500">No mastered words yet - use a word correctly in your rewrite to graduate it here.</p>
       ) : (
         <div className="mt-4 flex flex-wrap gap-2">
           {items.map(item => (

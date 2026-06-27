@@ -22,6 +22,9 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
     if (url.includes('/api/vocab/review-queue')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) } as Response);
     }
+    if (url.includes('/api/vocab/graduated')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) } as Response);
+    }
     if (url.includes('/api/vocab/today')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [{ id: 1, word: 'today word', timesSuggested: 0, timesUsed: 0 }] }) } as Response);
     }
@@ -67,7 +70,7 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
 
   fireEvent.click(within(nav).getByRole('button', { name: 'Review' }));
 
-  expect(await screen.findByText('Capture some words first - they will appear here for review.')).toBeInTheDocument();
+  expect(await screen.findByText('No words due - come back later or capture new words to review.')).toBeInTheDocument();
 
   fireEvent.click(within(nav).getByRole('button', { name: 'Me' }));
 
@@ -96,6 +99,9 @@ it('records a paragraph result and refetches the profile after rewrite submit', 
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ topic: 'finance', vocab: [] }) } as Response);
     }
     if (url.includes('/api/vocab/today')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) } as Response);
+    }
+    if (url.includes('/api/vocab/graduated')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) } as Response);
     }
     if (url.includes('/api/memory/profile')) {
@@ -182,6 +188,9 @@ it('shows the access gate after a 401 and retries after saving the code', async 
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ topic: 'tech', vocab: [] }) } as Response);
     }
     if (url.includes('/api/vocab/today')) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) } as Response);
+    }
+    if (url.includes('/api/vocab/graduated')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ items: [] }) } as Response);
     }
     if (url.includes('/api/vocab/list')) {
