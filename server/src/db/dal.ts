@@ -477,7 +477,7 @@ export function getPrimeCandidates(db: Database.Database, userId: string, n: num
   const rows = db.prepare(`
     SELECT *, ${VOCAB_PRIORITY_SCORE_SQL} AS priority_score
     FROM vocab
-    WHERE user_id = ?
+    WHERE user_id = ? AND COALESCE(graduated, 0) = 0
     ORDER BY ${VOCAB_PRIORITY_ORDER_SQL}
     LIMIT ?
   `).all(userId, n) as VocabRow[];
@@ -489,7 +489,7 @@ export function getVocabList(db: Database.Database, userId: string, limit = 200)
   const rows = db.prepare(`
     SELECT *, ${VOCAB_PRIORITY_SCORE_SQL} AS priority_score
     FROM vocab
-    WHERE user_id = ?
+    WHERE user_id = ? AND COALESCE(graduated, 0) = 0
     ORDER BY ${VOCAB_PRIORITY_ORDER_SQL}
     LIMIT ?
   `).all(userId, safeLimit) as VocabRow[];
@@ -497,7 +497,7 @@ export function getVocabList(db: Database.Database, userId: string, limit = 200)
 }
 
 export function getVocabCount(db: Database.Database, userId: string): number {
-  const row = db.prepare('SELECT COUNT(*) AS count FROM vocab WHERE user_id = ?').get(userId) as { count: number };
+  const row = db.prepare('SELECT COUNT(*) AS count FROM vocab WHERE user_id = ? AND COALESCE(graduated, 0) = 0').get(userId) as { count: number };
   return row.count;
 }
 
@@ -818,7 +818,7 @@ export function getPrimeCandidatePool(db: Database.Database, userId: string, pro
     const rows = db
       .prepare(`
         SELECT * FROM vocab
-        WHERE user_id = ? AND (${clause})
+        WHERE user_id = ? AND COALESCE(graduated, 0) = 0 AND (${clause})
         ORDER BY times_used ASC, capture_count DESC
         LIMIT 60
       `)
@@ -834,7 +834,7 @@ export function getPrimeCandidatePool(db: Database.Database, userId: string, pro
     const oldest = db
       .prepare(`
         SELECT * FROM vocab
-        WHERE user_id = ? AND times_used = 0
+        WHERE user_id = ? AND COALESCE(graduated, 0) = 0 AND times_used = 0
         ORDER BY last_captured ASC, normalized ASC
         LIMIT ?
       `)
@@ -844,7 +844,7 @@ export function getPrimeCandidatePool(db: Database.Database, userId: string, pro
 
   // 3. Coverage: random fill so topical words can surface even when scores tie.
   if (byNormalized.size < limit) {
-    const random = db.prepare('SELECT * FROM vocab WHERE user_id = ? ORDER BY RANDOM() LIMIT ?')
+    const random = db.prepare('SELECT * FROM vocab WHERE user_id = ? AND COALESCE(graduated, 0) = 0 ORDER BY RANDOM() LIMIT ?')
       .all(userId, limit * 2) as VocabRow[];
     add(random.map(mapVocab));
   }

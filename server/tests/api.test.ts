@@ -557,7 +557,12 @@ it('POST /api/sessions records errors and increments accepted vocab suggestions'
     expect(getTallies(db, USER_ID)).toEqual([
       expect.objectContaining({ errorType: 'redundancy', count: 1 }),
     ]);
-    expect(getPrimeCandidates(db, USER_ID, 1)[0].timesUsed).toBe(1);
+    const usageAfterFirst = db.prepare(`
+      SELECT times_used
+      FROM vocab
+      WHERE user_id = ? AND normalized = ?
+    `).get(USER_ID, 'shore up') as { times_used: number };
+    expect(usageAfterFirst.times_used).toBe(1);
     const row = db.prepare(`
       SELECT rule, rule_example
       FROM annotations
@@ -679,7 +684,12 @@ it('POST /api/paragraph-result records a paragraph rewrite idempotently', async 
     expect(getTallies(db, USER_ID)).toEqual([
       expect.objectContaining({ errorType: 'redundancy', count: 1 }),
     ]);
-    expect(getPrimeCandidates(db, USER_ID, 1)[0].timesUsed).toBe(1);
+    const usageAfterFirst = db.prepare(`
+      SELECT times_used
+      FROM vocab
+      WHERE user_id = ? AND normalized = ?
+    `).get(USER_ID, 'shore up') as { times_used: number };
+    expect(usageAfterFirst.times_used).toBe(1);
 
     const replacement = await fetch(`${baseUrl}/api/paragraph-result`, {
       method: 'POST',
@@ -703,7 +713,12 @@ it('POST /api/paragraph-result records a paragraph rewrite idempotently', async 
 
     expect(replacement.status).toBe(200);
     expect(getTallies(db, USER_ID)).toEqual([]);
-    expect(getPrimeCandidates(db, USER_ID, 1)[0].timesUsed).toBe(1);
+    const usageAfterReplacement = db.prepare(`
+      SELECT times_used
+      FROM vocab
+      WHERE user_id = ? AND normalized = ?
+    `).get(USER_ID, 'shore up') as { times_used: number };
+    expect(usageAfterReplacement.times_used).toBe(1);
     const sessions = db.prepare('SELECT id FROM sessions').all() as { id: number }[];
     expect(sessions).toHaveLength(1);
     const rows = db.prepare(`

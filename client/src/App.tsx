@@ -14,6 +14,7 @@ import { MemoryProfileCard } from './components/MemoryProfileCard';
 import { ProfileDashboard } from './components/ProfileDashboard';
 import { ProgressPanel } from './components/ProgressPanel';
 import { ReviewPanel } from './components/ReviewPanel';
+import { GraduatedShelf } from './components/GraduatedShelf';
 import { SentencePatterns } from './components/SentencePatterns';
 import { TodayStrip } from './components/TodayStrip';
 import { VocabPrime } from './components/VocabPrime';
@@ -200,6 +201,7 @@ export function App() {
           <ChineseToVocabBox onSaved={handleVocabSaved} />
           <CaptureWord onSaved={handleVocabSaved} />
           <VocabularyPanel refreshKey={vocabKey + profileKey} />
+          <GraduatedShelf />
         </section>
 
         <section className={`workspace-page${activeSection === 'review' ? '' : ' hidden'}`} aria-label="review">
