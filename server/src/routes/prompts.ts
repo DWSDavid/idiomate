@@ -2,6 +2,7 @@ import { Router } from 'express';
 import type { AppDependencies } from '../appContext.js';
 import { generateNewsPrompt } from '../brain/prompts.js';
 import { config } from '../config.js';
+import { getMemoryProfile } from '../db/dal.js';
 import { fetchHeadlines, fetchNews, NEWS_TOPICS } from '../news.js';
 
 const OFFLINE_FALLBACK = {
@@ -29,6 +30,8 @@ export function createPromptsRouter(deps: AppDependencies): Router {
 
     const newsFetcher = deps.newsFetcher ?? fetchNews;
     const newsItemsPromise = newsFetcher(topic).catch(() => []);
+    const profile = getMemoryProfile(deps.db, req.userId);
+    const topErrors = profile.topWeaknesses.slice(0, 3).map(item => item.errorType);
 
     try {
       const [prompt, newsItems] = await Promise.all([
@@ -36,6 +39,7 @@ export function createPromptsRouter(deps: AppDependencies): Router {
           topic,
           headlines,
           model: config.modelUtility,
+          topErrors,
         }),
         newsItemsPromise,
       ]);

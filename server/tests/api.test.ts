@@ -1269,6 +1269,7 @@ it('POST /api/vocab/import parses a raw Youdao export', async () => {
 });
 
 it('GET /api/prompt/today generates a fresh news-grounded prompt through the utility model', async () => {
+  recordErrors(db, USER_ID, ['noun_plague', 'calque']);
   let calls = 0;
   let captured: { system: string; user: string; model: string } | undefined;
   const utilityProvider: LLMProvider = {
@@ -1299,6 +1300,8 @@ it('GET /api/prompt/today generates a fresh news-grounded prompt through the uti
     expect(secondJson.text).toContain('angle 2');
     expect(calls).toBe(2);
     expect(captured!.user).toContain('Humanoid robots enter warehouses');
+    expect(captured!.system).toContain('noun_plague');
+    expect(captured!.system).toContain('calque');
   });
 });
 

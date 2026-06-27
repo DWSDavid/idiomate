@@ -272,6 +272,17 @@ it('assembles a news-grounded discussion prompt from headlines', () => {
   expect(prompt.user).toContain('Humanoid robots enter warehouses');
 });
 
+it('injects top errors into news prompt system string', () => {
+  const prompt = assembleNewsPrompt({
+    topic: 'AI infrastructure',
+    headlines: [],
+    topErrors: ['noun_plague', 'calque'],
+  });
+
+  expect(prompt.system).toContain('noun_plague');
+  expect(prompt.system).toContain('calque');
+});
+
 it('validates generated news prompt JSON and sends headlines to the provider', async () => {
   let captured: { system: string; user: string; model: string } | undefined;
   const mock: LLMProvider = {

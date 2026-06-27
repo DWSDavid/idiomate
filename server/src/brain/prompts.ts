@@ -401,10 +401,17 @@ export function assembleDailyPrompt(ctx: { theme: string }): { system: string; u
   };
 }
 
-export function assembleNewsPrompt(ctx: { topic: string; headlines: string[] }): { system: string; user: string } {
+export function assembleNewsPrompt(ctx: {
+  topic: string;
+  headlines: string[];
+  topErrors?: string[];
+}): { system: string; user: string } {
   const headlines = ctx.headlines.length
     ? ctx.headlines.map((headline, index) => `${index + 1}. ${headline}`).join('\n')
     : 'No fresh headlines were available. Generate a timely but non-specific discussion prompt from the topic alone.';
+  const errorHint = ctx.topErrors?.length
+    ? `The learner commonly makes these errors: ${ctx.topErrors.join(', ')}. When possible, frame the scenario so a natural answer would practise avoiding these patterns.`
+    : '';
 
   return {
     system: [
@@ -412,8 +419,9 @@ export function assembleNewsPrompt(ctx: { topic: string; headlines: string[] }):
       'The learner is an advanced Chinese-L1 English writer in tech, finance, or startups.',
       'Rules: maximum 25 words for the prompt question. Concrete and specific: name an industry, technology, company type, or real scenario. Opinion OR story format: "Do you think X?", "Would you rather X?", or "Describe a time when X". The answer must fit in 3 to 5 sentences. Avoid geopolitics, sports diplomacy, abstract philosophy, or questions that need expert knowledge the writer may not have.',
       'Ground the prompt in the supplied headlines when they are available, but make it answerable from personal experience or opinion.',
+      errorHint,
       'Return ONLY JSON matching: {theme,text}.',
-    ].join(' '),
+    ].filter(Boolean).join(' '),
     user: [
       `Topic: ${ctx.topic}`,
       `Headlines:\n${headlines}`,
@@ -459,7 +467,7 @@ export async function generateDailyPrompt(
 
 export async function generateNewsPrompt(
   provider: LLMProvider,
-  ctx: { topic: string; headlines: string[]; model: string },
+  ctx: { topic: string; headlines: string[]; model: string; topErrors?: string[] },
 ): Promise<{ theme: string; text: string }> {
   const { system, user } = assembleNewsPrompt(ctx);
   const raw = await provider.complete({ system, user, model: ctx.model });
