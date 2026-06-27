@@ -11,6 +11,7 @@ import type {
   MistakeRankingItem,
   MistakeTrendSeries,
   ProgressDailyPoint,
+  SaveVocabResponse,
   Vocab,
   VocabKind,
   VocabListItem,
@@ -24,6 +25,7 @@ interface VocabRow {
   user_id: string;
   word: string;
   normalized: string;
+  base_form: string | null;
   kind: VocabKind;
   ipa: string | null;
   def_cn: string | null;
@@ -232,6 +234,7 @@ function mapVocab(row: VocabRow): Vocab {
     id: row.id,
     word: row.word,
     normalized: row.normalized,
+    baseForm: row.base_form ?? undefined,
     kind: row.kind,
     ipa: row.ipa ?? undefined,
     defCn: row.def_cn ?? undefined,
@@ -272,10 +275,14 @@ function mapVocabListItem(row: VocabRow): VocabListItem {
 
 function vocabParams(userId: string, item: Vocab) {
   const normalized = normalizeVocabWord(item.normalized ?? item.word);
+  const baseForm = item.baseForm?.trim()
+    ? normalizeVocabWord(item.baseForm)
+    : normalized;
   return {
     userId,
     word: item.word.trim().replace(/\s+/g, ' '),
     normalized,
+    baseForm,
     kind: item.kind ?? inferVocabKind(item.word),
     ipa: item.ipa ?? null,
     defCn: item.defCn ?? null,
@@ -297,22 +304,23 @@ function vocabParams(userId: string, item: Vocab) {
   };
 }
 
-export function upsertVocab(db: Database.Database, userId: string, vocab: Vocab): number {
+function runVocabUpsert(db: Database.Database, params: ReturnType<typeof vocabParams>): number {
   const stmt = db.prepare(`
     INSERT INTO vocab (
-      user_id, word, normalized, kind, ipa, def_cn, pos, status, source,
+      user_id, word, normalized, base_form, kind, ipa, def_cn, pos, status, source,
       context_sentence, examples, collocations, register, capture_count,
       last_captured, times_suggested, times_used, ease, last_reviewed,
       word_family, near_synonyms
     )
     VALUES (
-      @userId, @word, @normalized, @kind, @ipa, @defCn, @pos, @status, @source,
+      @userId, @word, @normalized, @baseForm, @kind, @ipa, @defCn, @pos, @status, @source,
       @contextSentence, @examples, @collocations, @register, @captureCount,
       COALESCE(@lastCaptured, datetime('now')), @timesSuggested, @timesUsed, @ease,
       @lastReviewed, @wordFamily, @nearSynonyms
     )
     ON CONFLICT(user_id, normalized) DO UPDATE SET
       word = excluded.word,
+      base_form = COALESCE(excluded.base_form, vocab.base_form),
       kind = excluded.kind,
       ipa = COALESCE(excluded.ipa, vocab.ipa),
       def_cn = COALESCE(excluded.def_cn, vocab.def_cn),
@@ -332,17 +340,75 @@ export function upsertVocab(db: Database.Database, userId: string, vocab: Vocab)
       word_family = COALESCE(excluded.word_family, vocab.word_family),
       near_synonyms = COALESCE(excluded.near_synonyms, vocab.near_synonyms)
   `);
-  const normalized = normalizeVocabWord(vocab.normalized ?? vocab.word);
-  stmt.run(vocabParams(userId, vocab));
+  stmt.run(params);
   const row = db.prepare('SELECT id FROM vocab WHERE user_id = ? AND normalized = ?')
-    .get(userId, normalized) as { id: number };
+    .get(params.userId, params.normalized) as { id: number };
   return row.id;
+}
+
+export function upsertVocabWithResult(
+  db: Database.Database,
+  userId: string,
+  vocab: Vocab,
+): SaveVocabResponse {
+  const params = vocabParams(userId, vocab);
+  const existing = db.prepare(`
+    SELECT id, capture_count
+    FROM vocab
+    WHERE user_id = ? AND normalized = ?
+  `).get(userId, params.normalized) as { id: number; capture_count: number } | undefined;
+
+  if (!existing) {
+    const familyMatch = db.prepare(`
+      SELECT id, capture_count, last_captured
+      FROM vocab
+      WHERE user_id = ? AND (base_form = ? OR normalized = ?)
+        AND id != COALESCE((SELECT id FROM vocab WHERE user_id = ? AND normalized = ?), -1)
+      LIMIT 1
+    `).get(
+      userId,
+      params.baseForm,
+      params.baseForm,
+      userId,
+      params.normalized,
+    ) as { id: number; capture_count: number; last_captured: string | null } | undefined;
+
+    if (familyMatch) {
+      db.prepare(`
+        UPDATE vocab
+        SET capture_count = capture_count + 1,
+            last_captured = datetime('now')
+        WHERE id = ? AND user_id = ?
+      `).run(familyMatch.id, userId);
+      return {
+        id: familyMatch.id,
+        captureCount: familyMatch.capture_count + 1,
+        existed: true,
+      };
+    }
+  }
+
+  const id = runVocabUpsert(db, params);
+  const row = db.prepare(`
+    SELECT capture_count
+    FROM vocab
+    WHERE id = ? AND user_id = ?
+  `).get(id, userId) as { capture_count: number };
+  return {
+    id,
+    captureCount: row.capture_count,
+    existed: Boolean(existing),
+  };
+}
+
+export function upsertVocab(db: Database.Database, userId: string, vocab: Vocab): number {
+  return upsertVocabWithResult(db, userId, vocab).id;
 }
 
 export function insertVocab(db: Database.Database, userId: string, vocab: Vocab[]) {
   const insertMany = db.transaction((items: Vocab[]) => {
     for (const item of items) {
-      upsertVocab(db, userId, item);
+      upsertVocabWithResult(db, userId, item);
     }
   });
   insertMany(vocab);
@@ -352,10 +418,8 @@ export function insertMissingVocab(db: Database.Database, userId: string, vocab:
   const insertMany = db.transaction((items: Vocab[]) => {
     let inserted = 0;
     for (const item of items) {
-      const normalized = normalizeVocabWord(item.normalized ?? item.word);
-      if (getVocabCaptureMeta(db, userId, normalized)) continue;
-      upsertVocab(db, userId, item);
-      inserted += 1;
+      const saved = upsertVocabWithResult(db, userId, item);
+      if (!saved.existed) inserted += 1;
     }
     return inserted;
   });

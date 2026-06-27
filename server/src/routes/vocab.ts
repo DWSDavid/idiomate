@@ -9,7 +9,6 @@ import { config } from '../config.js';
 import { parseYoudaoTxt } from '../import/youdao.js';
 import {
   getDeepDiveCache,
-  getVocabCaptureMeta,
   getVocabCount,
   getVocabList,
   getPrimeCandidatePool,
@@ -21,7 +20,7 @@ import {
   normalizeVocabWord,
   recordReview,
   saveDeepDive,
-  upsertVocab,
+  upsertVocabWithResult,
 } from '../db/dal.js';
 
 const vocabKindZ = z.enum(['word', 'phrase', 'collocation']);
@@ -35,6 +34,7 @@ const nearSynonymZ = z.object({
 const saveVocabZ = z.object({
   word: z.string().min(1),
   normalized: z.string().optional(),
+  baseForm: z.string().optional(),
   kind: vocabKindZ.optional(),
   ipa: z.string().optional(),
   defCn: z.string().optional(),
@@ -132,20 +132,13 @@ export function createVocabRouter(deps: AppDependencies): Router {
   router.post('/save', (req, res, next) => {
     try {
       const body = saveVocabZ.parse(req.body);
-      const normalized = normalizeVocabWord(body.normalized ?? body.word);
-      const existed = Boolean(getVocabCaptureMeta(deps.db, req.userId, normalized));
-      const id = upsertVocab(deps.db, req.userId, {
+      const saved = upsertVocabWithResult(deps.db, req.userId, {
         ...body,
         source: body.source ?? 'capture',
         timesSuggested: body.timesSuggested ?? 0,
         timesUsed: body.timesUsed ?? 0,
       });
-      const saved = getVocabCaptureMeta(deps.db, req.userId, normalized);
-      res.status(201).json({
-        id,
-        captureCount: saved?.captureCount ?? body.captureCount ?? 1,
-        existed,
-      });
+      res.status(201).json(saved);
     } catch (err) {
       next(err);
     }
@@ -159,18 +152,15 @@ export function createVocabRouter(deps: AppDependencies): Router {
         contextSentence: body.contextSentence?.trim() || undefined,
         model: config.modelUtility,
       });
-      const normalized = normalizeVocabWord(translated.normalized ?? translated.word);
-      const existed = Boolean(getVocabCaptureMeta(deps.db, req.userId, normalized));
-      const id = upsertVocab(deps.db, req.userId, translated);
-      const saved = getVocabCaptureMeta(deps.db, req.userId, normalized);
+      const saved = upsertVocabWithResult(deps.db, req.userId, translated);
       res.status(201).json({
-        id,
-        captureCount: saved?.captureCount ?? translated.captureCount ?? 1,
-        existed,
+        id: saved.id,
+        captureCount: saved.captureCount,
+        existed: saved.existed,
         vocab: {
           ...translated,
-          id,
-          captureCount: saved?.captureCount ?? translated.captureCount ?? 1,
+          id: saved.id,
+          captureCount: saved.captureCount,
         },
       });
     } catch (err) {

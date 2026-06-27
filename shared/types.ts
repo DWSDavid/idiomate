@@ -38,6 +38,7 @@ export interface Vocab {
   id?: number;
   word: string;
   normalized?: string;
+  baseForm?: string;
   kind?: VocabKind;
   ipa?: string;
   defCn?: string;

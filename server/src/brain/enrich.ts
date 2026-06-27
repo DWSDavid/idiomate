@@ -18,6 +18,10 @@ function inferKind(word: string): VocabKind {
   return word.trim().includes(' ') ? 'phrase' : 'word';
 }
 
+function normalizeText(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
 function normalizeKind(kind: unknown, word: string): VocabKind {
   if (typeof kind !== 'string') return inferKind(word);
   const value = kind.toLowerCase().trim();
@@ -33,8 +37,10 @@ export async function enrichWord(provider: LLMProvider, ctx: EnrichWordContext):
     system: [
       'You enrich a user-captured English vocabulary item for a local writing companion.',
       'Return ONLY JSON. Every field is a string (or array of strings) when present; never use booleans.',
-    'Shape: {word, normalized, kind, ipa, defCn, pos, contextSentence, examples, collocations, register}.',
-    'normalized is the lowercase string form of word. Omit any field you cannot fill rather than guessing a type.',
+      'Shape: {word, normalized, baseForm, kind, ipa, defCn, pos, contextSentence, examples, collocations, register}.',
+      'normalized is the lowercase string form of word.',
+      'baseForm is the canonical lemma used for deduplication: fortune for fortunes, run for running, and the normalized phrase for fixed phrases.',
+      'Omit any field you cannot fill rather than guessing a type.',
       'Keep examples short and useful for professional English writing.',
     ].join(' '),
     user: [
@@ -47,10 +53,12 @@ export async function enrichWord(provider: LLMProvider, ctx: EnrichWordContext):
   json.kind = normalizeKind(json.kind, ctx.word);
   const parsed = enrichedVocabZ.parse(json);
   const word = parsed.word.trim().replace(/\s+/g, ' ');
+  const normalized = parsed.normalized ? normalizeText(parsed.normalized) : normalizeText(word);
   return {
     ...parsed,
     word,
-    normalized: parsed.normalized?.trim().replace(/\s+/g, ' ').toLowerCase() ?? word.toLowerCase(),
+    normalized,
+    baseForm: parsed.baseForm ? normalizeText(parsed.baseForm) : normalized,
     kind: parsed.kind ?? inferKind(word),
     source: 'capture',
     contextSentence: parsed.contextSentence ?? ctx.contextSentence,
@@ -70,8 +78,10 @@ export async function translateChineseVocab(
       'You convert a Chinese expression into one natural English vocabulary item for a local writing companion.',
       'Choose a word, phrase, or collocation that the learner can reuse in finance, tech, or professional English writing.',
       'Return ONLY JSON. Every field is a string (or array of strings) when present; never use booleans.',
-    'Shape: {word, normalized, kind, ipa, defCn, pos, contextSentence, examples, collocations, register}.',
-    'normalized is the lowercase string form of word. Omit any field you cannot fill rather than guessing a type.',
+      'Shape: {word, normalized, baseForm, kind, ipa, defCn, pos, contextSentence, examples, collocations, register}.',
+      'normalized is the lowercase string form of word.',
+      'baseForm is the canonical lemma used for deduplication: fortune for fortunes, run for running, and the normalized phrase for fixed phrases.',
+      'Omit any field you cannot fill rather than guessing a type.',
       'defCn should preserve the Chinese meaning; examples should be short and useful.',
     ].join(' '),
     user: [
@@ -85,10 +95,12 @@ export async function translateChineseVocab(
   json.kind = normalizeKind(json.kind, suggestedWord);
   const parsed = enrichedVocabZ.parse(json);
   const word = parsed.word.trim().replace(/\s+/g, ' ');
+  const normalized = parsed.normalized ? normalizeText(parsed.normalized) : normalizeText(word);
   return {
     ...parsed,
     word,
-    normalized: parsed.normalized?.trim().replace(/\s+/g, ' ').toLowerCase() ?? word.toLowerCase(),
+    normalized,
+    baseForm: parsed.baseForm ? normalizeText(parsed.baseForm) : normalized,
     kind: parsed.kind ?? inferKind(word),
     source: 'chinese_input',
     contextSentence: parsed.contextSentence ?? ctx.contextSentence,

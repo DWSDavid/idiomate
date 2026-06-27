@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS vocab (
   id INTEGER PRIMARY KEY, user_id TEXT NOT NULL DEFAULT 'local',
   word TEXT NOT NULL, normalized TEXT NOT NULL,
+  base_form TEXT,
   kind TEXT NOT NULL DEFAULT 'word', ipa TEXT, def_cn TEXT, pos TEXT,
   status TEXT, source TEXT, context_sentence TEXT, examples TEXT,
   collocations TEXT, register TEXT, capture_count INTEGER DEFAULT 1,

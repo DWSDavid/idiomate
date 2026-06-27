@@ -43,6 +43,7 @@ it('migrates review metadata and session embedding storage', () => {
     'last_reviewed',
     'word_family',
     'near_synonyms',
+    'base_form',
   ]));
 
   const embeddingTable = db.prepare(`
@@ -63,6 +64,24 @@ it('upserts vocab by normalized text and accumulates capture count', () => {
   expect(vocab).toHaveLength(1);
   expect(vocab[0].normalized).toBe('risk premium');
   expect(vocab[0].captureCount).toBe(2);
+});
+
+it('stores base-form metadata for captured vocab', () => {
+  const id = upsertVocab(db, USER_ID, {
+    word: 'running',
+    normalized: 'running',
+    baseForm: 'run',
+    kind: 'word',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  const row = db.prepare('SELECT base_form FROM vocab WHERE id = ?').get(id) as { base_form: string };
+  expect(row.base_form).toBe('run');
+  expect(getPrimeCandidates(db, USER_ID, 1)[0]).toEqual(expect.objectContaining({
+    word: 'running',
+    baseForm: 'run',
+  }));
 });
 
 it('maps review and deep-dive vocab metadata through upsert and review queue reads', () => {

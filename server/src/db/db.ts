@@ -32,6 +32,12 @@ export function migrate(db: Database.Database) {
   ensureColumn(db, 'vocab', 'last_reviewed', 'TEXT');
   ensureColumn(db, 'vocab', 'word_family', 'TEXT');
   ensureColumn(db, 'vocab', 'near_synonyms', 'TEXT');
+  ensureColumn(db, 'vocab', 'base_form', 'TEXT');
+  db.prepare(`
+    UPDATE vocab
+    SET base_form = normalized
+    WHERE base_form IS NULL OR trim(base_form) = ''
+  `).run();
   db.exec(`
     CREATE TABLE IF NOT EXISTS session_embeddings (
       session_id INTEGER PRIMARY KEY,
@@ -64,7 +70,7 @@ function rebuildVocabIfLegacy(db: Database.Database) {
   db.exec(`
     CREATE TABLE vocab_new (
       id INTEGER PRIMARY KEY, user_id TEXT NOT NULL DEFAULT 'local',
-      word TEXT NOT NULL, normalized TEXT NOT NULL,
+      word TEXT NOT NULL, normalized TEXT NOT NULL, base_form TEXT,
       kind TEXT NOT NULL DEFAULT 'word', ipa TEXT, def_cn TEXT, pos TEXT,
       status TEXT, source TEXT, context_sentence TEXT, examples TEXT,
       collocations TEXT, register TEXT, capture_count INTEGER DEFAULT 1,
@@ -73,12 +79,12 @@ function rebuildVocabIfLegacy(db: Database.Database) {
       UNIQUE(user_id, normalized)
     );
     INSERT INTO vocab_new (
-      id, user_id, word, normalized, kind, ipa, def_cn, pos, status, source,
+      id, user_id, word, normalized, base_form, kind, ipa, def_cn, pos, status, source,
       context_sentence, examples, collocations, register, capture_count,
       last_captured, date_added, times_suggested, times_used
     )
     SELECT
-      id, COALESCE(user_id, 'local'), word, normalized, kind, ipa, def_cn, pos, status, source,
+      id, COALESCE(user_id, 'local'), word, normalized, normalized, kind, ipa, def_cn, pos, status, source,
       context_sentence, examples, collocations, register, capture_count,
       last_captured, date_added, times_suggested, times_used
     FROM vocab;

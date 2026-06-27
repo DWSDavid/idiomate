@@ -43,6 +43,7 @@ const tolerantOptionalString = z.string().optional().catch(undefined);
 export const enrichedVocabZ = z.object({
   word: z.string().min(1),
   normalized: tolerantOptionalString,
+  baseForm: tolerantOptionalString,
   kind: vocabKindZ.optional(),
   ipa: tolerantOptionalString,
   defCn: tolerantOptionalString,

@@ -962,6 +962,79 @@ it('POST /api/vocab/save returns existed true and incremented captureCount for a
   });
 });
 
+it('POST /api/vocab/save deduplicates singular and plural captures by base form', async () => {
+  await withServer(createApp({ db }), async baseUrl => {
+    const first = await fetch(`${baseUrl}/api/vocab/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        word: 'fortunes',
+        normalized: 'fortunes',
+        baseForm: 'fortune',
+        kind: 'word',
+      }),
+    });
+    const second = await fetch(`${baseUrl}/api/vocab/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        word: 'fortune',
+        normalized: 'fortune',
+        baseForm: 'fortune',
+        kind: 'word',
+      }),
+    });
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    const firstJson = await first.json();
+    await expect(second.json()).resolves.toEqual({
+      id: firstJson.id,
+      captureCount: 2,
+      existed: true,
+    });
+    const rows = db.prepare(`
+      SELECT word, normalized, base_form, capture_count
+      FROM vocab
+      WHERE user_id = ?
+      ORDER BY id
+    `).all(USER_ID);
+    expect(rows).toEqual([
+      {
+        word: 'fortunes',
+        normalized: 'fortunes',
+        base_form: 'fortune',
+        capture_count: 2,
+      },
+    ]);
+  });
+});
+
+it('POST /api/vocab/save deduplicates inflected verb captures by base form', async () => {
+  await withServer(createApp({ db }), async baseUrl => {
+    const first = await fetch(`${baseUrl}/api/vocab/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word: 'run', normalized: 'run', baseForm: 'run', kind: 'word' }),
+    });
+    const second = await fetch(`${baseUrl}/api/vocab/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word: 'running', normalized: 'running', baseForm: 'run', kind: 'word' }),
+    });
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    const firstJson = await first.json();
+    await expect(second.json()).resolves.toEqual({
+      id: firstJson.id,
+      captureCount: 2,
+      existed: true,
+    });
+    expect(db.prepare('SELECT COUNT(*) AS count FROM vocab WHERE user_id = ?').get(USER_ID)).toEqual({ count: 1 });
+  });
+});
+
 it('POST /api/vocab/from-chinese translates a Chinese expression and saves it to vocab', async () => {
   let captured: { system: string; user: string; model: string } | undefined;
   const utilityProvider: LLMProvider = {
