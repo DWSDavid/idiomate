@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import type { AppDependencies } from '../appContext.js';
-import { getDailyMistakeCounts, getMistakeTrend } from '../db/dal.js';
+import { getDailyMistakeCounts, getMistakeTrend, getWritingActivityDays, getWritingStreak } from '../db/dal.js';
 
 const progressQueryZ = z.object({
   days: z.coerce.number().int().positive().max(365).default(30),
@@ -17,6 +17,8 @@ export function createProgressRouter(deps: AppDependencies): Router {
       res.json({
         daily: getDailyMistakeCounts(deps.db, req.userId, query.days),
         trend: getMistakeTrend(deps.db, req.userId, query.days, query.topN),
+        streak: getWritingStreak(deps.db, req.userId),
+        activityDays: getWritingActivityDays(deps.db, req.userId, 90),
       });
     } catch (err) {
       next(err);

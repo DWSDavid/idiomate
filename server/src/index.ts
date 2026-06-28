@@ -1,4 +1,5 @@
 import express from 'express';
+import cors from 'cors';
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -46,6 +47,18 @@ export function createApp(overrides: Partial<AppDependencies> = {}, options: Cre
   };
 
   const app = express();
+  app.use(cors({
+    origin: (origin, cb) => {
+      if (!origin
+        || origin === 'https://idiomate.onrender.com'
+        || origin.startsWith('chrome-extension://')) {
+        return cb(null, true);
+      }
+      return cb(null, false);
+    },
+    allowedHeaders: ['Content-Type', 'x-access-code', 'x-user-id', 'x-user-name'],
+    methods: ['GET', 'POST', 'OPTIONS'],
+  }));
   app.use(express.json({ limit: '1mb' }));
   app.use('/api', accessMiddleware(config.accessCode));
   app.use('/api', userMiddleware(db, config.seedVocabPath, config.autoSeedVocab));

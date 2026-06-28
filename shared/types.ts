@@ -198,9 +198,17 @@ export interface MistakeTrendSeries {
   points: ProgressDailyPoint[];
 }
 
+export interface StreakInfo {
+  currentStreak: number;
+  longestStreak: number;
+  lastActiveDate?: string;
+}
+
 export interface ProgressResponse {
   daily: ProgressDailyPoint[];
   trend: MistakeTrendSeries[];
+  streak: StreakInfo;
+  activityDays: string[];
 }
 
 export type WritingSource = 'daily_writing' | 'coach_review' | 'sentence_lab';

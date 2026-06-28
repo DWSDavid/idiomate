@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Annotation } from '../../../shared/types';
 
 export interface ComparedAnnotation extends Annotation {
@@ -69,19 +69,69 @@ function NativeVersion({ rewrite, nativeVersion }: { rewrite: string; nativeVers
   );
 }
 
+const CONFETTI_COLORS = ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#fbbf24', '#60a5fa'];
+
+function Confetti() {
+  const pieces = Array.from({ length: 28 }, (_, i) => i);
+  return (
+    <div className="pointer-events-none absolute inset-x-0 top-0 overflow-hidden h-24" aria-hidden="true">
+      {pieces.map(i => {
+        const left = `${(i / pieces.length) * 100}%`;
+        const color = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+        const delay = `${(i * 40) % 600}ms`;
+        const size = 6 + (i % 4) * 2;
+        return (
+          <div
+            key={i}
+            style={{
+              position: 'absolute',
+              left,
+              top: 0,
+              width: size,
+              height: size,
+              background: color,
+              borderRadius: i % 3 === 0 ? '50%' : '2px',
+              animation: `confettiFall 0.9s ease-out ${delay} forwards`,
+              opacity: 0,
+            }}
+          />
+        );
+      })}
+      <style>{`
+        @keyframes confettiFall {
+          0%   { transform: translateY(-10px) rotate(0deg);   opacity: 1; }
+          80%  { transform: translateY(80px) rotate(360deg);  opacity: 0.7; }
+          100% { transform: translateY(100px) rotate(400deg); opacity: 0; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export function CompareView({ original, rewrite, nativeVersion, annotations }: CompareViewProps) {
   const errorAnnotations = annotations.filter(annotation => annotation.errorType !== 'vocab_suggestion');
   const addressed = errorAnnotations.filter(annotation => annotation.accepted).length;
   const total = errorAnnotations.length;
   const allAddressed = total > 0 && addressed === total;
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  useEffect(() => {
+    if (allAddressed) {
+      setShowConfetti(true);
+      const t = setTimeout(() => setShowConfetti(false), 1400);
+      return () => clearTimeout(t);
+    }
+  }, [allAddressed]);
 
   return (
     <div className="space-y-5" aria-label="rewrite comparison">
       {total > 0 ? (
-        <div className={`rounded-xl border px-4 py-3 ${allAddressed ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
-          <p className={`text-sm font-semibold ${allAddressed ? 'text-emerald-800' : 'text-amber-800'}`}>
+        <div className={`relative overflow-hidden rounded-xl border px-4 py-3 ${allAddressed ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+          {showConfetti ? <Confetti /> : null}
+          <p className={`relative text-sm font-semibold ${allAddressed ? 'text-emerald-800' : 'text-amber-800'}`}>
+            {allAddressed ? '🎉 ' : null}
             You addressed <strong>{addressed} of {total}</strong> {total === 1 ? 'issue' : 'issues'}.
-            {allAddressed ? ' Excellent work.' : ' Keep refining - the remaining issues are shown below.'}
+            {allAddressed ? ' Excellent work!' : ' Keep refining — the remaining issues are shown below.'}
           </p>
         </div>
       ) : null}

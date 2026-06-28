@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type { CoachResponse, Prompt } from '../../shared/types';
-import { ACCESS_DENIED_EVENT, coach, recordCoachDiagnosis, saveAccessCode, submitSession as postSession } from './api';
+import { ACCESS_DENIED_EVENT, coach, getProgress, recordCoachDiagnosis, saveAccessCode, submitSession as postSession } from './api';
 import { AccessGate } from './components/AccessGate';
 import { AdminPanel } from './components/AdminPanel';
 import { CoachPanel } from './components/CoachPanel';
@@ -14,7 +14,9 @@ import { MemoryProfileCard } from './components/MemoryProfileCard';
 import { ProfileDashboard } from './components/ProfileDashboard';
 import { ProgressPanel } from './components/ProgressPanel';
 import { ReviewPanel } from './components/ReviewPanel';
+import { DailyDashboard } from './components/DailyDashboard';
 import { GraduatedShelf } from './components/GraduatedShelf';
+import { SentenceLab } from './components/SentenceLab';
 import { SentencePatterns } from './components/SentencePatterns';
 import { TodayStrip } from './components/TodayStrip';
 import { VocabPrime } from './components/VocabPrime';
@@ -28,10 +30,11 @@ interface CoachPanelState {
   response: CoachResponse;
 }
 
-type WorkspaceSection = 'write' | 'words' | 'review' | 'me' | 'patterns' | 'admin';
+type WorkspaceSection = 'write' | 'lab' | 'words' | 'review' | 'me' | 'patterns' | 'admin';
 
 const workspaceSections: Array<{ id: WorkspaceSection; label: string }> = [
   { id: 'write', label: 'Write' },
+  { id: 'lab', label: 'Lab' },
   { id: 'words', label: 'Words' },
   { id: 'review', label: 'Review' },
   { id: 'me', label: 'Me' },
@@ -41,6 +44,8 @@ const workspaceSections: Array<{ id: WorkspaceSection; label: string }> = [
 export function App() {
   const [accessBlocked, setAccessBlocked] = useState(false);
   const [accessRetryKey, setAccessRetryKey] = useState(0);
+  const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [streakCount, setStreakCount] = useState(0);
   const [prompt, setPrompt] = useState<Prompt | null>(null);
   const [draft, setDraft] = useState('');
   const [coachingIndex, setCoachingIndex] = useState<number | undefined>();
@@ -55,6 +60,18 @@ export function App() {
     const onAccessDenied = () => setAccessBlocked(true);
     globalThis.addEventListener?.(ACCESS_DENIED_EVENT, onAccessDenied);
     return () => globalThis.removeEventListener?.(ACCESS_DENIED_EVENT, onAccessDenied);
+  }, []);
+
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const seenKey = `idiomate-dashboard-seen-${today}`;
+    getProgress().then(data => {
+      setStreakCount(data.streak?.currentStreak ?? 0);
+      if (!sessionStorage.getItem(seenKey)) {
+        sessionStorage.setItem(seenKey, '1');
+        setDashboardOpen(true);
+      }
+    }).catch(() => undefined);
   }, []);
 
   const handleCoachParagraph = async (paragraph: string, paragraphIndex: number) => {
@@ -129,17 +146,31 @@ export function App() {
         >
           <div>
             <p className="desk-kicker">Editorial writing desk</p>
-            <h1 className="desk-title">Idiomate</h1>
+            <h1 className="desk-title flex items-center gap-2">
+              <img src="/logo-icon.png" alt="" aria-hidden="true" className="h-12 w-auto" />
+              Idiomate
+            </h1>
             <p className="desk-subtitle">Draft, revise, learn the pattern, then activate the words you keep meeting.</p>
           </div>
-          <button
-            type="button"
-            className="btn-primary self-start sm:self-auto"
-            disabled={!draft.trim() || sessionStatus === 'saving'}
-            onClick={handleSubmitSession}
-          >
-            {sessionStatus === 'saving' ? 'Saving' : 'Save session'}
-          </button>
+          <div className="flex items-center gap-3 self-start sm:self-auto">
+            <button
+              type="button"
+              className="flex items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 shadow-sm hover:bg-stone-50 transition-colors"
+              onClick={() => setDashboardOpen(true)}
+              title="View your streak and writing calendar"
+            >
+              <span>{streakCount > 0 ? '🔥' : '✏️'}</span>
+              <span>{streakCount} {streakCount === 1 ? 'day' : 'days'}</span>
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={!draft.trim() || sessionStatus === 'saving'}
+              onClick={handleSubmitSession}
+            >
+              {sessionStatus === 'saving' ? 'Saving' : 'Save session'}
+            </button>
+          </div>
         </header>
 
         <nav className="workspace-tabs" aria-label="Workspace sections">
@@ -196,6 +227,10 @@ export function App() {
           </div>
         </section>
 
+        <section className={`workspace-page${activeSection === 'lab' ? '' : ' hidden'}`} aria-label="sentence lab">
+          <SentenceLab onRecorded={() => { setProfileKey(key => key + 1); setHistoryKey(key => key + 1); }} />
+        </section>
+
         <section className={`workspace-page two-column-page${activeSection === 'words' ? '' : ' hidden'}`} aria-label="vocabulary">
           <OwnerVocabImport onImported={handleVocabSaved} />
           <ChineseToVocabBox onSaved={handleVocabSaved} />
@@ -227,6 +262,8 @@ export function App() {
 
         <footer className="pb-2 text-center text-xs text-slate-400">Local-first. Your words stay on your machine.</footer>
       </div>
+
+      <DailyDashboard open={dashboardOpen} onClose={() => setDashboardOpen(false)} />
     </main>
   );
 }

@@ -5,6 +5,7 @@ import { WordIntelCard } from './WordIntelCard';
 
 interface CaptureWordProps {
   onSaved?: (vocab: Vocab) => void;
+  initialWord?: string;
 }
 
 function toLines(items?: string[]): string {
@@ -26,8 +27,8 @@ function dictionaryLinks(term: string): { merriamWebster: string; cambridge: str
   };
 }
 
-export function CaptureWord({ onSaved }: CaptureWordProps) {
-  const [word, setWord] = useState('');
+export function CaptureWord({ onSaved, initialWord }: CaptureWordProps) {
+  const [word, setWord] = useState(initialWord ?? '');
   const [contextSentence, setContextSentence] = useState('');
   const [preview, setPreview] = useState<Vocab | null>(null);
   const [examplesText, setExamplesText] = useState('');

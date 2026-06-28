@@ -26,6 +26,10 @@ import type {
 } from '../../shared/types';
 import { getClientIdentity, setClientIdentity } from './identity';
 
+// Empty for the same-origin web build; the extension build sets VITE_API_BASE
+// to https://idiomate.onrender.com so the panel can reach the backend cross-origin.
+const API_BASE = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
+
 const ACCESS_CODE_KEY = 'idiomate_access_code';
 export const ACCESS_DENIED_EVENT = 'idiomate-access-denied';
 
@@ -159,7 +163,7 @@ function identityHeaders(extra?: HeadersInit): Headers {
 }
 
 function apiFetch(url: string, init: RequestInit = {}): Promise<Response> {
-  return fetch(url, {
+  return fetch(API_BASE + url, {
     ...init,
     headers: identityHeaders(init.headers),
   });

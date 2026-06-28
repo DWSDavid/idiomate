@@ -6,10 +6,11 @@ import { FollowUpBox } from './FollowUpBox';
 
 interface SentenceLabProps {
   onRecorded?: () => void;
+  initialSentence?: string;
 }
 
-export function SentenceLab({ onRecorded }: SentenceLabProps) {
-  const [sentence, setSentence] = useState('');
+export function SentenceLab({ onRecorded, initialSentence }: SentenceLabProps) {
+  const [sentence, setSentence] = useState(initialSentence ?? '');
   const [context, setContext] = useState('');
   const [rewrite, setRewrite] = useState('');
   const [diagnosis, setDiagnosis] = useState<SentenceLabDiagnosisResponse | null>(null);

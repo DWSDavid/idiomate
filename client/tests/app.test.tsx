@@ -41,7 +41,7 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ tallies: [], activation: { suggested: 0, used: 0 } }) } as Response);
     }
     if (url.includes('/api/progress')) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ daily: [], trend: [] }) } as Response);
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ daily: [], trend: [], streak: { currentStreak: 0, longestStreak: 0 }, activityDays: [] }) } as Response);
     }
     return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
   }));
@@ -50,7 +50,7 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
 
   expect(await screen.findByRole('banner', { name: 'Writing desk header' })).toBeInTheDocument();
   const nav = screen.getByRole('navigation', { name: 'Workspace sections' });
-  expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual(['Write', 'Words', 'Review', 'Me', 'Patterns']);
+  expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual(['Write', 'Lab', 'Words', 'Review', 'Me', 'Patterns']);
   expect(within(nav).getByRole('button', { name: 'Write' })).toHaveAttribute('aria-pressed', 'true');
   expect(within(nav).queryByRole('button', { name: 'Admin' })).not.toBeInTheDocument();
   expect(within(nav).queryByRole('button', { name: 'Sentence Lab' })).not.toBeInTheDocument();
@@ -118,7 +118,7 @@ it('records a paragraph result and refetches the profile after rewrite submit', 
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ tallies: [], activation: { suggested: 0, used: 0 } }) } as Response);
     }
     if (url.includes('/api/progress')) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ daily: [], trend: [] }) } as Response);
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ daily: [], trend: [], streak: { currentStreak: 0, longestStreak: 0 }, activityDays: [] }) } as Response);
     }
     if (url.includes('/api/coach')) {
       return Promise.resolve({
@@ -200,7 +200,7 @@ it('shows the access gate after a 401 and retries after saving the code', async 
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ tallies: [], activation: { suggested: 0, used: 0 } }) } as Response);
     }
     if (url.includes('/api/progress')) {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ daily: [], trend: [] }) } as Response);
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ daily: [], trend: [], streak: { currentStreak: 0, longestStreak: 0 }, activityDays: [] }) } as Response);
     }
     return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
   });

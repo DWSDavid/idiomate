@@ -1,0 +1,15 @@
+{
+  "manifest_version": 3,
+  "name": "Idiomate",
+  "version": "0.1.0",
+  "description": "Highlight any English on the web - capture words, diagnose sentences.",
+  "permissions": ["sidePanel", "activeTab", "storage", "contextMenus"],
+  "host_permissions": ["https://idiomate.onrender.com/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Open Idiomate" },
+  "side_panel": { "default_path": "sidepanel/index.html" },
+  "content_scripts": [
+    { "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_idle" }
+  ],
+  "icons": { "16": "icon-16.png", "48": "icon-48.png", "128": "icon-128.png" }
+}

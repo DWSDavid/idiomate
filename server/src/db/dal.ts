@@ -989,6 +989,66 @@ function daysParam(days: number): { startOffset: string } {
   return { startOffset: `-${safeDays - 1} days` };
 }
 
+export function getWritingActivityDays(db: Database.Database, userId: string, days = 90): string[] {
+  const safeDays = boundedPositiveInt(days, 90, 365);
+  const rows = db.prepare(`
+    SELECT DISTINCT date(COALESCE(created_at, date)) AS day
+    FROM sessions
+    WHERE user_id = ?
+      AND date(COALESCE(created_at, date)) >= date('now', ?)
+    ORDER BY day ASC
+  `).all(userId, `-${safeDays - 1} days`) as Array<{ day: string }>;
+  return rows.map(r => r.day);
+}
+
+export function getWritingStreak(db: Database.Database, userId: string): { currentStreak: number; longestStreak: number; lastActiveDate?: string } {
+  const rows = db.prepare(`
+    SELECT DISTINCT date(COALESCE(created_at, date)) AS day
+    FROM sessions
+    WHERE user_id = ?
+    ORDER BY day DESC
+  `).all(userId) as Array<{ day: string }>;
+
+  if (!rows.length) return { currentStreak: 0, longestStreak: 0 };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const lastActiveDate = rows[0].day;
+
+  // streak only continues if last activity was today or yesterday
+  let currentStreak = 0;
+  if (lastActiveDate === today || lastActiveDate === yesterday) {
+    let cursor = new Date(lastActiveDate);
+    for (const row of rows) {
+      const rowDate = row.day;
+      const expected = cursor.toISOString().slice(0, 10);
+      if (rowDate === expected) {
+        currentStreak += 1;
+        cursor = new Date(cursor.getTime() - 86400000);
+      } else {
+        break;
+      }
+    }
+  }
+
+  // compute longest streak across all history
+  let longestStreak = 0;
+  let runLength = 1;
+  for (let i = 1; i < rows.length; i++) {
+    const prev = new Date(rows[i - 1].day).getTime();
+    const curr = new Date(rows[i].day).getTime();
+    if (prev - curr === 86400000) {
+      runLength += 1;
+    } else {
+      longestStreak = Math.max(longestStreak, runLength);
+      runLength = 1;
+    }
+  }
+  longestStreak = Math.max(longestStreak, runLength);
+
+  return { currentStreak, longestStreak, lastActiveDate };
+}
+
 export function getDailyMistakeCounts(db: Database.Database, userId: string, days = 30): ProgressDailyPoint[] {
   const rows = db.prepare(`
     SELECT date(sessions.date) AS date, COUNT(*) AS count
