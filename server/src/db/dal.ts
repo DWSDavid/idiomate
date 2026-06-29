@@ -451,7 +451,7 @@ const VOCAB_PRIORITY_SCORE_SQL = `
   (
     capture_count * 10
     - times_used * 12
-    - times_suggested * 2
+    - times_suggested * 5
     + CASE kind
       WHEN 'collocation' THEN 14
       WHEN 'phrase' THEN 10
@@ -462,6 +462,7 @@ const VOCAB_PRIORITY_SCORE_SQL = `
       WHEN julianday('now') - julianday(last_captured) <= 30 THEN 3
       ELSE 0
     END
+    + CASE WHEN julianday('now') - julianday(last_suggested_at) < 1 THEN -20 ELSE 0 END
   )
 `;
 
@@ -871,7 +872,8 @@ export function decrementVocabUsed(db: Database.Database, userId: string, word: 
 export function incrementVocabSuggested(db: Database.Database, userId: string, words: string[]) {
   const stmt = db.prepare(`
     UPDATE vocab
-    SET times_suggested = times_suggested + 1
+    SET times_suggested = times_suggested + 1,
+        last_suggested_at = datetime('now')
     WHERE user_id = ? AND normalized = ?
   `);
   const incrementMany = db.transaction((items: string[]) => {

@@ -335,7 +335,8 @@ export function createVocabRouter(deps: AppDependencies): Router {
         if (item) selected.set(normalizeVocabWord(item.normalized ?? item.word), item);
         if (selected.size >= limit) break;
       }
-      for (const item of pool) {
+      const poolShuffled = [...pool].sort(() => Math.random() - 0.5);
+      for (const item of poolShuffled) {
         selected.set(normalizeVocabWord(item.normalized ?? item.word), item);
         if (selected.size >= limit) break;
       }

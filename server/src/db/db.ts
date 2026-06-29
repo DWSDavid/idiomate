@@ -55,6 +55,7 @@ export function migrate(db: Database.Database) {
   ensureColumn(db, 'vocab', 'next_review_at', 'TEXT');
   ensureColumn(db, 'vocab', 'graduated', 'INTEGER DEFAULT 0');
   ensureColumn(db, 'vocab', 'graduated_at', 'TEXT');
+  ensureColumn(db, 'vocab', 'last_suggested_at', 'TEXT');
 }
 
 function ensureColumn(db: Database.Database, table: string, column: string, definition: string) {

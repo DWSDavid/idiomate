@@ -15,6 +15,7 @@ import {
   getMistakeLog,
   getMistakeRanking,
   getMistakeTrend,
+  incrementVocabSuggested,
   incrementVocabUsed,
   insertAnnotations,
   insertSession,
@@ -583,6 +584,76 @@ it('buckets daily mistake counts by session date and excludes vocab suggestions'
     { date: '2026-06-03', count: 2 },
     { date: '2026-06-04', count: 1 },
   ]);
+});
+
+it('migrates last_suggested_at column onto vocab table', () => {
+  const vocabColumns = db.prepare('PRAGMA table_info(vocab)').all() as Array<{ name: string }>;
+  expect(vocabColumns.map(column => column.name)).toContain('last_suggested_at');
+});
+
+it('recently suggested word scores lower than an unseen word with equal capture_count', () => {
+  // Insert a word that was suggested just now (within the last 24h)
+  upsertVocab(db, USER_ID, {
+    word: 'recent',
+    kind: 'word',
+    captureCount: 5,
+    timesSuggested: 1,
+    timesUsed: 0,
+  });
+  db.prepare(`UPDATE vocab SET last_suggested_at = datetime('now') WHERE user_id = ? AND normalized = 'recent'`)
+    .run(USER_ID);
+
+  // Insert a word that has never been suggested
+  upsertVocab(db, USER_ID, {
+    word: 'unseen',
+    kind: 'word',
+    captureCount: 5,
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  const candidates = getPrimeCandidates(db, USER_ID, 2);
+  // 'unseen' should rank first because 'recent' carries -20 daily damper
+  expect(candidates[0].word).toBe('unseen');
+  expect(candidates[1].word).toBe('recent');
+});
+
+it('incrementVocabSuggested sets last_suggested_at and the column is non-null afterwards', () => {
+  upsertVocab(db, USER_ID, { word: 'tested', timesSuggested: 0, timesUsed: 0 });
+
+  const before = db.prepare('SELECT last_suggested_at FROM vocab WHERE user_id = ? AND normalized = ?')
+    .get(USER_ID, 'tested') as { last_suggested_at: string | null };
+  expect(before.last_suggested_at).toBeNull();
+
+  incrementVocabSuggested(db, USER_ID, ['tested']);
+
+  const after = db.prepare('SELECT times_suggested, last_suggested_at FROM vocab WHERE user_id = ? AND normalized = ?')
+    .get(USER_ID, 'tested') as { times_suggested: number; last_suggested_at: string | null };
+  expect(after.times_suggested).toBe(1);
+  expect(after.last_suggested_at).toBeTruthy();
+});
+
+it('times_suggested penalty is strong enough that 10 suggestions lower priority below an unseen word', () => {
+  // word with captureCount=5, suggested 10 times: 5*10 - 10*5 = 0
+  upsertVocab(db, USER_ID, {
+    word: 'oversuggested',
+    kind: 'word',
+    captureCount: 5,
+    timesSuggested: 10,
+    timesUsed: 0,
+  });
+  // word with captureCount=1, never suggested: 1*10 = 10
+  upsertVocab(db, USER_ID, {
+    word: 'fresh',
+    kind: 'word',
+    captureCount: 1,
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  const candidates = getPrimeCandidates(db, USER_ID, 2);
+  expect(candidates[0].word).toBe('fresh');
+  expect(candidates[1].word).toBe('oversuggested');
 });
 
 it('returns mistake trends for the top error types by overall count', () => {
