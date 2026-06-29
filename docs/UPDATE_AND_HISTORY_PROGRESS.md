@@ -1,5 +1,32 @@
 # Idiomate Update and History Progress
 
+## 2026-06-29 Speaking review module design checkpoint
+
+Purpose: add a dedicated text-only speaking review workflow for speech-to-text transcripts, while keeping the output in Idiomate history, profile memory, and the Chrome side-panel reading flow.
+
+Decision:
+
+- Build a new web `Speak` tab and a Chrome side-panel `Speak` mode.
+- First version consumes STT text from any tool; it does not record audio or judge pronunciation, tone, pace, or flow.
+- Store reviews as `sessions.source = 'speaking_review'` with annotations, native spoken version, and optional reading context.
+- Preserve webpage reading context in Chrome by carrying page title, URL, and selected excerpt into speaking reviews.
+- Tag vocabulary captured from webpages as `website_reading` so reading vocabulary and spoken thoughts about the same reading can be distinguished later.
+
+Design spec:
+
+- `docs/superpowers/specs/2026-06-29-speaking-review-design.md`
+
+Validation status:
+
+- Design document written for user review.
+- Implementation not started yet.
+
+Next steps:
+
+1. User reviews the spec.
+2. After approval, create an implementation plan.
+3. Implement the web tab, server route, history integration, Chrome side-panel mode, and tests.
+
 ## 2026-06-29 MacBook migration checkpoint
 
 Purpose: make the active Idiomate v3 work movable to the MacBook through GitHub, while keeping secrets and local state out of git.
@@ -44,4 +71,3 @@ Ongoing development rule:
 3. Run the relevant checks before pushing.
 4. Push to GitHub so the MacBook and Windows checkouts can both continue from the same source of truth.
 5. Update this file after meaningful milestones, migrations, deploy changes, data migrations, or rollback decisions.
-
