@@ -295,6 +295,8 @@ function mapVocabListItem(row: VocabRow): VocabListItem {
     capturedDate: capturedAt?.slice(0, 10),
     ...(row.graduated === 1 ? { graduated: true as const } : {}),
     nextReviewAt: row.next_review_at ?? undefined,
+    dateAdded: row.date_added ?? undefined,
+    source: row.source ?? undefined,
   };
 }
 
@@ -459,7 +461,7 @@ const VOCAB_PRIORITY_SCORE_SQL = `
   (
     capture_count * 10
     - times_used * 12
-    - times_suggested * 2
+    - times_suggested * 5
     + CASE kind
       WHEN 'collocation' THEN 14
       WHEN 'phrase' THEN 10
@@ -470,6 +472,7 @@ const VOCAB_PRIORITY_SCORE_SQL = `
       WHEN julianday('now') - julianday(last_captured) <= 30 THEN 3
       ELSE 0
     END
+    + CASE WHEN julianday('now') - julianday(last_suggested_at) < 1 THEN -20 ELSE 0 END
   )
 `;
 
@@ -507,6 +510,62 @@ export function getVocabList(db: Database.Database, userId: string, limit = 200)
 export function getVocabCount(db: Database.Database, userId: string): number {
   const row = db.prepare('SELECT COUNT(*) AS count FROM vocab WHERE user_id = ? AND COALESCE(graduated, 0) = 0').get(userId) as { count: number };
   return row.count;
+}
+
+export interface GetAllVocabOpts {
+  offset: number;
+  limit: number;
+  sort: 'date' | 'priority';
+  source?: string;
+}
+
+export function getAllVocab(
+  db: Database.Database,
+  userId: string,
+  opts: GetAllVocabOpts,
+): { total: number; items: VocabListItem[] } {
+  const safeOffset = Math.max(0, Math.trunc(opts.offset));
+  const safeLimit = Math.max(1, Math.min(Math.trunc(opts.limit), 500));
+  const orderBy = opts.sort === 'date'
+    ? 'date_added DESC, id DESC'
+    : `${VOCAB_PRIORITY_ORDER_SQL}`;
+
+  const sourceFilter = opts.source ? 'AND source LIKE ?' : '';
+  const sourceParam = opts.source ? `${opts.source}%` : undefined;
+
+  const countParams: unknown[] = [userId];
+  if (sourceParam !== undefined) countParams.push(sourceParam);
+
+  const countRow = db.prepare(`
+    SELECT COUNT(*) AS count
+    FROM vocab
+    WHERE user_id = ?
+      AND COALESCE(graduated, 0) = 0
+      ${sourceFilter}
+  `).get(...countParams) as { count: number };
+
+  const rowParams: unknown[] = [userId];
+  if (sourceParam !== undefined) rowParams.push(sourceParam);
+  rowParams.push(safeLimit, safeOffset);
+
+  const scoreSelect = opts.sort === 'priority'
+    ? `, ${VOCAB_PRIORITY_SCORE_SQL} AS priority_score`
+    : ', 0 AS priority_score';
+
+  const rows = db.prepare(`
+    SELECT *${scoreSelect}
+    FROM vocab
+    WHERE user_id = ?
+      AND COALESCE(graduated, 0) = 0
+      ${sourceFilter}
+    ORDER BY ${orderBy}
+    LIMIT ? OFFSET ?
+  `).all(...rowParams) as VocabRow[];
+
+  return {
+    total: countRow.count,
+    items: rows.map(mapVocabListItem),
+  };
 }
 
 function latestTimestamp(a: string | null, b: string | null): string | null {
@@ -879,7 +938,8 @@ export function decrementVocabUsed(db: Database.Database, userId: string, word: 
 export function incrementVocabSuggested(db: Database.Database, userId: string, words: string[]) {
   const stmt = db.prepare(`
     UPDATE vocab
-    SET times_suggested = times_suggested + 1
+    SET times_suggested = times_suggested + 1,
+        last_suggested_at = datetime('now')
     WHERE user_id = ? AND normalized = ?
   `);
   const incrementMany = db.transaction((items: string[]) => {
@@ -1208,26 +1268,48 @@ function sentenceLabDraftAnnotations(row: SentenceLabDraftRow): WritingHistoryAn
   }
 }
 
-export function getWritingHistory(db: Database.Database, userId: string, limit = 100): WritingHistoryEntry[] {
+export function getWritingHistory(db: Database.Database, userId: string, limit = 100, source?: WritingSource): WritingHistoryEntry[] {
   const safeLimit = boundedPositiveInt(limit, 100, 500);
-  const sessions = db.prepare(`
-    SELECT
-      id,
-      date,
-      draft_text,
-      final_text,
-      COALESCE(source, 'daily_writing') AS source,
-      created_at,
-      context_label,
-      context_title,
-      context_url,
-      context_excerpt
-    FROM sessions
-    WHERE user_id = ?
-      AND COALESCE(source, 'daily_writing') != 'sentence_lab'
-    ORDER BY COALESCE(created_at, date) DESC, id DESC
-    LIMIT ?
-  `).all(userId, safeLimit) as HistorySessionRow[];
+  let sessions: HistorySessionRow[];
+  if (source) {
+    sessions = db.prepare(`
+      SELECT
+        id,
+        date,
+        draft_text,
+        final_text,
+        COALESCE(source, 'daily_writing') AS source,
+        created_at,
+        context_label,
+        context_title,
+        context_url,
+        context_excerpt
+      FROM sessions
+      WHERE user_id = ?
+        AND COALESCE(source, 'daily_writing') = ?
+      ORDER BY COALESCE(created_at, date) DESC, id DESC
+      LIMIT ?
+    `).all(userId, source, safeLimit) as HistorySessionRow[];
+  } else {
+    sessions = db.prepare(`
+      SELECT
+        id,
+        date,
+        draft_text,
+        final_text,
+        COALESCE(source, 'daily_writing') AS source,
+        created_at,
+        context_label,
+        context_title,
+        context_url,
+        context_excerpt
+      FROM sessions
+      WHERE user_id = ?
+        AND COALESCE(source, 'daily_writing') != 'sentence_lab'
+      ORDER BY COALESCE(created_at, date) DESC, id DESC
+      LIMIT ?
+    `).all(userId, safeLimit) as HistorySessionRow[];
+  }
 
   const sessionIds = sessions.map(session => session.id);
   const annotationRows = sessionIds.length
@@ -1256,7 +1338,7 @@ export function getWritingHistory(db: Database.Database, userId: string, limit =
     annotations: annotationsBySession.get(session.id) ?? [],
   }));
 
-  const sentenceLabDrafts = db.prepare(`
+  const sentenceLabDrafts = (source && source !== 'sentence_lab') ? [] : db.prepare(`
     SELECT id, user_id, date, sentence, context, response_json, created_at
     FROM sentence_lab_drafts
     WHERE user_id = ?

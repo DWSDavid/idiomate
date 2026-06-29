@@ -5,6 +5,7 @@ import { config } from '../config.js';
 import { attachBookReferences } from '../brain/chinglishBook.js';
 import { coachParagraph } from '../brain/coach.js';
 import { retrieveTopK } from '../brain/embedding.js';
+import { assembleElevatePrompt } from '../brain/prompts.js';
 import { getPrimeCandidates, getSessionEmbeddings, getTallies } from '../db/dal.js';
 
 const coachRequestZ = z.object({
@@ -50,9 +51,36 @@ export function createCoachRouter(deps: AppDependencies): Router {
         model: config.modelCoach,
       });
 
+      let elevatedVersion: string | undefined;
+      let elevationNotes: string | undefined;
+      if (response.nativeVersion) {
+        try {
+          const elevatePrompt = assembleElevatePrompt({
+            paragraph: body.paragraph,
+            nativeVersion: response.nativeVersion,
+          });
+          const elevateRaw = await deps.utilityProvider.complete({
+            system: elevatePrompt.system,
+            user: elevatePrompt.user,
+            model: config.modelUtility,
+          });
+          const elevateJson = JSON.parse(elevateRaw) as { elevatedVersion?: string; elevationNotes?: string };
+          if (typeof elevateJson.elevatedVersion === 'string') {
+            elevatedVersion = elevateJson.elevatedVersion;
+          }
+          if (typeof elevateJson.elevationNotes === 'string') {
+            elevationNotes = elevateJson.elevationNotes;
+          }
+        } catch {
+          // Elevation is best-effort; coach still returns successfully without it.
+        }
+      }
+
       res.json({
         ...response,
         annotations: attachBookReferences(response.annotations),
+        ...(elevatedVersion !== undefined ? { elevatedVersion } : {}),
+        ...(elevationNotes !== undefined ? { elevationNotes } : {}),
       });
     } catch (err) {
       next(err);

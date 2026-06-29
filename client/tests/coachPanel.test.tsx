@@ -281,6 +281,116 @@ it('shows distinction text and inline save buttons for vocab_suggestion; saves o
   expect(screen.queryByRole('button', { name: 'New to me — save' })).not.toBeInTheDocument();
 });
 
+it('shows Grammar fix and Elevated tabs after submit when elevatedVersion is present', () => {
+  render(
+    <CoachPanel
+      paragraph="We did X in order to Y"
+      nativeVersion="We did X to Y."
+      elevatedVersion="By trimming the redundancy, we sharpen the causal link between X and Y."
+      elevationNotes="Removed filler phrase and made the connection explicit."
+      annotations={ann as any}
+      onSubmit={() => {}}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'We did X to Y.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
+
+  expect(screen.getByRole('button', { name: 'Grammar fix' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Elevated' })).toBeInTheDocument();
+
+  // Grammar fix tab is active by default — native version visible
+  expect(screen.getByText('Native version')).toBeInTheDocument();
+
+  // Switch to Elevated tab
+  fireEvent.click(screen.getByRole('button', { name: 'Elevated' }));
+  expect(screen.getByText('By trimming the redundancy, we sharpen the causal link between X and Y.')).toBeInTheDocument();
+  expect(screen.getByText('Removed filler phrase and made the connection explicit.')).toBeInTheDocument();
+  expect(screen.getByText('Elevated version')).toBeInTheDocument();
+});
+
+it('does not show tabs when elevatedVersion is absent', () => {
+  render(
+    <CoachPanel
+      paragraph="We did X in order to Y"
+      nativeVersion="We did X to Y."
+      annotations={ann as any}
+      onSubmit={() => {}}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'We did X to Y.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
+
+  expect(screen.queryByRole('button', { name: 'Grammar fix' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Elevated' })).not.toBeInTheDocument();
+  expect(screen.getByText('Native version')).toBeInTheDocument();
+});
+
+it('span-based accepted: NOT accepted when rewrite still contains the problematic span', () => {
+  const spanAnnotation = [{
+    span: 'logistics in smart factories',
+    errorType: 'redundancy',
+    hint: 'This phrase is vague.',
+    explanation: 'Cut to the specific term.',
+    modelRewrite: 'supply-chain automation',
+  }];
+
+  const onSubmit = vi.fn();
+  render(
+    <CoachPanel
+      paragraph="The role of logistics in smart factories is evolving."
+      annotations={spanAnnotation as any}
+      onSubmit={onSubmit}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
+  // Rewrite still contains the span
+  fireEvent.change(screen.getByRole('textbox'), {
+    target: { value: 'The role of logistics in smart factories is changing.' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
+
+  expect(onSubmit).toHaveBeenCalledWith(
+    'The role of logistics in smart factories is changing.',
+    expect.arrayContaining([expect.objectContaining({ accepted: false })]),
+  );
+});
+
+it('span-based accepted: IS accepted when the problematic span is absent from the rewrite', () => {
+  const spanAnnotation = [{
+    span: 'logistics in smart factories',
+    errorType: 'redundancy',
+    hint: 'This phrase is vague.',
+    explanation: 'Cut to the specific term.',
+    modelRewrite: 'supply-chain automation',
+  }];
+
+  const onSubmit = vi.fn();
+  render(
+    <CoachPanel
+      paragraph="The role of logistics in smart factories is evolving."
+      annotations={spanAnnotation as any}
+      onSubmit={onSubmit}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
+  // Rewrite does not contain the span
+  fireEvent.change(screen.getByRole('textbox'), {
+    target: { value: 'Supply-chain automation is evolving.' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
+
+  expect(onSubmit).toHaveBeenCalledWith(
+    'Supply-chain automation is evolving.',
+    expect.arrayContaining([expect.objectContaining({ accepted: true })]),
+  );
+});
+
 it('"I know it" dismisses the save prompt without calling the API', () => {
   const fetchMock = vi.fn();
   vi.stubGlobal('fetch', fetchMock);

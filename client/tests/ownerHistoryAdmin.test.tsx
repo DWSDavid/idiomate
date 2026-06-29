@@ -71,7 +71,8 @@ it('renders saved daily writing and sentence lab history', async () => {
   render(<HistoryPanel />);
 
   expect(await screen.findByText('Writing history')).toBeInTheDocument();
-  expect(screen.getByText('Daily writing')).toBeInTheDocument();
+  // 'Daily' appears in both the filter tab and the entry badge after rename
+  expect(screen.getAllByText('Daily').length).toBeGreaterThanOrEqual(1);
   expect(screen.getByText('Sentence lab')).toBeInTheDocument();
   expect(screen.getByText('My draft.')).toBeInTheDocument();
   expect(screen.getByText('He discussed the roadmap.')).toBeInTheDocument();

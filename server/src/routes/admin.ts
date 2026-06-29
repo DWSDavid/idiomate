@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { AppDependencies } from '../appContext.js';
 import { config } from '../config.js';
 import { getAdminUserSummary, getVocabCount, getVocabList, getWritingHistory, listAdminUsers } from '../db/dal.js';
+import { flushListenQueue } from '../listen.js';
 
 const adminDetailParamsZ = z.object({
   userId: z.string().min(1),
@@ -60,6 +61,16 @@ export function createAdminRouter(deps: AppDependencies): Router {
           entries: getWritingHistory(deps.db, userId, 500),
         },
       });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/listen/flush', (req, res, next) => {
+    try {
+      if (!requireAdminCode(req, res)) return;
+      const result = flushListenQueue(deps.db, config.rubiProfileUserId);
+      res.json({ ok: true, inserted: result.inserted, skipped: result.skipped });
     } catch (err) {
       next(err);
     }

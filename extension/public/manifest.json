@@ -4,7 +4,11 @@
   "version": "0.1.0",
   "description": "Highlight any English on the web - capture words, diagnose sentences.",
   "permissions": ["sidePanel", "activeTab", "storage", "contextMenus"],
-  "host_permissions": ["https://idiomate.onrender.com/*"],
+  "host_permissions": [
+    "https://idiomate.onrender.com/*",
+    "http://127.0.0.1:8787/*",
+    "http://localhost:8787/*"
+  ],
   "background": { "service_worker": "background.js" },
   "action": { "default_title": "Open Idiomate" },
   "side_panel": { "default_path": "sidepanel/index.html" },

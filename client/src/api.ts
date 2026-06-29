@@ -12,6 +12,7 @@ import type {
   SentenceLabDiagnosisResponse,
   SentenceLabResultResponse,
   SpeakingReviewResponse,
+  SessionSaveResult,
   StructureResponse,
   Vocab,
   VocabListItem,
@@ -76,6 +77,8 @@ export interface SessionSubmitPayload {
   finalText?: string;
   durationS?: number;
   annotations?: SubmittedAnnotation[];
+  primedVocab?: string[];
+  source?: 'daily_writing' | 'free_writing';
 }
 
 export interface ParagraphResultPayload {
@@ -202,6 +205,21 @@ export function getVocabList(limit = 200): Promise<VocabListResponse> {
   return apiFetch(`/api/vocab/list?${params.toString()}`).then(readJson<VocabListResponse>);
 }
 
+export function getAllVocab(opts?: {
+  offset?: number;
+  limit?: number;
+  sort?: 'date' | 'priority';
+  source?: string;
+}): Promise<VocabListResponse> {
+  const params = new URLSearchParams();
+  if (opts?.offset !== undefined) params.set('offset', String(opts.offset));
+  if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+  if (opts?.sort !== undefined) params.set('sort', opts.sort);
+  if (opts?.source !== undefined) params.set('source', opts.source);
+  const query = params.toString();
+  return apiFetch(`/api/vocab/all${query ? `?${query}` : ''}`).then(readJson<VocabListResponse>);
+}
+
 export function getReviewQueue(): Promise<{ items: Vocab[] }> {
   return apiFetch('/api/vocab/review-queue').then(readJson<{ items: Vocab[] }>);
 }
@@ -250,8 +268,8 @@ export function coach(paragraph: string, paragraphIndex: number): Promise<CoachR
   return postJson<CoachResponse>('/api/coach', { paragraph, paragraphIndex });
 }
 
-export function submitSession(payload: SessionSubmitPayload): Promise<{ id: number }> {
-  return postJson<{ id: number }>('/api/sessions', payload);
+export function submitSession(payload: SessionSubmitPayload): Promise<SessionSaveResult> {
+  return postJson<SessionSaveResult>('/api/sessions', payload);
 }
 
 export function recordParagraph(payload: ParagraphResultPayload): Promise<{ id: number }> {
@@ -274,8 +292,9 @@ export function getProgress(): Promise<ProgressResponse> {
   return apiFetch('/api/progress').then(readJson<ProgressResponse>);
 }
 
-export function getHistory(limit = 100): Promise<WritingHistoryResponse> {
+export function getHistory(limit = 100, source?: string): Promise<WritingHistoryResponse> {
   const params = new URLSearchParams({ limit: String(limit) });
+  if (source) params.set('source', source);
   return apiFetch(`/api/history?${params.toString()}`).then(readJson<WritingHistoryResponse>);
 }
 

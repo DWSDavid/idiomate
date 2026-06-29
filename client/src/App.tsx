@@ -53,10 +53,13 @@ export function App() {
   const [coachingIndex, setCoachingIndex] = useState<number | undefined>();
   const [coachPanels, setCoachPanels] = useState<CoachPanelState[]>([]);
   const [sessionStatus, setSessionStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [primedVocab, setPrimedVocab] = useState<string[]>([]);
+  const [saveResult, setSaveResult] = useState<{ vocabUsed: number; vocabTotal: number } | null>(null);
   const [profileKey, setProfileKey] = useState(0);
   const [vocabKey, setVocabKey] = useState(0);
   const [historyKey, setHistoryKey] = useState(0);
   const [activeSection, setActiveSection] = useState<WorkspaceSection>('write');
+  const [writingSource, setWritingSource] = useState<'daily_writing' | 'free_writing'>('daily_writing');
 
   useEffect(() => {
     const onAccessDenied = () => setAccessBlocked(true);
@@ -111,14 +114,20 @@ export function App() {
   const handleSubmitSession = async () => {
     if (!draft.trim()) return;
     setSessionStatus('saving');
+    setSaveResult(null);
     try {
-      await postSession({
+      const result = await postSession({
         date: prompt?.date,
         promptId: prompt?.id,
         draftText: draft,
         finalText: draft,
+        primedVocab: primedVocab.length ? primedVocab : undefined,
+        source: writingSource,
       });
       setSessionStatus('saved');
+      if (primedVocab.length) {
+        setSaveResult({ vocabUsed: result.vocabUsed, vocabTotal: result.vocabTotal });
+      }
       setProfileKey(key => key + 1); // refetch profile so tallies + activation update after submit
       setHistoryKey(key => key + 1);
     } catch {
@@ -193,12 +202,16 @@ export function App() {
           <aside className="writing-reference-rail" aria-label="writing reference rail">
             <TodayStrip refreshKey={vocabKey} />
             <DailyPrompt onPrompt={setPrompt} />
-            <VocabPrime promptText={prompt?.text ?? ''} refreshKey={vocabKey} />
+            <VocabPrime promptText={prompt?.text ?? ''} refreshKey={vocabKey} onVocabChange={setPrimedVocab} />
           </aside>
 
           <div className="draft-workbench" aria-label="draft workbench">
             {sessionStatus === 'saved' ? (
-              <p className="notice notice-success">Session saved. Your profile is updated.</p>
+              <p className="notice notice-success">
+                {saveResult
+                  ? `Saved. You used ${saveResult.vocabUsed} of ${saveResult.vocabTotal} primed words.`
+                  : 'Session saved. Your profile is updated.'}
+              </p>
             ) : null}
             {sessionStatus === 'error' ? (
               <p className="notice notice-error">Could not save the session.</p>
@@ -209,6 +222,7 @@ export function App() {
               onChange={setDraft}
               onCoachParagraph={handleCoachParagraph}
               coachingIndex={coachingIndex}
+              onSourceChange={setWritingSource}
             />
 
             {coachPanels.map(item => (
@@ -216,6 +230,8 @@ export function App() {
                 key={item.id}
                 paragraph={item.paragraph}
                 nativeVersion={item.response.nativeVersion}
+                elevatedVersion={item.response.elevatedVersion}
+                elevationNotes={item.response.elevationNotes}
                 annotations={item.response.annotations}
                 recordContext={{
                   date: prompt?.date,

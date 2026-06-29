@@ -5,9 +5,10 @@ import { primeVocab } from '../api';
 interface VocabPrimeProps {
   promptText: string;
   refreshKey?: number;
+  onVocabChange?: (words: string[]) => void;
 }
 
-export function VocabPrime({ promptText, refreshKey = 0 }: VocabPrimeProps) {
+export function VocabPrime({ promptText, refreshKey = 0, onVocabChange }: VocabPrimeProps) {
   const [vocab, setVocab] = useState<Vocab[]>([]);
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle');
 
@@ -19,6 +20,7 @@ export function VocabPrime({ promptText, refreshKey = 0 }: VocabPrimeProps) {
       .then(result => {
         if (!alive) return;
         setVocab(result.vocab);
+        onVocabChange?.(result.vocab.map(v => v.word));
         setStatus('idle');
       })
       .catch(() => {

@@ -1028,7 +1028,7 @@ it('GET /api/vocab/list returns priority-ordered vocab with total count', async 
     const json = await res.json();
     expect(json.total).toBe(2);
     expect(json.items).toEqual([
-      {
+      expect.objectContaining({
         id: expect.any(Number),
         word: 'well worn phrase',
         kind: 'phrase',
@@ -1038,7 +1038,7 @@ it('GET /api/vocab/list returns priority-ordered vocab with total count', async 
         timesUsed: 1,
         lastCaptured: '2026-05-10T00:00:00.000Z',
         capturedDate: '2026-05-10',
-      },
+      }),
     ]);
   });
 });
@@ -1993,5 +1993,75 @@ it('POST /api/structure returns an ideal outline and per-part draft observations
     expect(captured!.model).toBe('gpt-4o');
     expect(captured!.system).toContain('writing structure coach');
     expect(captured!.user).toContain('AI capex may hurt margins');
+  });
+});
+
+it('POST /api/coach attaches elevatedVersion and elevationNotes when elevation succeeds', async () => {
+  let utilityCallCount = 0;
+  const coachProvider: LLMProvider = {
+    async complete() {
+      return JSON.stringify({
+        paragraphIndex: 0,
+        annotations: [],
+        nativeVersion: 'We implemented the policy.',
+      });
+    },
+  };
+  const utilityProvider: LLMProvider = {
+    async complete(opts) {
+      utilityCallCount += 1;
+      expect(opts.system).toContain('senior editor');
+      expect(opts.user).toContain('We implemented the policy.');
+      return JSON.stringify({
+        elevatedVersion: 'The policy was implemented swiftly, closing the enforcement gap.',
+        elevationNotes: 'Added a specific consequence to deepen the argument.',
+      });
+    },
+  };
+
+  await withServer(createApp({ db, coachProvider, utilityProvider }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/coach`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paragraphIndex: 0, paragraph: 'We carried out the implementation of the policy.' }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.nativeVersion).toBe('We implemented the policy.');
+    expect(json.elevatedVersion).toBe('The policy was implemented swiftly, closing the enforcement gap.');
+    expect(json.elevationNotes).toBe('Added a specific consequence to deepen the argument.');
+    expect(utilityCallCount).toBe(1);
+  });
+});
+
+it('POST /api/coach returns 200 without elevatedVersion when the elevation LLM call throws', async () => {
+  const coachProvider: LLMProvider = {
+    async complete() {
+      return JSON.stringify({
+        paragraphIndex: 0,
+        annotations: [],
+        nativeVersion: 'We implemented the policy.',
+      });
+    },
+  };
+  const utilityProvider: LLMProvider = {
+    async complete() {
+      throw new Error('LLM unavailable');
+    },
+  };
+
+  await withServer(createApp({ db, coachProvider, utilityProvider }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/coach`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ paragraphIndex: 0, paragraph: 'We carried out the implementation of the policy.' }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.nativeVersion).toBe('We implemented the policy.');
+    expect(json.elevatedVersion).toBeUndefined();
+    expect(json.elevationNotes).toBeUndefined();
   });
 });

@@ -8,6 +8,7 @@ import { selectPrimeWords } from '../brain/prompts.js';
 import { config } from '../config.js';
 import { parseYoudaoTxt } from '../import/youdao.js';
 import {
+  getAllVocab,
   getDeepDiveCache,
   getGraduatedVocab,
   getVocabCount,
@@ -69,6 +70,13 @@ const chineseVocabZ = z.object({
 
 const vocabListQueryZ = z.object({
   limit: z.coerce.number().int().positive().max(500).default(200),
+});
+
+const allVocabQueryZ = z.object({
+  offset: z.coerce.number().int().nonnegative().default(0),
+  limit: z.coerce.number().int().positive().max(500).default(50),
+  sort: z.enum(['date', 'priority']).default('date'),
+  source: z.string().optional(),
 });
 
 const reviewQueueQueryZ = z.object({
@@ -207,6 +215,20 @@ export function createVocabRouter(deps: AppDependencies): Router {
     }
   });
 
+  router.get('/all', (req, res, next) => {
+    try {
+      const query = allVocabQueryZ.parse(req.query);
+      res.json(getAllVocab(deps.db, req.userId, {
+        offset: query.offset,
+        limit: query.limit,
+        sort: query.sort,
+        source: query.source,
+      }));
+    } catch (err) {
+      next(err);
+    }
+  });
+
   router.post('/merge-families', (req, res, next) => {
     try {
       res.json(mergeVocabFamilies(deps.db, req.userId));
@@ -335,7 +357,8 @@ export function createVocabRouter(deps: AppDependencies): Router {
         if (item) selected.set(normalizeVocabWord(item.normalized ?? item.word), item);
         if (selected.size >= limit) break;
       }
-      for (const item of pool) {
+      const poolShuffled = [...pool].sort(() => Math.random() - 0.5);
+      for (const item of poolShuffled) {
         selected.set(normalizeVocabWord(item.normalized ?? item.word), item);
         if (selected.size >= limit) break;
       }

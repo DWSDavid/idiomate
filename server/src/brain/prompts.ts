@@ -153,6 +153,9 @@ export function assembleCoachPrompt(ctx: CoachPromptContext): { system: string; 
       'rank the annotations by learning value: recurring grammar norms first, then unnatural Chinglish patterns, then style or vocabulary opportunities.',
       'For grammar, make the underlying norm explicit in explanation, such as base verb after do, has/have been vs simple past, active vs passive, article with singular count noun, or parallel forms.',
       'For Chinglish, explain the Chinese-L1 mindset: why a Chinese speaker may write it this way and how native English packages the idea differently.',
+      'For every explanation, include THREE components in this order: (1) Rule: state the specific grammar rule name and what it demands, e.g. "Uncountable nouns in generic reference take zero article." (2) Why: explain the linguistic reason at a semantic or structural level, e.g. "Logistics here refers to the field as a concept, not a specific set of logistics — generic reference uses zero article." (3) Chinese-L1 mindset: explain why a Chinese speaker makes this mistake, e.g. "Chinese has no articles, so learners often add the definite article when a noun feels important enough to warrant one."',
+      'For word-order issues (split infinitives, correlative conjunctions like not only...but also, adverb placement): always explain WHY the specific order matters — whether it is a register rule, a clarity rule, or a structural constraint. Never just say "this is more natural."',
+      'For countable/uncountable errors: state whether the noun is countable or uncountable IN THIS CONTEXT, explain why, and give a one-sentence test the writer can apply themselves (e.g. "Ask: can I count individual units of this? If not, use zero article or singular form.").',
       'Do not write vague feedback like "choose the correct expression" or "use a better word." For word_choice, provide 1 to 3 concrete replacement options in the explanation, say when each fits, and put the best fit in ruleExample.after/modelRewrite.',
       'Preserve valid domain terminology, emerging tech terms, finance terms, and user-defined terms unless they are clearly wrong in context. Examples of terms to preserve include AI sprawl, open-source models, autonomous agents, risk premium, and model proliferation. If a phrase may be a legitimate term, use rule "terminology_check", explain that it may be kept if intentional, and do not mark it as a diction error unless the context proves misuse.',
       "For ruleExample, ruleExample.before MUST come from the user's own text for this exact issue, or be closely based on that text. ruleExample.after MUST be the corrected form of that same minimal pair. NEVER copy the example sentences from the Taxonomy or Rules sections; those references are for classification only, not output. If no faithful minimal pair fits, generate a fresh pair specific to this user's error and do not reuse a reference example.",
@@ -319,6 +322,9 @@ export function assembleSentenceLabPrompt(ctx: SentenceLabPromptContext): { syst
       'If it is natural, return no annotations and a nativeVersion that may match the original.',
       'If it is unnatural, identify the smallest useful spans, name the specific grammar or Chinglish pattern, and give hints that do NOT reveal the fix.',
       'The explanation should name what is wrong, why it feels unnatural, and the grammar or mindset involved.',
+      'For every explanation, include THREE components in this order: (1) Rule: state the specific grammar rule name and what it demands, e.g. "Uncountable nouns in generic reference take zero article." (2) Why: explain the linguistic reason at a semantic or structural level, e.g. "Logistics here refers to the field as a concept, not a specific set of logistics — generic reference uses zero article." (3) Chinese-L1 mindset: explain why a Chinese speaker makes this mistake, e.g. "Chinese has no articles, so learners often add the definite article when a noun feels important enough to warrant one."',
+      'For word-order issues (split infinitives, correlative conjunctions like not only...but also, adverb placement): always explain WHY the specific order matters — whether it is a register rule, a clarity rule, or a structural constraint. Never just say "this is more natural."',
+      'For countable/uncountable errors: state whether the noun is countable or uncountable IN THIS CONTEXT, explain why, and give a one-sentence test the writer can apply themselves (e.g. "Ask: can I count individual units of this? If not, use zero article or singular form.").',
       'Do not write vague feedback like "choose the correct expression" or "use a better word." For word_choice, provide 1 to 3 concrete replacement options in the explanation, say when each fits, and put the best fit in ruleExample.after/modelRewrite.',
       'Preserve valid domain terminology, emerging tech terms, finance terms, and user-defined terms unless they are clearly wrong in context. Examples of terms to preserve include AI sprawl, open-source models, autonomous agents, risk premium, and model proliferation. If a phrase may be a legitimate term, use rule "terminology_check", explain that it may be kept if intentional, and do not mark it as a diction error unless the context proves misuse.',
       'For ruleExample, ruleExample.before MUST come from the user sentence for this exact issue, and ruleExample.after MUST be the corrected minimal pair. The API will hide ruleExample and all rewrites until the user submits their own rewrite.',
@@ -480,6 +486,27 @@ export function assembleNewsPrompt(ctx: {
       `Headlines:\n${headlines}`,
       'Write one fresh prompt with a concrete angle. Do not copy a headline verbatim.',
       "What's your view prompt:",
+    ].join('\n\n'),
+  };
+}
+
+export interface ElevatePromptContext {
+  paragraph: string;
+  nativeVersion: string;
+}
+
+export function assembleElevatePrompt(ctx: ElevatePromptContext): { system: string; user: string } {
+  return {
+    system: [
+      'You are a senior editor.',
+      'Take a grammar-corrected paragraph and elevate it: improve transitions, deepen the argument, add specific commentary, and sharpen the structure.',
+      'Do NOT just rephrase.',
+      'Return ONLY JSON: {elevatedVersion, elevationNotes} where elevationNotes is one sentence explaining the key structural change.',
+    ].join(' '),
+    user: [
+      `Original paragraph:\n${ctx.paragraph}`,
+      `Grammar-corrected version:\n${ctx.nativeVersion}`,
+      'Elevate the grammar-corrected version.',
     ].join('\n\n'),
   };
 }

@@ -16,6 +16,8 @@ import {
   getMistakeLog,
   getMistakeRanking,
   getMistakeTrend,
+  getWritingHistory,
+  incrementVocabSuggested,
   incrementVocabUsed,
   insertAnnotations,
   insertSession,
@@ -328,7 +330,7 @@ it('lists vocab by the same priority order used for prime candidates', () => {
 
   expect(getVocabCount(db, USER_ID)).toBe(3);
   expect(list.map(item => item.word)).toEqual(getPrimeCandidates(db, USER_ID, 10).map(item => item.word));
-  expect(list[0]).toEqual({
+  expect(list[0]).toEqual(expect.objectContaining({
     id: expect.any(Number),
     word: 'well worn phrase',
     kind: 'phrase',
@@ -340,7 +342,7 @@ it('lists vocab by the same priority order used for prime candidates', () => {
     timesUsed: 0,
     lastCaptured: '2026-05-10T00:00:00.000Z',
     capturedDate: '2026-05-10',
-  });
+  }));
 });
 
 it('does not label original Youdao imports as newly captured daily vocab', () => {
@@ -638,6 +640,76 @@ it('returns speaking reviews in history with reading context', () => {
   }));
 });
 
+it('migrates last_suggested_at column onto vocab table', () => {
+  const vocabColumns = db.prepare('PRAGMA table_info(vocab)').all() as Array<{ name: string }>;
+  expect(vocabColumns.map(column => column.name)).toContain('last_suggested_at');
+});
+
+it('recently suggested word scores lower than an unseen word with equal capture_count', () => {
+  // Insert a word that was suggested just now (within the last 24h)
+  upsertVocab(db, USER_ID, {
+    word: 'recent',
+    kind: 'word',
+    captureCount: 5,
+    timesSuggested: 1,
+    timesUsed: 0,
+  });
+  db.prepare(`UPDATE vocab SET last_suggested_at = datetime('now') WHERE user_id = ? AND normalized = 'recent'`)
+    .run(USER_ID);
+
+  // Insert a word that has never been suggested
+  upsertVocab(db, USER_ID, {
+    word: 'unseen',
+    kind: 'word',
+    captureCount: 5,
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  const candidates = getPrimeCandidates(db, USER_ID, 2);
+  // 'unseen' should rank first because 'recent' carries -20 daily damper
+  expect(candidates[0].word).toBe('unseen');
+  expect(candidates[1].word).toBe('recent');
+});
+
+it('incrementVocabSuggested sets last_suggested_at and the column is non-null afterwards', () => {
+  upsertVocab(db, USER_ID, { word: 'tested', timesSuggested: 0, timesUsed: 0 });
+
+  const before = db.prepare('SELECT last_suggested_at FROM vocab WHERE user_id = ? AND normalized = ?')
+    .get(USER_ID, 'tested') as { last_suggested_at: string | null };
+  expect(before.last_suggested_at).toBeNull();
+
+  incrementVocabSuggested(db, USER_ID, ['tested']);
+
+  const after = db.prepare('SELECT times_suggested, last_suggested_at FROM vocab WHERE user_id = ? AND normalized = ?')
+    .get(USER_ID, 'tested') as { times_suggested: number; last_suggested_at: string | null };
+  expect(after.times_suggested).toBe(1);
+  expect(after.last_suggested_at).toBeTruthy();
+});
+
+it('times_suggested penalty is strong enough that 10 suggestions lower priority below an unseen word', () => {
+  // word with captureCount=5, suggested 10 times: 5*10 - 10*5 = 0
+  upsertVocab(db, USER_ID, {
+    word: 'oversuggested',
+    kind: 'word',
+    captureCount: 5,
+    timesSuggested: 10,
+    timesUsed: 0,
+  });
+  // word with captureCount=1, never suggested: 1*10 = 10
+  upsertVocab(db, USER_ID, {
+    word: 'fresh',
+    kind: 'word',
+    captureCount: 1,
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  const candidates = getPrimeCandidates(db, USER_ID, 2);
+  expect(candidates[0].word).toBe('fresh');
+  expect(candidates[1].word).toBe('oversuggested');
+});
+
 it('returns mistake trends for the top error types by overall count', () => {
   const first = insertSession(db, USER_ID, { date: '2026-06-01', draftText: 'first' });
   const second = insertSession(db, USER_ID, { date: '2026-06-02', draftText: 'second' });
@@ -729,4 +801,23 @@ it('returns mistake trends for the top error types by overall count', () => {
       ],
     },
   ]);
+});
+
+describe('writing source filter', () => {
+  it('filters history by source: free_writing session appears under free_writing filter and is excluded under daily_writing filter', () => {
+    insertSession(db, USER_ID, { date: '2026-06-10', draftText: 'daily draft', source: 'daily_writing' });
+    insertSession(db, USER_ID, { date: '2026-06-11', draftText: 'free draft', source: 'free_writing' });
+
+    const freeOnly = getWritingHistory(db, USER_ID, 100, 'free_writing');
+    expect(freeOnly.map(e => e.draftText)).toContain('free draft');
+    expect(freeOnly.map(e => e.draftText)).not.toContain('daily draft');
+
+    const dailyOnly = getWritingHistory(db, USER_ID, 100, 'daily_writing');
+    expect(dailyOnly.map(e => e.draftText)).toContain('daily draft');
+    expect(dailyOnly.map(e => e.draftText)).not.toContain('free draft');
+
+    const all = getWritingHistory(db, USER_ID, 100);
+    expect(all.map(e => e.draftText)).toContain('daily draft');
+    expect(all.map(e => e.draftText)).toContain('free draft');
+  });
 });

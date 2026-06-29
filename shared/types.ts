@@ -33,6 +33,8 @@ export interface CoachResponse {
   paragraphIndex: number;
   annotations: Annotation[];
   nativeVersion?: string;
+  elevatedVersion?: string;
+  elevationNotes?: string;
 }
 
 export interface Vocab {
@@ -81,6 +83,8 @@ export interface VocabListItem {
   capturedDate?: string;
   graduated?: boolean;
   nextReviewAt?: string;
+  dateAdded?: string;
+  source?: string;
 }
 
 export interface VocabListResponse {
@@ -211,7 +215,7 @@ export interface ProgressResponse {
   activityDays: string[];
 }
 
-export type WritingSource = 'daily_writing' | 'coach_review' | 'sentence_lab' | 'speaking_review';
+export type WritingSource = 'daily_writing' | 'free_writing' | 'coach_review' | 'sentence_lab' | 'speaking_review';
 
 export interface WritingHistoryAnnotation {
   span: string;
@@ -303,4 +307,10 @@ export type FollowUpMode = 'pre_rewrite' | 'post_rewrite';
 export interface FollowUpResponse {
   answer: string;
   mode: FollowUpMode;
+}
+
+export interface SessionSaveResult {
+  id: number;
+  vocabUsed: number;
+  vocabTotal: number;
 }
