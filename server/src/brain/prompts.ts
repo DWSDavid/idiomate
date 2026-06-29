@@ -365,7 +365,7 @@ export function assembleSpeakingReviewPrompt(ctx: SpeakingReviewPromptContext): 
       'For ruleExample, ruleExample.before MUST come from the user transcript for this exact issue, and ruleExample.after MUST be the corrected minimal pair.',
       `The errorType field MUST be EXACTLY one of: ${ERROR_TYPES.join(', ')}. Put the specific principle name in the "rule" field, never in errorType.`,
       'Also produce nativeVersion: a natural spoken version of the whole transcript for the same situation.',
-      'Also produce takeaways: 2 to 4 short points the user should remember next time.',
+      'When there are real corrections or genuinely useful observations, produce takeaways: up to 4 short points the user should remember next time. For a natural transcript, use takeaways: [] unless a non-corrective note is truly useful.',
       'Return ONLY JSON matching: {nativeVersion,takeaways,annotations:[{span,errorType,rule,ruleExample:{before,after},hint,explanation,modelRewrite,vocabWord?,distinction?}]}.',
     ].join(' '),
     user: [

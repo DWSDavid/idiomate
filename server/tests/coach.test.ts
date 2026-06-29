@@ -114,6 +114,10 @@ it('assembles a speaking-specific prompt that avoids essay polishing and audio s
   expect(prompt.system).toContain('If the transcript already sounds natural for the spoken context');
   expect(prompt.system).toContain('return annotations: []');
   expect(prompt.system).toContain('do not force corrective takeaways');
+  expect(prompt.system).toContain('When there are real corrections or genuinely useful observations');
+  expect(prompt.system).toContain('produce takeaways: up to 4 short points');
+  expect(prompt.system).toContain('For a natural transcript, use takeaways: []');
+  expect(prompt.system).not.toContain('produce takeaways: 2 to 4 short points');
   expect(prompt.system).toContain('Preserve valid domain terminology');
   expect(prompt.system).toContain('ruleExample.before MUST come from the user transcript');
   expect(prompt.system).toContain('ruleExample.after MUST be the corrected minimal pair');
@@ -139,7 +143,7 @@ it('reviews speaking transcripts through the provider and validates the response
           explanation: 'Articles usually "offer" a perspective.',
           rule: 'Article as argument, not person',
           ruleExample: {
-            before: 'the article has a useful perspective',
+            before: 'this article has a useful perspective',
             after: 'the article offers a useful perspective',
           },
           modelRewrite: 'offers a useful perspective',
