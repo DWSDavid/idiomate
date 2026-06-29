@@ -61,6 +61,17 @@ export interface SentenceLabPromptContext {
   memoryContext?: PromptMemoryContext;
 }
 
+export interface SpeakingReviewPromptContext {
+  transcript: string;
+  context?: string;
+  contextLabel?: string;
+  contextTitle?: string;
+  contextUrl?: string;
+  contextExcerpt?: string;
+  topErrors: ErrorType[];
+  memoryContext?: PromptMemoryContext;
+}
+
 export interface PromptMemoryContext {
   topWeaknesses: string[];
   relevantSnippets: string[];
@@ -320,6 +331,45 @@ export function assembleSentenceLabPrompt(ctx: SentenceLabPromptContext): { syst
       'Sentence Lab input:',
       ctx.sentence,
       `Context: ${ctx.context?.trim() || 'none provided'}`,
+      `Prioritize these recurring error types when relevant: ${topErrors}`,
+      `Taxonomy:\n${snippet}`,
+      `Named grammar and Chinglish rules:\n${ruleSnippet}`,
+    ].join('\n\n'),
+  };
+}
+
+export function assembleSpeakingReviewPrompt(ctx: SpeakingReviewPromptContext): { system: string; user: string } {
+  const snippet = taxonomyReferenceSnippet(ALL_ERROR_TYPES);
+  const focusedRules = rulesForTypes(ctx.topErrors);
+  const ruleSnippet = rulesReferenceSnippet(focusedRules.length ? focusedRules : undefined);
+  const topErrors = ctx.topErrors.length ? ctx.topErrors.join(', ') : 'none yet';
+  const contextLines = [
+    ctx.contextLabel ? `Context label: ${ctx.contextLabel}` : undefined,
+    ctx.context ? `User context: ${ctx.context}` : undefined,
+    ctx.contextTitle ? `Reading title: ${ctx.contextTitle}` : undefined,
+    ctx.contextUrl ? `Reading URL: ${ctx.contextUrl}` : undefined,
+    ctx.contextExcerpt ? `Reading excerpt: ${ctx.contextExcerpt}` : undefined,
+  ].filter(Boolean).join('\n');
+
+  return {
+    system: [
+      'You are the Idiomate spoken-expression coach for an advanced Chinese-L1 English user.',
+      'Review speech-to-text transcript text for grammar, precision, naturalness, idiomatic spoken English, and Chinese-L1 transfer.',
+      'Do not judge pronunciation, accent, tone, pace, intonation, or speaking flow.',
+      'Do not turn the transcript into formal essay prose. Preserve natural conversational directness.',
+      'Ignore filler words and obvious speech-to-text artifacts unless they change meaning or create a real English issue.',
+      'Identify the smallest useful spans, name each errorType, set a specific rule, give a concise hint, explanation, ruleExample, and modelRewrite.',
+      'For word_choice, provide concrete alternatives and explain register or connotation differences.',
+      `The errorType field MUST be EXACTLY one of: ${ERROR_TYPES.join(', ')}. Put the specific principle name in the "rule" field, never in errorType.`,
+      'Also produce nativeVersion: a natural spoken version of the whole transcript for the same situation.',
+      'Also produce takeaways: 2 to 4 short points the user should remember next time.',
+      'Return ONLY JSON matching: {nativeVersion,takeaways,annotations:[{span,errorType,rule,ruleExample:{before,after},hint,explanation,modelRewrite,vocabWord?,distinction?}]}.',
+    ].join(' '),
+    user: [
+      'Spoken transcript:',
+      ctx.transcript,
+      contextLines || 'Context: none provided',
+      ...memoryContextLines(ctx.memoryContext),
       `Prioritize these recurring error types when relevant: ${topErrors}`,
       `Taxonomy:\n${snippet}`,
       `Named grammar and Chinglish rules:\n${ruleSnippet}`,

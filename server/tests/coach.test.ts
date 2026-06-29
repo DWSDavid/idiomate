@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { coachParagraph } from '../src/brain/coach.js';
+import { reviewSpeakingTranscript } from '../src/brain/speaking.js';
+import { assembleSpeakingReviewPrompt } from '../src/brain/prompts.js';
 import type { LLMProvider } from '../src/brain/provider.js';
 import { speakingReviewResponseZ } from '../src/brain/schema.js';
 
@@ -90,4 +92,62 @@ it('defaults omitted speaking review arrays to empty arrays', () => {
 
   expect(parsed.takeaways).toEqual([]);
   expect(parsed.annotations).toEqual([]);
+});
+
+it('assembles a speaking-specific prompt that avoids essay polishing and audio scoring', () => {
+  const prompt = assembleSpeakingReviewPrompt({
+    transcript: 'I think this article has a useful perspective about AI agents.',
+    context: 'Spoken reaction after reading an article',
+    contextTitle: 'AI agents move into finance workflows',
+    contextUrl: 'https://example.com/ai-agents',
+    contextExcerpt: 'Agents are entering finance workflows faster than expected.',
+    topErrors: ['word_choice'],
+    memoryContext: {
+      topWeaknesses: ['word_choice'],
+      relevantSnippets: ['Past writing context about precise verbs.'],
+    },
+  });
+
+  expect(prompt.system).toContain('spoken-expression coach');
+  expect(prompt.system).toContain('Do not judge pronunciation');
+  expect(prompt.system).toContain('Do not turn the transcript into formal essay prose');
+  expect(prompt.user).toContain('Spoken transcript:');
+  expect(prompt.user).toContain('AI agents move into finance workflows');
+  expect(prompt.user).toContain('https://example.com/ai-agents');
+  expect(prompt.user).toContain('Persistent weaknesses to watch: word_choice.');
+});
+
+it('reviews speaking transcripts through the provider and validates the response', async () => {
+  const provider: LLMProvider = {
+    async complete(opts) {
+      expect(opts.system).toContain('spoken-expression coach');
+      expect(opts.user).toContain('I think this article has a useful perspective');
+      return JSON.stringify({
+        nativeVersion: 'I think this article offers a useful perspective on AI agents.',
+        takeaways: ['Use "offers a perspective" for what an article does.'],
+        annotations: [{
+          span: 'has a useful perspective',
+          errorType: 'word_choice',
+          hint: 'Use a more natural verb for what an article does.',
+          explanation: 'Articles usually "offer" a perspective.',
+          rule: 'Article as argument, not person',
+          ruleExample: {
+            before: 'the article has a useful perspective',
+            after: 'the article offers a useful perspective',
+          },
+          modelRewrite: 'offers a useful perspective',
+        }],
+      });
+    },
+  };
+
+  const result = await reviewSpeakingTranscript(provider, {
+    transcript: 'I think this article has a useful perspective about AI agents.',
+    topErrors: ['word_choice'],
+    model: 'test-model',
+  });
+
+  expect(result.nativeVersion).toBe('I think this article offers a useful perspective on AI agents.');
+  expect(result.takeaways).toEqual(['Use "offers a perspective" for what an article does.']);
+  expect(result.annotations[0].modelRewrite).toBe('offers a useful perspective');
 });
