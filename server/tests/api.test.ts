@@ -366,16 +366,21 @@ it('POST /api/speaking/review saves a speaking review with context, tallies, his
       });
     },
   };
-  const embedded: string[] = [];
+  let resolveEmbedding: ((value: number[]) => void) | undefined;
+  let embedCalls = 0;
+  let embeddedContent: string | undefined;
   const embeddingProvider: EmbeddingProvider = {
-    async embed(text) {
-      embedded.push(text);
-      return [0.2, 0.8];
+    embed(text) {
+      embedCalls += 1;
+      embeddedContent = text;
+      return new Promise(resolve => {
+        resolveEmbedding = resolve;
+      });
     },
   };
 
   await withServer(createApp({ db, coachProvider, embeddingProvider }), async baseUrl => {
-    const res = await fetch(`${baseUrl}/api/speaking/review`, {
+    const responsePromise = fetch(`${baseUrl}/api/speaking/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -389,6 +394,10 @@ it('POST /api/speaking/review saves a speaking review with context, tallies, his
       }),
     });
 
+    const res = await Promise.race([
+      responsePromise,
+      new Promise<Response>((_, reject) => setTimeout(() => reject(new Error('response blocked on embedding')), 300)),
+    ]);
     expect(res.status).toBe(201);
     const json = await res.json();
     expect(json).toEqual(expect.objectContaining({
@@ -423,9 +432,118 @@ it('POST /api/speaking/review saves a speaking review with context, tallies, his
         title: 'AI agents move into finance workflows',
       }),
     }));
-    expect(embedded[0]).toContain('I think this article has a useful perspective');
+    expect(embedCalls).toBe(1);
+    expect(embeddedContent).toContain('I think this article has a useful perspective');
+    expect(db.prepare('SELECT COUNT(*) AS count FROM session_embeddings').get()).toEqual({ count: 0 });
+
+    resolveEmbedding!([0.2, 0.8]);
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    const row = db.prepare('SELECT session_id, user_id, content, embedding FROM session_embeddings').get() as {
+      session_id: number;
+      user_id: string;
+      content: string;
+      embedding: string;
+    };
+    expect(row).toEqual({
+      session_id: json.id,
+      user_id: USER_ID,
+      content: [
+        'I think this article has a useful perspective about AI agents.',
+        'I think this article offers a useful perspective on AI agents.',
+      ].join('\n\n'),
+      embedding: JSON.stringify([0.2, 0.8]),
+    });
   });
 }, 10_000);
+
+it('POST /api/speaking/review trims transcript and accepts cleaned context URLs', async () => {
+  let captured: { system: string; user: string; model: string } | undefined;
+  const coachProvider: LLMProvider = {
+    async complete(opts) {
+      captured = opts;
+      return JSON.stringify({
+        nativeVersion: 'I think this point works.',
+        takeaways: [],
+        annotations: [],
+      });
+    },
+  };
+
+  await withServer(createApp({ db, coachProvider, embeddingProvider: undefined }), async baseUrl => {
+    const trimmed = await fetch(`${baseUrl}/api/speaking/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        transcript: '  I think this point works.  ',
+        contextLabel: ' reading_reaction ',
+        contextTitle: ' AI agents move into finance workflows ',
+        contextUrl: '  https://example.com/ai-agents  ',
+        contextExcerpt: ' Agents are entering finance workflows faster than expected. ',
+      }),
+    });
+
+    expect(trimmed.status).toBe(201);
+    const trimmedJson = await trimmed.json();
+    expect(trimmedJson.transcript).toBe('I think this point works.');
+    expect(trimmedJson.context).toEqual({
+      label: 'reading_reaction',
+      title: 'AI agents move into finance workflows',
+      url: 'https://example.com/ai-agents',
+      excerpt: 'Agents are entering finance workflows faster than expected.',
+    });
+    expect(captured!.user).toContain('https://example.com/ai-agents');
+
+    const blankUrl = await fetch(`${baseUrl}/api/speaking/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        transcript: 'A short spoken reflection.',
+        contextTitle: ' Source title only ',
+        contextUrl: '   ',
+      }),
+    });
+
+    expect(blankUrl.status).toBe(201);
+    const blankUrlJson = await blankUrl.json();
+    expect(blankUrlJson.context).toEqual({ title: 'Source title only' });
+  });
+});
+
+it('POST /api/speaking/review rejects blank transcripts and invalid context URLs', async () => {
+  let calls = 0;
+  const coachProvider: LLMProvider = {
+    async complete() {
+      calls += 1;
+      return JSON.stringify({
+        nativeVersion: 'This should not be reached.',
+        takeaways: [],
+        annotations: [],
+      });
+    },
+  };
+
+  await withServer(createApp({ db, coachProvider, embeddingProvider: undefined }), async baseUrl => {
+    const blankTranscript = await fetch(`${baseUrl}/api/speaking/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript: '   ' }),
+    });
+    expect(blankTranscript.status).toBe(400);
+
+    const invalidUrl = await fetch(`${baseUrl}/api/speaking/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        transcript: 'I have a real thought.',
+        contextUrl: 'not a url',
+      }),
+    });
+    expect(invalidUrl.status).toBe(400);
+
+    expect(calls).toBe(0);
+  });
+});
 
 it('shows every Sentence Lab diagnosis in history immediately and keeps separate same-day rewrites', async () => {
   let calls = 0;

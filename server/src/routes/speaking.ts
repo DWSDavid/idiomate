@@ -18,13 +18,25 @@ import {
 
 const MAX_TRANSCRIPT_CHARS = 8000;
 
+const optionalCleanStringZ = z.preprocess(value => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}, z.string().optional());
+
+const optionalCleanUrlZ = z.preprocess(value => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}, z.string().url().optional());
+
 const speakingReviewRequestZ = z.object({
-  transcript: z.string().min(1).max(MAX_TRANSCRIPT_CHARS),
-  context: z.string().optional(),
-  contextLabel: z.string().optional(),
-  contextTitle: z.string().optional(),
-  contextUrl: z.string().url().optional().or(z.literal('')),
-  contextExcerpt: z.string().optional(),
+  transcript: z.string().trim().min(1).max(MAX_TRANSCRIPT_CHARS),
+  context: optionalCleanStringZ,
+  contextLabel: optionalCleanStringZ,
+  contextTitle: optionalCleanStringZ,
+  contextUrl: optionalCleanUrlZ,
+  contextExcerpt: optionalCleanStringZ,
   date: z.string().optional(),
 });
 
@@ -60,7 +72,7 @@ export function createSpeakingRouter(deps: AppDependencies): Router {
   router.post('/review', async (req, res, next) => {
     try {
       const body = speakingReviewRequestZ.parse(req.body);
-      const transcript = body.transcript.trim();
+      const transcript = body.transcript;
       const tallies = getTallies(deps.db, req.userId);
       const topErrors = tallies
         .filter(tally => tally.errorType !== 'vocab_suggestion')
