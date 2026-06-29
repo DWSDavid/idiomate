@@ -6,6 +6,8 @@ import { WordIntelCard } from './WordIntelCard';
 interface CaptureWordProps {
   onSaved?: (vocab: Vocab) => void;
   initialWord?: string;
+  initialContextSentence?: string;
+  captureSource?: string;
 }
 
 function toLines(items?: string[]): string {
@@ -27,9 +29,9 @@ function dictionaryLinks(term: string): { merriamWebster: string; cambridge: str
   };
 }
 
-export function CaptureWord({ onSaved, initialWord }: CaptureWordProps) {
+export function CaptureWord({ onSaved, initialWord, initialContextSentence, captureSource }: CaptureWordProps) {
   const [word, setWord] = useState(initialWord ?? '');
-  const [contextSentence, setContextSentence] = useState('');
+  const [contextSentence, setContextSentence] = useState(initialContextSentence ?? '');
   const [preview, setPreview] = useState<Vocab | null>(null);
   const [examplesText, setExamplesText] = useState('');
   const [collocationsText, setCollocationsText] = useState('');
@@ -44,7 +46,11 @@ export function CaptureWord({ onSaved, initialWord }: CaptureWordProps) {
     setIntelCard(null);
     try {
       const enriched = await captureWord(word.trim(), contextSentence.trim());
-      setPreview(enriched);
+      setPreview({
+        ...enriched,
+        source: captureSource ?? enriched.source,
+        contextSentence: contextSentence.trim() || enriched.contextSentence,
+      });
       setExamplesText(toLines(enriched.examples));
       setCollocationsText(toLines(enriched.collocations));
       setStatus('idle');

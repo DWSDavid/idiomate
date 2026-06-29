@@ -22,6 +22,17 @@ vi.mock('../../client/src/components/SentenceLab', () => ({
   SentenceLab: () => <div>Sentence lab</div>,
 }));
 
+vi.mock('../../client/src/components/SpeakingReview', () => ({
+  SpeakingReview: ({ contextDefaults }: { contextDefaults?: { contextTitle?: string; contextUrl?: string; contextExcerpt?: string } }) => (
+    <div>
+      <p>Speaking review</p>
+      <p>{contextDefaults?.contextTitle}</p>
+      <p>{contextDefaults?.contextUrl}</p>
+      <p>{contextDefaults?.contextExcerpt}</p>
+    </div>
+  ),
+}));
+
 afterEach(() => {
   cleanup();
   localStorage.clear();
@@ -56,4 +67,34 @@ it('shows the cold-start notice while a panel request is in flight', async () =>
   await waitFor(() => {
     expect(screen.queryByText('Waking the server, ~20s on first request')).not.toBeInTheDocument();
   });
+});
+
+it('offers Speak mode with page context from the pending selection', async () => {
+  localStorage.setItem('idiomate_access_code', 'Rubi8');
+  const listeners: Array<(changes: Record<string, chrome.storage.StorageChange>, areaName: chrome.storage.AreaName) => void> = [];
+  const pendingSelection = {
+    text: 'Agents are entering finance workflows faster than expected.',
+    ts: Date.now(),
+    title: 'AI agents move into finance workflows',
+    url: 'https://example.com/ai-agents',
+  };
+  vi.stubGlobal('chrome', {
+    storage: {
+      local: {
+        get: vi.fn(() => Promise.resolve({ idiomate_pending_selection: pendingSelection })),
+      },
+      onChanged: {
+        addListener: vi.fn(listener => listeners.push(listener)),
+        removeListener: vi.fn(),
+      },
+    },
+  });
+
+  render(<App />);
+
+  fireEvent.click(await screen.findByRole('button', { name: 'Speak' }));
+  expect(screen.getByText('Speaking review')).toBeInTheDocument();
+  expect(screen.getByText('AI agents move into finance workflows')).toBeInTheDocument();
+  expect(screen.getByText('https://example.com/ai-agents')).toBeInTheDocument();
+  expect(screen.getByText('Agents are entering finance workflows faster than expected.', { selector: 'p' })).toBeInTheDocument();
 });

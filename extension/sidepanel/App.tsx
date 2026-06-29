@@ -3,13 +3,16 @@ import { ACCESS_DENIED_EVENT, getStoredAccessCode, saveAccessCode } from '../../
 import { AccessGate } from '../../client/src/components/AccessGate';
 import { CaptureWord } from '../../client/src/components/CaptureWord';
 import { SentenceLab } from '../../client/src/components/SentenceLab';
+import { SpeakingReview } from '../../client/src/components/SpeakingReview';
 
 type PendingSelection = {
   text: string;
   ts: number;
+  title?: string;
+  url?: string;
 };
 
-type Mode = 'word' | 'sentence';
+type Mode = 'word' | 'sentence' | 'speak';
 
 const PENDING_SELECTION_KEY = 'idiomate_pending_selection';
 const ACCESS_CODE_KEY = 'idiomate_access_code';
@@ -140,6 +143,17 @@ export default function App() {
   const trimmedSource = sourceText.trim();
   const detectedMode = detectMode(trimmedSource);
   const activeMode = modeOverride ?? detectedMode;
+  const readingContext = {
+    contextLabel: 'reading_reaction',
+    contextTitle: pendingSelection?.title,
+    contextUrl: pendingSelection?.url,
+    contextExcerpt: trimmedSource || undefined,
+  };
+  const readingContextSentence = [
+    pendingSelection?.title ? `From ${pendingSelection.title}` : undefined,
+    pendingSelection?.url,
+    trimmedSource,
+  ].filter(Boolean).join(': ');
 
   return (
     <main className="app-shell min-h-[100dvh] overflow-x-hidden p-4 text-slate-950">
@@ -173,7 +187,7 @@ export default function App() {
           </div>
 
           <div className="flex rounded-full border border-slate-200 bg-white p-1" aria-label="mode">
-            {(['word', 'sentence'] as const).map(mode => (
+            {(['word', 'sentence', 'speak'] as const).map(mode => (
               <button
                 key={mode}
                 type="button"
@@ -185,7 +199,7 @@ export default function App() {
                 aria-pressed={activeMode === mode}
                 onClick={() => setModeOverride(mode)}
               >
-                {mode === 'word' ? 'Word' : 'Sentence'}
+                {mode === 'word' ? 'Word' : mode === 'sentence' ? 'Sentence' : 'Speak'}
               </button>
             ))}
           </div>
@@ -203,9 +217,19 @@ export default function App() {
 
         <div>
           {activeMode === 'word' ? (
-            <CaptureWord key={`word:${trimmedSource}`} initialWord={trimmedSource} />
-          ) : (
+            <CaptureWord
+              key={`word:${trimmedSource}`}
+              initialWord={trimmedSource}
+              initialContextSentence={readingContextSentence}
+              captureSource="website_reading"
+            />
+          ) : activeMode === 'sentence' ? (
             <SentenceLab key={`sentence:${trimmedSource}`} initialSentence={trimmedSource} />
+          ) : (
+            <SpeakingReview
+              key={`speak:${pendingSelection?.ts ?? 'manual'}`}
+              contextDefaults={readingContext}
+            />
           )}
         </div>
       </div>
