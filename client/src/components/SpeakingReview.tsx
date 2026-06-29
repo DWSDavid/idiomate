@@ -30,7 +30,9 @@ export function SpeakingReview({
   const [result, setResult] = useState<SpeakingReviewResponse | null>(null);
   const [status, setStatus] = useState<'idle' | 'reviewing' | 'error'>('idle');
 
-  const hasContextSource = Boolean(contextDefaults?.contextTitle || contextDefaults?.contextUrl);
+  const hasContextSource = Boolean(
+    contextDefaults?.contextTitle || contextDefaults?.contextUrl || contextDefaults?.contextExcerpt,
+  );
 
   const runReview = () => {
     if (!transcript.trim()) return;
@@ -147,8 +149,8 @@ export function SpeakingReview({
             <div className="result-block">
               <p className="section-label">What to say differently next time</p>
               <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">
-                {result.takeaways.map(takeaway => (
-                  <li key={takeaway}>{takeaway}</li>
+                {result.takeaways.map((takeaway, index) => (
+                  <li key={`${takeaway}-${index}`}>{takeaway}</li>
                 ))}
               </ul>
             </div>
