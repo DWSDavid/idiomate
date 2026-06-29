@@ -194,6 +194,21 @@ export function getVocabList(limit = 200): Promise<VocabListResponse> {
   return apiFetch(`/api/vocab/list?${params.toString()}`).then(readJson<VocabListResponse>);
 }
 
+export function getAllVocab(opts?: {
+  offset?: number;
+  limit?: number;
+  sort?: 'date' | 'priority';
+  source?: string;
+}): Promise<VocabListResponse> {
+  const params = new URLSearchParams();
+  if (opts?.offset !== undefined) params.set('offset', String(opts.offset));
+  if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+  if (opts?.sort !== undefined) params.set('sort', opts.sort);
+  if (opts?.source !== undefined) params.set('source', opts.source);
+  const query = params.toString();
+  return apiFetch(`/api/vocab/all${query ? `?${query}` : ''}`).then(readJson<VocabListResponse>);
+}
+
 export function getReviewQueue(): Promise<{ items: Vocab[] }> {
   return apiFetch('/api/vocab/review-queue').then(readJson<{ items: Vocab[] }>);
 }

@@ -825,7 +825,7 @@ it('GET /api/vocab/list returns priority-ordered vocab with total count', async 
     const json = await res.json();
     expect(json.total).toBe(2);
     expect(json.items).toEqual([
-      {
+      expect.objectContaining({
         id: expect.any(Number),
         word: 'well worn phrase',
         kind: 'phrase',
@@ -835,7 +835,7 @@ it('GET /api/vocab/list returns priority-ordered vocab with total count', async 
         timesUsed: 1,
         lastCaptured: '2026-05-10T00:00:00.000Z',
         capturedDate: '2026-05-10',
-      },
+      }),
     ]);
   });
 });

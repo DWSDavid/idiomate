@@ -319,7 +319,7 @@ it('lists vocab by the same priority order used for prime candidates', () => {
 
   expect(getVocabCount(db, USER_ID)).toBe(3);
   expect(list.map(item => item.word)).toEqual(getPrimeCandidates(db, USER_ID, 10).map(item => item.word));
-  expect(list[0]).toEqual({
+  expect(list[0]).toEqual(expect.objectContaining({
     id: expect.any(Number),
     word: 'well worn phrase',
     kind: 'phrase',
@@ -331,7 +331,7 @@ it('lists vocab by the same priority order used for prime candidates', () => {
     timesUsed: 0,
     lastCaptured: '2026-05-10T00:00:00.000Z',
     capturedDate: '2026-05-10',
-  });
+  }));
 });
 
 it('does not label original Youdao imports as newly captured daily vocab', () => {

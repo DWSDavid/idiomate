@@ -83,6 +83,8 @@ export interface VocabListItem {
   capturedDate?: string;
   graduated?: boolean;
   nextReviewAt?: string;
+  dateAdded?: string;
+  source?: string;
 }
 
 export interface VocabListResponse {
