@@ -228,6 +228,8 @@ export function App() {
                 key={item.id}
                 paragraph={item.paragraph}
                 nativeVersion={item.response.nativeVersion}
+                elevatedVersion={item.response.elevatedVersion}
+                elevationNotes={item.response.elevationNotes}
                 annotations={item.response.annotations}
                 recordContext={{
                   date: prompt?.date,
