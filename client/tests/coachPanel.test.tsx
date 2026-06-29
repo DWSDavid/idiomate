@@ -281,6 +281,54 @@ it('shows distinction text and inline save buttons for vocab_suggestion; saves o
   expect(screen.queryByRole('button', { name: 'New to me — save' })).not.toBeInTheDocument();
 });
 
+it('shows Grammar fix and Elevated tabs after submit when elevatedVersion is present', () => {
+  render(
+    <CoachPanel
+      paragraph="We did X in order to Y"
+      nativeVersion="We did X to Y."
+      elevatedVersion="By trimming the redundancy, we sharpen the causal link between X and Y."
+      elevationNotes="Removed filler phrase and made the connection explicit."
+      annotations={ann as any}
+      onSubmit={() => {}}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'We did X to Y.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
+
+  expect(screen.getByRole('button', { name: 'Grammar fix' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Elevated' })).toBeInTheDocument();
+
+  // Grammar fix tab is active by default — native version visible
+  expect(screen.getByText('Native version')).toBeInTheDocument();
+
+  // Switch to Elevated tab
+  fireEvent.click(screen.getByRole('button', { name: 'Elevated' }));
+  expect(screen.getByText('By trimming the redundancy, we sharpen the causal link between X and Y.')).toBeInTheDocument();
+  expect(screen.getByText('Removed filler phrase and made the connection explicit.')).toBeInTheDocument();
+  expect(screen.getByText('Elevated version')).toBeInTheDocument();
+});
+
+it('does not show tabs when elevatedVersion is absent', () => {
+  render(
+    <CoachPanel
+      paragraph="We did X in order to Y"
+      nativeVersion="We did X to Y."
+      annotations={ann as any}
+      onSubmit={() => {}}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'We did X to Y.' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
+
+  expect(screen.queryByRole('button', { name: 'Grammar fix' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Elevated' })).not.toBeInTheDocument();
+  expect(screen.getByText('Native version')).toBeInTheDocument();
+});
+
 it('"I know it" dismisses the save prompt without calling the API', () => {
   const fetchMock = vi.fn();
   vi.stubGlobal('fetch', fetchMock);

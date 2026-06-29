@@ -33,6 +33,8 @@ export interface CoachResponse {
   paragraphIndex: number;
   annotations: Annotation[];
   nativeVersion?: string;
+  elevatedVersion?: string;
+  elevationNotes?: string;
 }
 
 export interface Vocab {

@@ -16,6 +16,8 @@ interface RecordContext {
 interface CoachPanelProps {
   paragraph: string;
   nativeVersion?: string;
+  elevatedVersion?: string;
+  elevationNotes?: string;
   annotations: Annotation[];
   recordContext?: RecordContext;
   onRecorded?: () => void;
@@ -80,10 +82,11 @@ function VocabSuggestCard({ annotation }: { annotation: Annotation }) {
   );
 }
 
-export function CoachPanel({ paragraph, nativeVersion, annotations, recordContext, onRecorded, onSubmit }: CoachPanelProps) {
+export function CoachPanel({ paragraph, nativeVersion, elevatedVersion, elevationNotes, annotations, recordContext, onRecorded, onSubmit }: CoachPanelProps) {
   const [phase, setPhase] = useState<CoachPhase>('review');
   const [rewrite, setRewrite] = useState(paragraph);
   const [accepted, setAccepted] = useState<ComparedAnnotation[]>([]);
+  const [compareTab, setCompareTab] = useState<'grammar' | 'elevated'>('grammar');
   const [research, setResearch] = useState<ResearchResponse | null>(null);
   const [researchError, setResearchError] = useState('');
   const [isResearching, setIsResearching] = useState(false);
@@ -133,9 +136,40 @@ export function CoachPanel({ paragraph, nativeVersion, annotations, recordContex
   };
 
   if (phase === 'compared') {
+    const showTabs = Boolean(nativeVersion && elevatedVersion);
     return (
       <section className="surface" aria-label="coaching result">
-        <CompareView original={paragraph} rewrite={rewrite} nativeVersion={nativeVersion} annotations={accepted} />
+        {showTabs ? (
+          <div className="mb-4 flex gap-2 border-b border-stone-200">
+            <button
+              type="button"
+              className={`px-4 py-2 text-sm font-medium ${compareTab === 'grammar' ? 'border-b-2 border-emerald-600 text-emerald-700' : 'text-stone-500 hover:text-stone-700'}`}
+              onClick={() => setCompareTab('grammar')}
+            >
+              Grammar fix
+            </button>
+            <button
+              type="button"
+              className={`px-4 py-2 text-sm font-medium ${compareTab === 'elevated' ? 'border-b-2 border-emerald-600 text-emerald-700' : 'text-stone-500 hover:text-stone-700'}`}
+              onClick={() => setCompareTab('elevated')}
+            >
+              Elevated
+            </button>
+          </div>
+        ) : null}
+        {showTabs && compareTab === 'elevated' ? (
+          <div className="space-y-4">
+            <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-4">
+              <span className="section-label text-violet-700">Elevated version</span>
+              <p className="prose mt-2 whitespace-pre-wrap text-lg text-stone-900">{elevatedVersion}</p>
+              {elevationNotes ? (
+                <p className="mt-3 text-sm text-violet-700">{elevationNotes}</p>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <CompareView original={paragraph} rewrite={rewrite} nativeVersion={nativeVersion} annotations={accepted} />
+        )}
         <FollowUpBox
           scope="paragraph"
           mode="post_rewrite"

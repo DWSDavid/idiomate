@@ -431,6 +431,27 @@ export function assembleNewsPrompt(ctx: {
   };
 }
 
+export interface ElevatePromptContext {
+  paragraph: string;
+  nativeVersion: string;
+}
+
+export function assembleElevatePrompt(ctx: ElevatePromptContext): { system: string; user: string } {
+  return {
+    system: [
+      'You are a senior editor.',
+      'Take a grammar-corrected paragraph and elevate it: improve transitions, deepen the argument, add specific commentary, and sharpen the structure.',
+      'Do NOT just rephrase.',
+      'Return ONLY JSON: {elevatedVersion, elevationNotes} where elevationNotes is one sentence explaining the key structural change.',
+    ].join(' '),
+    user: [
+      `Original paragraph:\n${ctx.paragraph}`,
+      `Grammar-corrected version:\n${ctx.nativeVersion}`,
+      'Elevate the grammar-corrected version.',
+    ].join('\n\n'),
+  };
+}
+
 export interface PrimePromptContext {
   topic: string;
   vocab: Pick<Vocab, 'word' | 'defCn' | 'kind'>[];
