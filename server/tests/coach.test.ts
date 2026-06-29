@@ -111,6 +111,12 @@ it('assembles a speaking-specific prompt that avoids essay polishing and audio s
   expect(prompt.system).toContain('spoken-expression coach');
   expect(prompt.system).toContain('Do not judge pronunciation');
   expect(prompt.system).toContain('Do not turn the transcript into formal essay prose');
+  expect(prompt.system).toContain('If the transcript already sounds natural for the spoken context');
+  expect(prompt.system).toContain('return annotations: []');
+  expect(prompt.system).toContain('do not force corrective takeaways');
+  expect(prompt.system).toContain('Preserve valid domain terminology');
+  expect(prompt.system).toContain('ruleExample.before MUST come from the user transcript');
+  expect(prompt.system).toContain('ruleExample.after MUST be the corrected minimal pair');
   expect(prompt.user).toContain('Spoken transcript:');
   expect(prompt.user).toContain('AI agents move into finance workflows');
   expect(prompt.user).toContain('https://example.com/ai-agents');
@@ -122,6 +128,7 @@ it('reviews speaking transcripts through the provider and validates the response
     async complete(opts) {
       expect(opts.system).toContain('spoken-expression coach');
       expect(opts.user).toContain('I think this article has a useful perspective');
+      expect(opts.model).toBe('test-model');
       return JSON.stringify({
         nativeVersion: 'I think this article offers a useful perspective on AI agents.',
         takeaways: ['Use "offers a perspective" for what an article does.'],
