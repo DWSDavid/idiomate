@@ -20,6 +20,28 @@ function dateLabel(entry: WritingHistoryEntry): string {
   return entry.date?.slice(0, 10) ?? entry.createdAt?.slice(0, 10) ?? 'No date';
 }
 
+function safeExternalHref(value?: string): string | undefined {
+  if (!value) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:' ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function HistoryContextUrl({ value }: { value: string }) {
+  const href = safeExternalHref(value);
+  if (!href) {
+    return <span className="break-all">{value}</span>;
+  }
+  return (
+    <a className="break-all text-emerald-800 underline" href={href} target="_blank" rel="noreferrer">
+      {value}
+    </a>
+  );
+}
+
 export function HistoryPanel({ refreshKey = 0 }: HistoryPanelProps) {
   const [history, setHistory] = useState<WritingHistoryResponse>({ entries: [] });
   const [status, setStatus] = useState<'loading' | 'idle' | 'error'>('loading');
@@ -61,9 +83,7 @@ export function HistoryPanel({ refreshKey = 0 }: HistoryPanelProps) {
               <div className="mt-3 rounded-lg border border-slate-200 bg-white/75 p-3 text-xs leading-5 text-slate-500">
                 {entry.context.title ? <p className="font-semibold text-slate-800">{entry.context.title}</p> : null}
                 {entry.context.url ? (
-                  <a className="break-all text-emerald-800 underline" href={entry.context.url} target="_blank" rel="noreferrer">
-                    {entry.context.url}
-                  </a>
+                  <HistoryContextUrl value={entry.context.url} />
                 ) : null}
                 {entry.context.excerpt ? <p className="mt-2">{entry.context.excerpt}</p> : null}
               </div>

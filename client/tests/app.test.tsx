@@ -11,7 +11,10 @@ afterEach(() => {
 });
 
 it('renders a tabbed workspace with prompt and draft visible in the same workbench', async () => {
-  vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+  let historyCalls = 0;
+  let profileCalls = 0;
+  let speakingReviewCalls = 0;
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
     const url = String(input);
     if (url.includes('/api/prompt/today')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ date: '2026-06-04', theme: 'tech', text: 'Write one paragraph.' }) } as Response);
@@ -35,9 +38,11 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ topWeaknesses: [], totalSessions: 0, sessionEmbeddingsCount: 0, vocabCount: 0, vocabByEase: { new: 0, hard: 0, easy: 0 } }) } as Response);
     }
     if (url.includes('/api/history')) {
+      historyCalls += 1;
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ entries: [] }) } as Response);
     }
     if (url.includes('/api/speaking/review')) {
+      speakingReviewCalls += 1;
       return Promise.resolve({
         ok: true,
         json: () => Promise.resolve({
@@ -50,13 +55,15 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
       } as Response);
     }
     if (url.includes('/api/profile')) {
+      profileCalls += 1;
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ tallies: [], activation: { suggested: 0, used: 0 } }) } as Response);
     }
     if (url.includes('/api/progress')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ daily: [], trend: [], streak: { currentStreak: 0, longestStreak: 0 }, activityDays: [] }) } as Response);
     }
     return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
-  }));
+  });
+  vi.stubGlobal('fetch', fetchMock);
 
   render(<App />);
 
@@ -77,6 +84,26 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
 
   fireEvent.click(within(nav).getByRole('button', { name: 'Speak' }));
   expect(screen.getByLabelText('speaking review')).toBeInTheDocument();
+  await waitFor(() => {
+    expect(profileCalls).toBeGreaterThan(0);
+    expect(historyCalls).toBeGreaterThan(0);
+  });
+
+  const profileCallsBeforeReview = profileCalls;
+  const historyCallsBeforeReview = historyCalls;
+  fireEvent.change(screen.getByLabelText('Speech-to-text transcript'), {
+    target: { value: 'This article has a useful perspective.' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Analyze transcript' }));
+
+  await waitFor(() => {
+    expect(speakingReviewCalls).toBe(1);
+    expect(fetchMock).toHaveBeenCalledWith('/api/speaking/review', expect.objectContaining({ method: 'POST' }));
+  });
+  await waitFor(() => {
+    expect(profileCalls).toBeGreaterThan(profileCallsBeforeReview);
+    expect(historyCalls).toBeGreaterThan(historyCallsBeforeReview);
+  });
 
   fireEvent.click(within(nav).getByRole('button', { name: 'Words' }));
 
