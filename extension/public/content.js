@@ -1,5 +1,24 @@
 const PENDING_SELECTION_KEY = 'idiomate_pending_selection';
 
+function normalizeUrl(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return '';
+    }
+
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString().slice(0, 500);
+  } catch {
+    return '';
+  }
+}
+
 function storeSelection(text) {
   const trimmed = text?.trim();
   if (!trimmed) {
@@ -10,7 +29,7 @@ function storeSelection(text) {
     [PENDING_SELECTION_KEY]: {
       text: trimmed,
       title: document.title || '',
-      url: window.location.href,
+      url: normalizeUrl(window.location.href),
       ts: Date.now(),
     },
   });

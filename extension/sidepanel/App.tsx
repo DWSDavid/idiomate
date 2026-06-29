@@ -12,6 +12,12 @@ type PendingSelection = {
   url?: string;
 };
 
+type SelectionContext = {
+  ts: number;
+  title?: string;
+  url?: string;
+};
+
 type Mode = 'word' | 'sentence' | 'speak';
 
 const PENDING_SELECTION_KEY = 'idiomate_pending_selection';
@@ -28,7 +34,41 @@ function isPendingSelection(value: unknown): value is PendingSelection {
   }
 
   const selection = value as Partial<PendingSelection>;
-  return typeof selection.text === 'string' && typeof selection.ts === 'number';
+  return (
+    typeof selection.text === 'string'
+    && typeof selection.ts === 'number'
+    && (selection.title === undefined || typeof selection.title === 'string')
+    && (selection.url === undefined || typeof selection.url === 'string')
+  );
+}
+
+function normalizeUrl(value: unknown): string {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return '';
+    }
+
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString().slice(0, 500);
+  } catch {
+    return '';
+  }
+}
+
+function toSelectionContext(selection: PendingSelection): SelectionContext {
+  const title = selection.title?.trim();
+  const url = normalizeUrl(selection.url);
+  return {
+    ts: selection.ts,
+    title: title || undefined,
+    url: url || undefined,
+  };
 }
 
 function usePendingSelection(): PendingSelection | null {
@@ -108,6 +148,7 @@ export default function App() {
   const pendingRequests = usePendingRequests();
   const [hasAccess, setHasAccess] = useState(() => Boolean(getStoredAccessCode()));
   const [sourceText, setSourceText] = useState('');
+  const [selectionContext, setSelectionContext] = useState<SelectionContext | null>(null);
   const [modeOverride, setModeOverride] = useState<Mode | null>(null);
 
   useEffect(() => {
@@ -126,6 +167,7 @@ export default function App() {
     }
 
     setSourceText(pendingSelection.text);
+    setSelectionContext(toSelectionContext(pendingSelection));
     setModeOverride(null);
   }, [pendingSelection?.ts]);
 
@@ -145,15 +187,17 @@ export default function App() {
   const activeMode = modeOverride ?? detectedMode;
   const readingContext = {
     contextLabel: 'reading_reaction',
-    contextTitle: pendingSelection?.title,
-    contextUrl: pendingSelection?.url,
-    contextExcerpt: trimmedSource || undefined,
+    contextTitle: selectionContext?.title,
+    contextUrl: selectionContext?.url,
+    contextExcerpt: selectionContext ? trimmedSource || undefined : undefined,
   };
-  const readingContextSentence = [
-    pendingSelection?.title ? `From ${pendingSelection.title}` : undefined,
-    pendingSelection?.url,
-    trimmedSource,
-  ].filter(Boolean).join(': ');
+  const readingContextSentence = selectionContext
+    ? [
+      selectionContext.title ? `From ${selectionContext.title}` : undefined,
+      selectionContext.url,
+      trimmedSource,
+    ].filter(Boolean).join(': ')
+    : undefined;
 
   return (
     <main className="app-shell min-h-[100dvh] overflow-x-hidden p-4 text-slate-950">
@@ -180,6 +224,7 @@ export default function App() {
               value={sourceText}
               onChange={event => {
                 setSourceText(event.target.value);
+                setSelectionContext(null);
                 setModeOverride(null);
               }}
               placeholder="Highlight text on a webpage, or paste a word or sentence here."
@@ -204,9 +249,13 @@ export default function App() {
             ))}
           </div>
 
-          {trimmedSource ? (
+          {trimmedSource && activeMode !== 'speak' ? (
             <p className="text-xs leading-5 text-slate-500">
               Auto-detected as {detectedMode === 'word' ? 'word capture' : 'sentence lab'}.
+            </p>
+          ) : trimmedSource ? (
+            <p className="text-xs leading-5 text-slate-500">
+              Speak mode is ready for a spoken response.
             </p>
           ) : (
             <p className="text-xs leading-5 text-slate-500">
@@ -221,13 +270,13 @@ export default function App() {
               key={`word:${trimmedSource}`}
               initialWord={trimmedSource}
               initialContextSentence={readingContextSentence}
-              captureSource="website_reading"
+              captureSource={selectionContext ? 'website_reading' : undefined}
             />
           ) : activeMode === 'sentence' ? (
             <SentenceLab key={`sentence:${trimmedSource}`} initialSentence={trimmedSource} />
           ) : (
             <SpeakingReview
-              key={`speak:${pendingSelection?.ts ?? 'manual'}`}
+              key={`speak:${selectionContext?.ts ?? 'manual'}`}
               contextDefaults={readingContext}
             />
           )}

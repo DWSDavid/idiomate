@@ -11,10 +11,23 @@ vi.mock('../../client/src/components/AccessGate', () => ({
 }));
 
 vi.mock('../../client/src/components/CaptureWord', () => ({
-  CaptureWord: () => (
-    <button type="button" onClick={() => void fetch('/api/vocab/capture')}>
-      Start capture
-    </button>
+  CaptureWord: ({
+    captureSource,
+    initialContextSentence,
+    initialWord,
+  }: {
+    captureSource?: string;
+    initialContextSentence?: string;
+    initialWord?: string;
+  }) => (
+    <div>
+      <button type="button" onClick={() => void fetch('/api/vocab/capture')}>
+        Start capture
+      </button>
+      <p data-testid="capture-word">{initialWord}</p>
+      <p data-testid="capture-source">{captureSource}</p>
+      <p data-testid="capture-context">{initialContextSentence}</p>
+    </div>
   ),
 }));
 
@@ -23,9 +36,10 @@ vi.mock('../../client/src/components/SentenceLab', () => ({
 }));
 
 vi.mock('../../client/src/components/SpeakingReview', () => ({
-  SpeakingReview: ({ contextDefaults }: { contextDefaults?: { contextTitle?: string; contextUrl?: string; contextExcerpt?: string } }) => (
+  SpeakingReview: ({ contextDefaults }: { contextDefaults?: { contextLabel?: string; contextTitle?: string; contextUrl?: string; contextExcerpt?: string } }) => (
     <div>
       <p>Speaking review</p>
+      <p>{contextDefaults?.contextLabel}</p>
       <p>{contextDefaults?.contextTitle}</p>
       <p>{contextDefaults?.contextUrl}</p>
       <p>{contextDefaults?.contextExcerpt}</p>
@@ -76,7 +90,7 @@ it('offers Speak mode with page context from the pending selection', async () =>
     text: 'Agents are entering finance workflows faster than expected.',
     ts: Date.now(),
     title: 'AI agents move into finance workflows',
-    url: 'https://example.com/ai-agents',
+    url: 'https://example.com/ai-agents?token=secret#private',
   };
   vi.stubGlobal('chrome', {
     storage: {
@@ -94,7 +108,49 @@ it('offers Speak mode with page context from the pending selection', async () =>
 
   fireEvent.click(await screen.findByRole('button', { name: 'Speak' }));
   expect(screen.getByText('Speaking review')).toBeInTheDocument();
+  expect(screen.getByText('reading_reaction')).toBeInTheDocument();
   expect(screen.getByText('AI agents move into finance workflows')).toBeInTheDocument();
   expect(screen.getByText('https://example.com/ai-agents')).toBeInTheDocument();
+  expect(screen.queryByText('https://example.com/ai-agents?token=secret#private')).not.toBeInTheDocument();
   expect(screen.getByText('Agents are entering finance workflows faster than expected.', { selector: 'p' })).toBeInTheDocument();
+});
+
+it('clears pending page metadata and website_reading source after manual edits', async () => {
+  localStorage.setItem('idiomate_access_code', 'Rubi8');
+  const pendingSelection = {
+    text: 'Agents are entering finance workflows faster than expected.',
+    ts: Date.now(),
+    title: 'AI agents move into finance workflows',
+    url: 'https://example.com/ai-agents?token=secret#private',
+  };
+  vi.stubGlobal('chrome', {
+    storage: {
+      local: {
+        get: vi.fn(() => Promise.resolve({ idiomate_pending_selection: pendingSelection })),
+      },
+      onChanged: {
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      },
+    },
+  });
+
+  render(<App />);
+
+  const sourceTextarea = await screen.findByLabelText('Selected or pasted text');
+  fireEvent.change(sourceTextarea, { target: { value: 'Manual reflection about revenue pressure.' } });
+
+  fireEvent.click(screen.getByRole('button', { name: 'Speak' }));
+
+  expect(screen.getByText('Speaking review')).toBeInTheDocument();
+  expect(screen.getByText('reading_reaction')).toBeInTheDocument();
+  expect(screen.queryByText('AI agents move into finance workflows')).not.toBeInTheDocument();
+  expect(screen.queryByText('https://example.com/ai-agents')).not.toBeInTheDocument();
+  expect(screen.queryByText('https://example.com/ai-agents?token=secret#private')).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole('button', { name: 'Word' }));
+
+  expect(screen.getByTestId('capture-word')).toHaveTextContent('Manual reflection about revenue pressure.');
+  expect(screen.getByTestId('capture-source')).toBeEmptyDOMElement();
+  expect(screen.getByTestId('capture-context')).toBeEmptyDOMElement();
 });
