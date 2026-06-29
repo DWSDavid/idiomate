@@ -11,6 +11,7 @@ import type {
   ResearchResponse,
   SentenceLabDiagnosisResponse,
   SentenceLabResultResponse,
+  SpeakingReviewResponse,
   StructureResponse,
   Vocab,
   VocabListItem,
@@ -109,6 +110,16 @@ export interface FollowUpPayload {
   rewrite?: string;
   nativeVersion?: string;
   annotations?: FollowUpAnnotationPayload[];
+}
+
+export interface SpeakingReviewPayload {
+  transcript: string;
+  context?: string;
+  contextLabel?: string;
+  contextTitle?: string;
+  contextUrl?: string;
+  contextExcerpt?: string;
+  date?: string;
 }
 
 async function readJson<T>(response: Response): Promise<T> {
@@ -325,6 +336,18 @@ export function revealSentenceLabResult(
   rewrite: string,
 ): Promise<SentenceLabResultResponse> {
   return postJson<SentenceLabResultResponse>('/api/sentence-lab/result', { id, rewrite });
+}
+
+export function reviewSpeaking(payload: SpeakingReviewPayload): Promise<SpeakingReviewResponse> {
+  return postJson<SpeakingReviewResponse>('/api/speaking/review', {
+    ...payload,
+    transcript: payload.transcript.trim(),
+    context: payload.context?.trim() || undefined,
+    contextLabel: payload.contextLabel?.trim() || undefined,
+    contextTitle: payload.contextTitle?.trim() || undefined,
+    contextUrl: payload.contextUrl?.trim() || undefined,
+    contextExcerpt: payload.contextExcerpt?.trim() || undefined,
+  });
 }
 
 export function importVocab(file: File): Promise<{ count: number }> {
