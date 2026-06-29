@@ -25,6 +25,7 @@ import { createPromptsRouter } from './routes/prompts.js';
 import { createResearchRouter } from './routes/research.js';
 import { createSentenceLabRouter } from './routes/sentenceLab.js';
 import { createSessionsRouter } from './routes/sessions.js';
+import { createSpeakingRouter } from './routes/speaking.js';
 import { createStructureRouter } from './routes/structure.js';
 import { createVocabRouter } from './routes/vocab.js';
 
@@ -79,6 +80,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}, options: Cre
   app.use('/api/profile', createProfileRouter(deps));
   app.use('/api/research', createResearchRouter(deps));
   app.use('/api/sentence-lab', createSentenceLabRouter(deps));
+  app.use('/api/speaking', createSpeakingRouter(deps));
 
   // Serve the built client from the same origin (production). Skipped in dev/tests when no build exists.
   const clientDist = options.clientDistPath ?? join(dirname(fileURLToPath(import.meta.url)), '../../client/dist');

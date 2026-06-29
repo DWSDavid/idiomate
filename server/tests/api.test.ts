@@ -342,6 +342,91 @@ it('POST /api/sentence-lab passes persistent weaknesses and retrieved snippets t
   });
 });
 
+it('POST /api/speaking/review saves a speaking review with context, tallies, history, and embedding', async () => {
+  recordErrors(db, USER_ID, ['word_choice']);
+  let captured: { system: string; user: string; model: string } | undefined;
+  const coachProvider: LLMProvider = {
+    async complete(opts) {
+      captured = opts;
+      return JSON.stringify({
+        nativeVersion: 'I think this article offers a useful perspective on AI agents.',
+        takeaways: ['Use "offers a perspective" for what an article does.'],
+        annotations: [{
+          span: 'has a useful perspective',
+          errorType: 'word_choice',
+          hint: 'Use a more natural verb for what an article does.',
+          explanation: 'Articles usually "offer" a perspective.',
+          rule: 'Article as argument, not person',
+          ruleExample: {
+            before: 'this article has a useful perspective',
+            after: 'this article offers a useful perspective',
+          },
+          modelRewrite: 'offers a useful perspective',
+        }],
+      });
+    },
+  };
+  const embedded: string[] = [];
+  const embeddingProvider: EmbeddingProvider = {
+    async embed(text) {
+      embedded.push(text);
+      return [0.2, 0.8];
+    },
+  };
+
+  await withServer(createApp({ db, coachProvider, embeddingProvider }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/speaking/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date: '2026-06-29',
+        transcript: 'I think this article has a useful perspective about AI agents.',
+        context: 'Spoken reaction after reading',
+        contextLabel: 'reading_reaction',
+        contextTitle: 'AI agents move into finance workflows',
+        contextUrl: 'https://example.com/ai-agents',
+        contextExcerpt: 'Agents are entering finance workflows faster than expected.',
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json).toEqual(expect.objectContaining({
+      id: expect.any(Number),
+      transcript: 'I think this article has a useful perspective about AI agents.',
+      nativeVersion: 'I think this article offers a useful perspective on AI agents.',
+      takeaways: ['Use "offers a perspective" for what an article does.'],
+      context: {
+        label: 'reading_reaction',
+        title: 'AI agents move into finance workflows',
+        url: 'https://example.com/ai-agents',
+        excerpt: 'Agents are entering finance workflows faster than expected.',
+      },
+      annotations: [
+        expect.objectContaining({
+          span: 'has a useful perspective',
+          errorType: 'word_choice',
+          accepted: true,
+          userRewrite: 'offers a useful perspective',
+        }),
+      ],
+    }));
+    expect(captured!.user).toContain('Spoken reaction after reading');
+    expect(captured!.user).toContain('https://example.com/ai-agents');
+    expect(getTallies(db, USER_ID)).toEqual([
+      expect.objectContaining({ errorType: 'word_choice', count: 2 }),
+    ]);
+    expect(getWritingHistory(db, USER_ID, 5)[0]).toEqual(expect.objectContaining({
+      source: 'speaking_review',
+      finalText: 'I think this article offers a useful perspective on AI agents.',
+      context: expect.objectContaining({
+        title: 'AI agents move into finance workflows',
+      }),
+    }));
+    expect(embedded[0]).toContain('I think this article has a useful perspective');
+  });
+}, 10_000);
+
 it('shows every Sentence Lab diagnosis in history immediately and keeps separate same-day rewrites', async () => {
   let calls = 0;
   const coachProvider: LLMProvider = {
