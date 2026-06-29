@@ -1,5 +1,29 @@
 # Idiomate Update and History Progress
 
+## 2026-06-29 Speaking review implementation checkpoint
+
+Purpose: implement the approved text-only Speak workflow across the web app, server, history, profile memory, and Chrome side panel.
+
+Changes:
+
+- Added `speaking_review` as a saved writing source.
+- Added optional reading-context metadata to saved sessions.
+- Added `/api/speaking/review`.
+- Added the web `Speak` tab.
+- Added Chrome side-panel `Speak` mode with page title, URL, and selected excerpt context.
+- Tagged Chrome reading word captures as `website_reading`.
+
+Validation:
+
+- `npm test`
+- `npm run build`
+- `npm run build:ext`
+
+Deploy impact:
+
+- Render deploy picks up the new API route after this branch is pushed.
+- Existing `.env`, SQLite state, and access-code behavior remain unchanged.
+
 ## 2026-06-29 Speaking review module design checkpoint
 
 Purpose: add a dedicated text-only speaking review workflow for speech-to-text transcripts, while keeping the output in Idiomate history, profile memory, and the Chrome side-panel reading flow.

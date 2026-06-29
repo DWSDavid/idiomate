@@ -75,6 +75,14 @@ The importer deduplicates by normalized word or phrase and increments capture co
 
 Use the Quick Capture area for a word, phrase, or collocation you saw elsewhere. Capture asks the utility model for enrichment, shows editable fields, and Save writes the final version through `/api/vocab/save`.
 
+## Speaking Review
+
+Use the Speak tab for speech-to-text output from macOS dictation, Doubao input method, RAGFlow, Riffado, or any other STT tool. Idiomate reviews the transcript as spoken English: grammar, precision, naturalness, native phrasing, and Chinese-L1 transfer.
+
+The first version is text-only. It does not record audio, request microphone permission, or score pronunciation, tone, pace, intonation, or speaking flow.
+
+Chrome side-panel Speak mode can carry the current page title, URL, and selected excerpt into the review, so spoken thoughts about a reading are saved in History alongside words captured from that same reading.
+
 ## Provider Swap
 
 LLM access is isolated behind `server/src/brain/provider.ts`. To swap providers, implement `LLMProvider.complete(...)` and wire it in `server/src/index.ts` or pass it through `createApp(...)` in tests. The `brain/` module does not import Express or React.
