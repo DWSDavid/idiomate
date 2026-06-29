@@ -28,7 +28,7 @@ export const coachResponseZ = z.object({
 export const speakingReviewResponseZ = z.object({
   nativeVersion: z.string().min(1),
   annotations: z.array(annotationZ).default([]),
-  takeaways: z.array(z.string().min(1)).min(1).max(4).default([]),
+  takeaways: z.array(z.string().min(1)).max(4).default([]),
 });
 
 export const dailyPromptZ = z.object({

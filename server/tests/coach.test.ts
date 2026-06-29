@@ -82,3 +82,12 @@ it('validates speaking review responses with takeaways', () => {
   expect(parsed.takeaways).toHaveLength(2);
   expect(parsed.annotations[0].errorType).toBe('word_choice');
 });
+
+it('defaults omitted speaking review arrays to empty arrays', () => {
+  const parsed = speakingReviewResponseZ.parse({
+    nativeVersion: 'That sounds natural in this context.',
+  });
+
+  expect(parsed.takeaways).toEqual([]);
+  expect(parsed.annotations).toEqual([]);
+});
