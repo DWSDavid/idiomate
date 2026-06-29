@@ -211,7 +211,7 @@ export interface ProgressResponse {
   activityDays: string[];
 }
 
-export type WritingSource = 'daily_writing' | 'coach_review' | 'sentence_lab';
+export type WritingSource = 'daily_writing' | 'coach_review' | 'sentence_lab' | 'speaking_review';
 
 export interface WritingHistoryAnnotation {
   span: string;
@@ -219,6 +219,13 @@ export interface WritingHistoryAnnotation {
   rule?: string;
   userRewrite?: string;
   accepted?: boolean;
+}
+
+export interface WritingHistoryContext {
+  label?: string;
+  title?: string;
+  url?: string;
+  excerpt?: string;
 }
 
 export interface WritingHistoryEntry {
@@ -229,10 +236,27 @@ export interface WritingHistoryEntry {
   draftText: string;
   finalText?: string;
   annotations: WritingHistoryAnnotation[];
+  context?: WritingHistoryContext;
 }
 
 export interface WritingHistoryResponse {
   entries: WritingHistoryEntry[];
+}
+
+export interface SpeakingReviewContext {
+  label?: string;
+  title?: string;
+  url?: string;
+  excerpt?: string;
+}
+
+export interface SpeakingReviewResponse {
+  id: number;
+  transcript: string;
+  nativeVersion: string;
+  annotations: Array<Annotation & { userRewrite?: string; accepted?: boolean }>;
+  takeaways: string[];
+  context?: SpeakingReviewContext;
 }
 
 export interface AdminUserSummary {
