@@ -2,7 +2,17 @@ import React, { useEffect, useState } from 'react';
 import type { WritingHistoryEntry, WritingHistoryResponse } from '../../../shared/types';
 import { getHistory } from '../api';
 
-function sourceLabel(source: WritingHistoryEntry['source']): string {
+type SourceFilter = 'all' | 'daily_writing' | 'free_writing';
+
+const SOURCE_FILTER_TABS: Array<{ id: SourceFilter; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'daily_writing', label: 'Daily' },
+  { id: 'free_writing', label: 'Free (随手写)' },
+];
+
+function sourceBadgeLabel(source: WritingHistoryEntry['source']): string {
+  if (source === 'free_writing') return 'Free';
+  if (source === 'daily_writing') return 'Daily';
   return source.replace(/_/g, ' ');
 }
 
@@ -17,11 +27,13 @@ function dateLabel(entry: WritingHistoryEntry): string {
 export function HistoryPanel({ refreshKey = 0 }: HistoryPanelProps) {
   const [history, setHistory] = useState<WritingHistoryResponse>({ entries: [] });
   const [status, setStatus] = useState<'loading' | 'idle' | 'error'>('loading');
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
 
   useEffect(() => {
     let alive = true;
     setStatus('loading');
-    getHistory()
+    const apiSource = sourceFilter === 'all' ? undefined : sourceFilter;
+    getHistory(100, apiSource)
       .then(result => {
         if (!alive) return;
         setHistory(result);
@@ -33,11 +45,24 @@ export function HistoryPanel({ refreshKey = 0 }: HistoryPanelProps) {
     return () => {
       alive = false;
     };
-  }, [refreshKey]);
+  }, [refreshKey, sourceFilter]);
 
   return (
     <section className="surface" aria-label="writing history">
       <span className="section-label">Writing history</span>
+      <div className="mt-3 flex gap-1" role="group" aria-label="Filter by writing type">
+        {SOURCE_FILTER_TABS.map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${sourceFilter === tab.id ? 'bg-emerald-600 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200'}`}
+            aria-pressed={sourceFilter === tab.id}
+            onClick={() => setSourceFilter(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
       {status === 'loading' ? <p className="mt-4 text-sm text-slate-500">Loading history.</p> : null}
       {status === 'error' ? <p className="mt-4 text-sm text-red-700">Could not load history.</p> : null}
       {status === 'idle' && (history.entries?.length ?? 0) === 0 ? (
@@ -47,7 +72,7 @@ export function HistoryPanel({ refreshKey = 0 }: HistoryPanelProps) {
         {(history.entries ?? []).map(entry => (
           <article key={`${entry.source}-${entry.id}`} className="history-card">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="chip">{sourceLabel(entry.source)}</span>
+              <span className="chip">{sourceBadgeLabel(entry.source)}</span>
               <span className="text-xs font-semibold text-slate-400">{dateLabel(entry)}</span>
               {entry.annotations.length ? <span className="chip chip-blue">{entry.annotations.length} notes</span> : null}
             </div>

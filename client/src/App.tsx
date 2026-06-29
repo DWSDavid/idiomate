@@ -57,6 +57,7 @@ export function App() {
   const [vocabKey, setVocabKey] = useState(0);
   const [historyKey, setHistoryKey] = useState(0);
   const [activeSection, setActiveSection] = useState<WorkspaceSection>('write');
+  const [writingSource, setWritingSource] = useState<'daily_writing' | 'free_writing'>('daily_writing');
 
   useEffect(() => {
     const onAccessDenied = () => setAccessBlocked(true);
@@ -119,6 +120,7 @@ export function App() {
         draftText: draft,
         finalText: draft,
         primedVocab: primedVocab.length ? primedVocab : undefined,
+        source: writingSource,
       });
       setSessionStatus('saved');
       if (primedVocab.length) {
@@ -218,6 +220,7 @@ export function App() {
               onChange={setDraft}
               onCoachParagraph={handleCoachParagraph}
               coachingIndex={coachingIndex}
+              onSourceChange={setWritingSource}
             />
 
             {coachPanels.map(item => (

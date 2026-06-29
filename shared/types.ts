@@ -213,7 +213,7 @@ export interface ProgressResponse {
   activityDays: string[];
 }
 
-export type WritingSource = 'daily_writing' | 'coach_review' | 'sentence_lab';
+export type WritingSource = 'daily_writing' | 'free_writing' | 'coach_review' | 'sentence_lab';
 
 export interface WritingHistoryAnnotation {
   span: string;

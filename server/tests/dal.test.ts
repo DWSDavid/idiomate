@@ -15,6 +15,7 @@ import {
   getMistakeLog,
   getMistakeRanking,
   getMistakeTrend,
+  getWritingHistory,
   incrementVocabSuggested,
   incrementVocabUsed,
   insertAnnotations,
@@ -747,4 +748,23 @@ it('returns mistake trends for the top error types by overall count', () => {
       ],
     },
   ]);
+});
+
+describe('writing source filter', () => {
+  it('filters history by source: free_writing session appears under free_writing filter and is excluded under daily_writing filter', () => {
+    insertSession(db, USER_ID, { date: '2026-06-10', draftText: 'daily draft', source: 'daily_writing' });
+    insertSession(db, USER_ID, { date: '2026-06-11', draftText: 'free draft', source: 'free_writing' });
+
+    const freeOnly = getWritingHistory(db, USER_ID, 100, 'free_writing');
+    expect(freeOnly.map(e => e.draftText)).toContain('free draft');
+    expect(freeOnly.map(e => e.draftText)).not.toContain('daily draft');
+
+    const dailyOnly = getWritingHistory(db, USER_ID, 100, 'daily_writing');
+    expect(dailyOnly.map(e => e.draftText)).toContain('daily draft');
+    expect(dailyOnly.map(e => e.draftText)).not.toContain('free draft');
+
+    const all = getWritingHistory(db, USER_ID, 100);
+    expect(all.map(e => e.draftText)).toContain('daily draft');
+    expect(all.map(e => e.draftText)).toContain('free draft');
+  });
 });

@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
+
+type WritingSource = 'daily_writing' | 'free_writing';
 
 interface WriteSurfaceProps {
   value: string;
   onChange: (value: string) => void;
   onCoachParagraph: (paragraph: string, paragraphIndex: number) => void;
   coachingIndex?: number;
+  onSourceChange?: (source: WritingSource) => void;
 }
 
 function paragraphsFromDraft(value: string): string[] {
@@ -14,16 +17,42 @@ function paragraphsFromDraft(value: string): string[] {
     .filter(Boolean);
 }
 
-export function WriteSurface({ value, onChange, onCoachParagraph, coachingIndex }: WriteSurfaceProps) {
+export function WriteSurface({ value, onChange, onCoachParagraph, coachingIndex, onSourceChange }: WriteSurfaceProps) {
+  const [writingSource, setWritingSource] = useState<WritingSource>('daily_writing');
   const paragraphs = paragraphsFromDraft(value);
+
+  const handleSourceChange = (source: WritingSource) => {
+    setWritingSource(source);
+    onSourceChange?.(source);
+  };
 
   return (
     <section className="surface" aria-label="writing surface">
       <div className="flex items-center justify-between gap-3">
         <span className="section-label">Your draft</span>
-        <span className="text-xs text-stone-400">
-          {paragraphs.length} paragraph{paragraphs.length === 1 ? '' : 's'}
-        </span>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border border-stone-200 overflow-hidden text-xs font-medium" role="group" aria-label="Writing type">
+            <button
+              type="button"
+              className={`px-3 py-1 transition-colors ${writingSource === 'daily_writing' ? 'bg-emerald-600 text-white' : 'bg-white text-stone-500 hover:bg-stone-50'}`}
+              aria-pressed={writingSource === 'daily_writing'}
+              onClick={() => handleSourceChange('daily_writing')}
+            >
+              Daily
+            </button>
+            <button
+              type="button"
+              className={`px-3 py-1 transition-colors border-l border-stone-200 ${writingSource === 'free_writing' ? 'bg-emerald-600 text-white' : 'bg-white text-stone-500 hover:bg-stone-50'}`}
+              aria-pressed={writingSource === 'free_writing'}
+              onClick={() => handleSourceChange('free_writing')}
+            >
+              Free (随手写)
+            </button>
+          </div>
+          <span className="text-xs text-stone-400">
+            {paragraphs.length} paragraph{paragraphs.length === 1 ? '' : 's'}
+          </span>
+        </div>
       </div>
 
       <textarea

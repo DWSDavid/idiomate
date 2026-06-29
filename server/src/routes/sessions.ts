@@ -20,6 +20,7 @@ const sessionSubmitZ = z.object({
     paragraphIdx: z.number().int().nonnegative(),
   })).default([]),
   primedVocab: z.array(z.string()).optional(),
+  source: z.enum(['daily_writing', 'free_writing']).default('daily_writing'),
 });
 
 export function countVocabUsed(primedVocab: string[], draftText: string, finalText?: string): number {
@@ -40,6 +41,7 @@ export function createSessionsRouter(deps: AppDependencies): Router {
         draftText: body.draftText,
         finalText: body.finalText,
         durationS: body.durationS,
+        source: body.source,
       });
 
       insertAnnotations(deps.db, req.userId, sessionId, body.annotations);

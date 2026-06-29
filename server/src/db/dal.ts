@@ -1192,16 +1192,28 @@ function sentenceLabDraftAnnotations(row: SentenceLabDraftRow): WritingHistoryAn
   }
 }
 
-export function getWritingHistory(db: Database.Database, userId: string, limit = 100): WritingHistoryEntry[] {
+export function getWritingHistory(db: Database.Database, userId: string, limit = 100, source?: WritingSource): WritingHistoryEntry[] {
   const safeLimit = boundedPositiveInt(limit, 100, 500);
-  const sessions = db.prepare(`
-    SELECT id, date, draft_text, final_text, COALESCE(source, 'daily_writing') AS source, created_at
-    FROM sessions
-    WHERE user_id = ?
-      AND COALESCE(source, 'daily_writing') != 'sentence_lab'
-    ORDER BY COALESCE(created_at, date) DESC, id DESC
-    LIMIT ?
-  `).all(userId, safeLimit) as HistorySessionRow[];
+  let sessions: HistorySessionRow[];
+  if (source) {
+    sessions = db.prepare(`
+      SELECT id, date, draft_text, final_text, COALESCE(source, 'daily_writing') AS source, created_at
+      FROM sessions
+      WHERE user_id = ?
+        AND COALESCE(source, 'daily_writing') = ?
+      ORDER BY COALESCE(created_at, date) DESC, id DESC
+      LIMIT ?
+    `).all(userId, source, safeLimit) as HistorySessionRow[];
+  } else {
+    sessions = db.prepare(`
+      SELECT id, date, draft_text, final_text, COALESCE(source, 'daily_writing') AS source, created_at
+      FROM sessions
+      WHERE user_id = ?
+        AND COALESCE(source, 'daily_writing') != 'sentence_lab'
+      ORDER BY COALESCE(created_at, date) DESC, id DESC
+      LIMIT ?
+    `).all(userId, safeLimit) as HistorySessionRow[];
+  }
 
   const sessionIds = sessions.map(session => session.id);
   const annotationRows = sessionIds.length
@@ -1229,7 +1241,7 @@ export function getWritingHistory(db: Database.Database, userId: string, limit =
     annotations: annotationsBySession.get(session.id) ?? [],
   }));
 
-  const sentenceLabDrafts = db.prepare(`
+  const sentenceLabDrafts = (source && source !== 'sentence_lab') ? [] : db.prepare(`
     SELECT id, user_id, date, sentence, context, response_json, created_at
     FROM sentence_lab_drafts
     WHERE user_id = ?

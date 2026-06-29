@@ -77,6 +77,7 @@ export interface SessionSubmitPayload {
   durationS?: number;
   annotations?: SubmittedAnnotation[];
   primedVocab?: string[];
+  source?: 'daily_writing' | 'free_writing';
 }
 
 export interface ParagraphResultPayload {
@@ -265,8 +266,9 @@ export function getProgress(): Promise<ProgressResponse> {
   return apiFetch('/api/progress').then(readJson<ProgressResponse>);
 }
 
-export function getHistory(limit = 100): Promise<WritingHistoryResponse> {
+export function getHistory(limit = 100, source?: string): Promise<WritingHistoryResponse> {
   const params = new URLSearchParams({ limit: String(limit) });
+  if (source) params.set('source', source);
   return apiFetch(`/api/history?${params.toString()}`).then(readJson<WritingHistoryResponse>);
 }
 
