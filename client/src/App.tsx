@@ -18,6 +18,7 @@ import { DailyDashboard } from './components/DailyDashboard';
 import { GraduatedShelf } from './components/GraduatedShelf';
 import { SentenceLab } from './components/SentenceLab';
 import { SentencePatterns } from './components/SentencePatterns';
+import { SpeakingReview } from './components/SpeakingReview';
 import { TodayStrip } from './components/TodayStrip';
 import { VocabPrime } from './components/VocabPrime';
 import { VocabularyPanel } from './components/VocabularyPanel';
@@ -30,10 +31,11 @@ interface CoachPanelState {
   response: CoachResponse;
 }
 
-type WorkspaceSection = 'write' | 'lab' | 'words' | 'review' | 'me' | 'patterns' | 'admin';
+type WorkspaceSection = 'write' | 'speak' | 'lab' | 'words' | 'review' | 'me' | 'patterns' | 'admin';
 
 const workspaceSections: Array<{ id: WorkspaceSection; label: string }> = [
   { id: 'write', label: 'Write' },
+  { id: 'speak', label: 'Speak' },
   { id: 'lab', label: 'Lab' },
   { id: 'words', label: 'Words' },
   { id: 'review', label: 'Review' },
@@ -225,6 +227,15 @@ export function App() {
               />
             ))}
           </div>
+        </section>
+
+        <section className={`workspace-page${activeSection === 'speak' ? '' : ' hidden'}`} aria-label="speaking review page">
+          <SpeakingReview
+            onReviewed={() => {
+              setProfileKey(key => key + 1);
+              setHistoryKey(key => key + 1);
+            }}
+          />
         </section>
 
         <section className={`workspace-page${activeSection === 'lab' ? '' : ' hidden'}`} aria-label="sentence lab">

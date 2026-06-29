@@ -37,6 +37,18 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
     if (url.includes('/api/history')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ entries: [] }) } as Response);
     }
+    if (url.includes('/api/speaking/review')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          id: 20,
+          transcript: 'This article has a useful perspective.',
+          nativeVersion: 'This article offers a useful perspective.',
+          takeaways: ['Use "offers" for what an article does.'],
+          annotations: [],
+        }),
+      } as Response);
+    }
     if (url.includes('/api/profile')) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ tallies: [], activation: { suggested: 0, used: 0 } }) } as Response);
     }
@@ -50,7 +62,7 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
 
   expect(await screen.findByRole('banner', { name: 'Writing desk header' })).toBeInTheDocument();
   const nav = screen.getByRole('navigation', { name: 'Workspace sections' });
-  expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual(['Write', 'Lab', 'Words', 'Review', 'Me', 'Patterns']);
+  expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual(['Write', 'Speak', 'Lab', 'Words', 'Review', 'Me', 'Patterns']);
   expect(within(nav).getByRole('button', { name: 'Write' })).toHaveAttribute('aria-pressed', 'true');
   expect(within(nav).queryByRole('button', { name: 'Admin' })).not.toBeInTheDocument();
   expect(within(nav).queryByRole('button', { name: 'Sentence Lab' })).not.toBeInTheDocument();
@@ -62,6 +74,9 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
   expect(screen.getByText('Words to work in')).toBeInTheDocument();
   expect(screen.getByLabelText('Draft')).toBeInTheDocument();
   expect(screen.queryByLabelText('sentence lab page')).not.toBeInTheDocument();
+
+  fireEvent.click(within(nav).getByRole('button', { name: 'Speak' }));
+  expect(screen.getByLabelText('speaking review')).toBeInTheDocument();
 
   fireEvent.click(within(nav).getByRole('button', { name: 'Words' }));
 

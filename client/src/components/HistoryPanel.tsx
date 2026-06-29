@@ -3,7 +3,13 @@ import type { WritingHistoryEntry, WritingHistoryResponse } from '../../../share
 import { getHistory } from '../api';
 
 function sourceLabel(source: WritingHistoryEntry['source']): string {
-  return source.replace(/_/g, ' ');
+  const labels: Record<WritingHistoryEntry['source'], string> = {
+    daily_writing: 'Daily writing',
+    coach_review: 'Coach review',
+    sentence_lab: 'Sentence lab',
+    speaking_review: 'Speaking review',
+  };
+  return labels[source] ?? source.replace(/_/g, ' ');
 }
 
 interface HistoryPanelProps {
@@ -51,6 +57,17 @@ export function HistoryPanel({ refreshKey = 0 }: HistoryPanelProps) {
               <span className="text-xs font-semibold text-slate-400">{dateLabel(entry)}</span>
               {entry.annotations.length ? <span className="chip chip-blue">{entry.annotations.length} notes</span> : null}
             </div>
+            {entry.context ? (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-white/75 p-3 text-xs leading-5 text-slate-500">
+                {entry.context.title ? <p className="font-semibold text-slate-800">{entry.context.title}</p> : null}
+                {entry.context.url ? (
+                  <a className="break-all text-emerald-800 underline" href={entry.context.url} target="_blank" rel="noreferrer">
+                    {entry.context.url}
+                  </a>
+                ) : null}
+                {entry.context.excerpt ? <p className="mt-2">{entry.context.excerpt}</p> : null}
+              </div>
+            ) : null}
             <p className="prose mt-3 whitespace-pre-wrap text-base text-slate-800">{entry.draftText}</p>
             {entry.finalText ? (
               <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm leading-6 text-emerald-900">{entry.finalText}</p>
