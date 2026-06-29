@@ -280,3 +280,9 @@ export interface FollowUpResponse {
   answer: string;
   mode: FollowUpMode;
 }
+
+export interface SessionSaveResult {
+  id: number;
+  vocabUsed: number;
+  vocabTotal: number;
+}

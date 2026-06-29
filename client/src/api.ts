@@ -11,6 +11,7 @@ import type {
   ResearchResponse,
   SentenceLabDiagnosisResponse,
   SentenceLabResultResponse,
+  SessionSaveResult,
   StructureResponse,
   Vocab,
   VocabListItem,
@@ -75,6 +76,7 @@ export interface SessionSubmitPayload {
   finalText?: string;
   durationS?: number;
   annotations?: SubmittedAnnotation[];
+  primedVocab?: string[];
 }
 
 export interface ParagraphResultPayload {
@@ -239,8 +241,8 @@ export function coach(paragraph: string, paragraphIndex: number): Promise<CoachR
   return postJson<CoachResponse>('/api/coach', { paragraph, paragraphIndex });
 }
 
-export function submitSession(payload: SessionSubmitPayload): Promise<{ id: number }> {
-  return postJson<{ id: number }>('/api/sessions', payload);
+export function submitSession(payload: SessionSubmitPayload): Promise<SessionSaveResult> {
+  return postJson<SessionSaveResult>('/api/sessions', payload);
 }
 
 export function recordParagraph(payload: ParagraphResultPayload): Promise<{ id: number }> {

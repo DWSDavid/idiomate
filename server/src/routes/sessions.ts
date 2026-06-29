@@ -19,7 +19,14 @@ const sessionSubmitZ = z.object({
   annotations: z.array(submittedAnnotationZ.extend({
     paragraphIdx: z.number().int().nonnegative(),
   })).default([]),
+  primedVocab: z.array(z.string()).optional(),
 });
+
+export function countVocabUsed(primedVocab: string[], draftText: string, finalText?: string): number {
+  if (!primedVocab.length) return 0;
+  const combined = (draftText + ' ' + (finalText ?? '')).toLowerCase();
+  return primedVocab.filter(word => combined.includes(word.toLowerCase())).length;
+}
 
 export function createSessionsRouter(deps: AppDependencies): Router {
   const router = Router();
@@ -57,7 +64,11 @@ export function createSessionsRouter(deps: AppDependencies): Router {
         console.error('embed error:', err);
       }
 
-      res.status(201).json({ id: sessionId });
+      const primedVocab = body.primedVocab ?? [];
+      const vocabUsed = countVocabUsed(primedVocab, body.draftText, body.finalText);
+      const vocabTotal = primedVocab.length;
+
+      res.status(201).json({ id: sessionId, vocabUsed, vocabTotal });
     } catch (err) {
       next(err);
     }
