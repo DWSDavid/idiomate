@@ -24,6 +24,10 @@ export function migrate(db: Database.Database) {
   ensureColumn(db, 'sessions', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
   ensureColumn(db, 'sessions', 'source', "TEXT DEFAULT 'daily_writing'");
   ensureColumn(db, 'sessions', 'created_at', 'TEXT');
+  ensureColumn(db, 'sessions', 'context_label', 'TEXT');
+  ensureColumn(db, 'sessions', 'context_title', 'TEXT');
+  ensureColumn(db, 'sessions', 'context_url', 'TEXT');
+  ensureColumn(db, 'sessions', 'context_excerpt', 'TEXT');
   ensureColumn(db, 'error_tally', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
   ensureColumn(db, 'sentence_lab_drafts', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
   rebuildVocabIfLegacy(db);

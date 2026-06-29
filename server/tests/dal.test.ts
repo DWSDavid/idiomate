@@ -12,6 +12,7 @@ import {
   getVocabCount,
   getVocabList,
   getVocabSample,
+  getWritingHistory,
   getMistakeLog,
   getMistakeRanking,
   getMistakeTrend,
@@ -53,6 +54,16 @@ it('migrates review metadata and session embedding storage', () => {
     WHERE type = 'table' AND name = 'session_embeddings'
   `).get() as { name: string } | undefined;
   expect(embeddingTable?.name).toBe('session_embeddings');
+});
+
+it('migrates optional session context columns', () => {
+  const sessionColumns = db.prepare('PRAGMA table_info(sessions)').all() as Array<{ name: string }>;
+  expect(sessionColumns.map(column => column.name)).toEqual(expect.arrayContaining([
+    'context_label',
+    'context_title',
+    'context_url',
+    'context_excerpt',
+  ]));
 });
 
 it('upserts vocab by normalized text and accumulates capture count', () => {
@@ -583,6 +594,48 @@ it('buckets daily mistake counts by session date and excludes vocab suggestions'
     { date: '2026-06-03', count: 2 },
     { date: '2026-06-04', count: 1 },
   ]);
+});
+
+it('returns speaking reviews in history with reading context', () => {
+  const sessionId = insertSession(db, USER_ID, {
+    date: '2026-06-29',
+    draftText: 'I think this article has a very useful perspective about AI agents.',
+    finalText: 'I think this article offers a useful perspective on AI agents.',
+    source: 'speaking_review',
+    contextLabel: 'reading_reaction',
+    contextTitle: 'AI agents move into finance workflows',
+    contextUrl: 'https://example.com/ai-agents',
+    contextExcerpt: 'Agents are entering finance workflows faster than expected.',
+  });
+  insertAnnotations(db, USER_ID, sessionId, [{
+    paragraphIdx: 0,
+    span: 'has a very useful perspective',
+    errorType: 'word_choice',
+    hint: 'Use a more natural verb for what an article does.',
+    explanation: 'Articles usually "offer" or "give" a perspective.',
+    modelRewrite: 'offers a useful perspective',
+    userRewrite: 'offers a useful perspective',
+    accepted: true,
+  }]);
+
+  expect(getWritingHistory(db, USER_ID, 5)[0]).toEqual(expect.objectContaining({
+    source: 'speaking_review',
+    draftText: 'I think this article has a very useful perspective about AI agents.',
+    finalText: 'I think this article offers a useful perspective on AI agents.',
+    context: {
+      label: 'reading_reaction',
+      title: 'AI agents move into finance workflows',
+      url: 'https://example.com/ai-agents',
+      excerpt: 'Agents are entering finance workflows faster than expected.',
+    },
+    annotations: [
+      expect.objectContaining({
+        span: 'has a very useful perspective',
+        errorType: 'word_choice',
+        accepted: true,
+      }),
+    ],
+  }));
 });
 
 it('returns mistake trends for the top error types by overall count', () => {

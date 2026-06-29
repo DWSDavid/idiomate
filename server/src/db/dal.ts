@@ -125,6 +125,10 @@ interface HistorySessionRow {
   final_text: string | null;
   source: WritingSource | null;
   created_at: string | null;
+  context_label: string | null;
+  context_title: string | null;
+  context_url: string | null;
+  context_excerpt: string | null;
 }
 
 interface HistoryAnnotationRow {
@@ -152,6 +156,10 @@ export interface InsertSessionInput {
   finalText?: string;
   durationS?: number;
   source?: WritingSource;
+  contextLabel?: string;
+  contextTitle?: string;
+  contextUrl?: string;
+  contextExcerpt?: string;
 }
 
 export interface InsertAnnotationInput extends Annotation {
@@ -1167,6 +1175,16 @@ function mapHistoryAnnotation(row: HistoryAnnotationRow): WritingHistoryAnnotati
   };
 }
 
+function sessionContext(row: HistorySessionRow): WritingHistoryEntry['context'] {
+  const context = {
+    label: row.context_label ?? undefined,
+    title: row.context_title ?? undefined,
+    url: row.context_url ?? undefined,
+    excerpt: row.context_excerpt ?? undefined,
+  };
+  return Object.values(context).some(Boolean) ? context : undefined;
+}
+
 function mapSentenceLabHistoryAnnotation(row: SentenceLabHistoryAnnotationRow): WritingHistoryAnnotation {
   return {
     span: row.span_text,
@@ -1193,7 +1211,17 @@ function sentenceLabDraftAnnotations(row: SentenceLabDraftRow): WritingHistoryAn
 export function getWritingHistory(db: Database.Database, userId: string, limit = 100): WritingHistoryEntry[] {
   const safeLimit = boundedPositiveInt(limit, 100, 500);
   const sessions = db.prepare(`
-    SELECT id, date, draft_text, final_text, COALESCE(source, 'daily_writing') AS source, created_at
+    SELECT
+      id,
+      date,
+      draft_text,
+      final_text,
+      COALESCE(source, 'daily_writing') AS source,
+      created_at,
+      context_label,
+      context_title,
+      context_url,
+      context_excerpt
     FROM sessions
     WHERE user_id = ?
       AND COALESCE(source, 'daily_writing') != 'sentence_lab'
@@ -1222,6 +1250,7 @@ export function getWritingHistory(db: Database.Database, userId: string, limit =
     date: session.date ?? undefined,
     createdAt: session.created_at ?? undefined,
     source: session.source ?? 'daily_writing',
+    context: sessionContext(session),
     draftText: session.draft_text,
     finalText: session.final_text ?? undefined,
     annotations: annotationsBySession.get(session.id) ?? [],
@@ -1287,8 +1316,14 @@ export function getWritingHistory(db: Database.Database, userId: string, limit =
 
 export function insertSession(db: Database.Database, userId: string, input: InsertSessionInput): number {
   const result = db.prepare(`
-    INSERT INTO sessions (user_id, date, prompt_id, draft_text, final_text, duration_s, source, created_at)
-    VALUES (@userId, @date, @promptId, @draftText, @finalText, @durationS, @source, datetime('now'))
+    INSERT INTO sessions (
+      user_id, date, prompt_id, draft_text, final_text, duration_s, source,
+      context_label, context_title, context_url, context_excerpt, created_at
+    )
+    VALUES (
+      @userId, @date, @promptId, @draftText, @finalText, @durationS, @source,
+      @contextLabel, @contextTitle, @contextUrl, @contextExcerpt, datetime('now')
+    )
   `).run({
     userId,
     date: input.date ?? new Date().toISOString(),
@@ -1297,6 +1332,10 @@ export function insertSession(db: Database.Database, userId: string, input: Inse
     finalText: input.finalText ?? null,
     durationS: input.durationS ?? null,
     source: input.source ?? 'daily_writing',
+    contextLabel: input.contextLabel?.trim() || null,
+    contextTitle: input.contextTitle?.trim() || null,
+    contextUrl: input.contextUrl?.trim() || null,
+    contextExcerpt: input.contextExcerpt?.trim() || null,
   });
   return Number(result.lastInsertRowid);
 }
