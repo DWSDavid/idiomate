@@ -10,6 +10,7 @@ import { config } from './config.js';
 import { migrate, openDb } from './db/db.js';
 import { accessMiddleware } from './middleware/access.js';
 import { userMiddleware } from './middleware/user.js';
+import { startListenBridge } from './listen.js';
 import { createAdminRouter } from './routes/admin.js';
 import { createCoachRouter } from './routes/coach.js';
 import { createCoachHistoryRouter } from './routes/coachHistory.js';
@@ -35,6 +36,11 @@ interface CreateAppOptions {
 export function createApp(overrides: Partial<AppDependencies> = {}, options: CreateAppOptions = {}) {
   const db = overrides.db ?? openDb();
   migrate(db);
+  try {
+    startListenBridge(db, config.rubiProfileUserId);
+  } catch (err) {
+    console.warn('[listen-bridge] failed to start:', err);
+  }
   const hasEmbeddingOverride = Object.prototype.hasOwnProperty.call(overrides, 'embeddingProvider');
 
   const deps: AppDependencies = {
