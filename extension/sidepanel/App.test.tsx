@@ -10,8 +10,10 @@ vi.mock('../../client/src/components/AccessGate', () => ({
   AccessGate: () => <div>Access gate</div>,
 }));
 
-vi.mock('../../client/src/components/CaptureWord', () => ({
-  CaptureWord: ({
+vi.mock('../../client/src/components/CaptureWord', async () => {
+  const React = await import('react');
+  return {
+    CaptureWord: ({
     captureSource,
     initialContextSentence,
     initialWord,
@@ -19,17 +21,26 @@ vi.mock('../../client/src/components/CaptureWord', () => ({
     captureSource?: string;
     initialContextSentence?: string;
     initialWord?: string;
-  }) => (
-    <div>
-      <button type="button" onClick={() => void fetch('/api/vocab/capture')}>
-        Start capture
-      </button>
-      <p data-testid="capture-word">{initialWord}</p>
-      <p data-testid="capture-source">{captureSource}</p>
-      <p data-testid="capture-context">{initialContextSentence}</p>
-    </div>
-  ),
-}));
+  }) => {
+      const [mountedProps] = React.useState({
+        captureSource,
+        initialContextSentence,
+        initialWord,
+      });
+
+      return (
+        <div>
+          <button type="button" onClick={() => void fetch('/api/vocab/capture')}>
+            Start capture
+          </button>
+          <p data-testid="capture-word">{mountedProps.initialWord}</p>
+          <p data-testid="capture-source">{mountedProps.captureSource}</p>
+          <p data-testid="capture-context">{mountedProps.initialContextSentence}</p>
+        </div>
+      );
+    },
+  };
+});
 
 vi.mock('../../client/src/components/SentenceLab', () => ({
   SentenceLab: () => <div>Sentence lab</div>,
@@ -153,4 +164,50 @@ it('clears pending page metadata and website_reading source after manual edits',
   expect(screen.getByTestId('capture-word')).toHaveTextContent('Manual reflection about revenue pressure.');
   expect(screen.getByTestId('capture-source')).toBeEmptyDOMElement();
   expect(screen.getByTestId('capture-context')).toBeEmptyDOMElement();
+});
+
+it('refreshes word capture context when the same text is selected on a different page', async () => {
+  localStorage.setItem('idiomate_access_code', 'Rubi8');
+  const listeners: Array<(changes: Record<string, chrome.storage.StorageChange>, areaName: chrome.storage.AreaName) => void> = [];
+  const firstSelection = {
+    text: 'margin',
+    ts: 1000,
+    title: 'Page A',
+    url: 'https://example.com/page-a?token=secret#private',
+  };
+  const secondSelection = {
+    text: 'margin',
+    ts: 2000,
+    title: 'Page B',
+    url: 'https://example.com/page-b?token=secret#private',
+  };
+  vi.stubGlobal('chrome', {
+    storage: {
+      local: {
+        get: vi.fn(() => Promise.resolve({ idiomate_pending_selection: firstSelection })),
+      },
+      onChanged: {
+        addListener: vi.fn(listener => listeners.push(listener)),
+        removeListener: vi.fn(),
+      },
+    },
+  });
+
+  render(<App />);
+
+  await waitFor(() => {
+    expect(screen.getByTestId('capture-context')).toHaveTextContent(
+      'From Page A: https://example.com/page-a: margin',
+    );
+  });
+
+  listeners.forEach(listener => listener({
+    idiomate_pending_selection: { newValue: secondSelection },
+  } as Record<string, chrome.storage.StorageChange>, 'local'));
+
+  await waitFor(() => {
+    expect(screen.getByTestId('capture-context')).toHaveTextContent(
+      'From Page B: https://example.com/page-b: margin',
+    );
+  });
 });

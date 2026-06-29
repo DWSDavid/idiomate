@@ -267,7 +267,7 @@ export default function App() {
         <div>
           {activeMode === 'word' ? (
             <CaptureWord
-              key={`word:${trimmedSource}`}
+              key={`word:${selectionContext?.ts ?? 'manual'}:${trimmedSource}`}
               initialWord={trimmedSource}
               initialContextSentence={readingContextSentence}
               captureSource={selectionContext ? 'website_reading' : undefined}
