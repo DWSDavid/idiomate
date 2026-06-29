@@ -100,9 +100,13 @@ export function CoachPanel({ paragraph, nativeVersion, elevatedVersion, elevatio
       ...annotation,
       userRewrite: rewrite,
       // A vocab suggestion counts as "used" only if the rewrite actually contains the word.
+      // For error annotations with a span, the issue is addressed when that span is gone.
+      // Fallback: non-empty rewrite that differs from the original.
       accepted: annotation.errorType === 'vocab_suggestion'
         ? Boolean(annotation.vocabWord) && lower.includes((annotation.vocabWord ?? '').toLowerCase())
-        : rewrite.trim().length > 0 && rewrite !== paragraph,
+        : annotation.span
+          ? !lower.includes(annotation.span.toLowerCase())
+          : rewrite.trim().length > 0 && rewrite !== paragraph,
     }));
     setAccepted(compared);
     setPhase('compared');

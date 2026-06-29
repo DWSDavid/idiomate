@@ -329,6 +329,68 @@ it('does not show tabs when elevatedVersion is absent', () => {
   expect(screen.getByText('Native version')).toBeInTheDocument();
 });
 
+it('span-based accepted: NOT accepted when rewrite still contains the problematic span', () => {
+  const spanAnnotation = [{
+    span: 'logistics in smart factories',
+    errorType: 'redundancy',
+    hint: 'This phrase is vague.',
+    explanation: 'Cut to the specific term.',
+    modelRewrite: 'supply-chain automation',
+  }];
+
+  const onSubmit = vi.fn();
+  render(
+    <CoachPanel
+      paragraph="The role of logistics in smart factories is evolving."
+      annotations={spanAnnotation as any}
+      onSubmit={onSubmit}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
+  // Rewrite still contains the span
+  fireEvent.change(screen.getByRole('textbox'), {
+    target: { value: 'The role of logistics in smart factories is changing.' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
+
+  expect(onSubmit).toHaveBeenCalledWith(
+    'The role of logistics in smart factories is changing.',
+    expect.arrayContaining([expect.objectContaining({ accepted: false })]),
+  );
+});
+
+it('span-based accepted: IS accepted when the problematic span is absent from the rewrite', () => {
+  const spanAnnotation = [{
+    span: 'logistics in smart factories',
+    errorType: 'redundancy',
+    hint: 'This phrase is vague.',
+    explanation: 'Cut to the specific term.',
+    modelRewrite: 'supply-chain automation',
+  }];
+
+  const onSubmit = vi.fn();
+  render(
+    <CoachPanel
+      paragraph="The role of logistics in smart factories is evolving."
+      annotations={spanAnnotation as any}
+      onSubmit={onSubmit}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole('button', { name: 'Try the rewrite' }));
+  // Rewrite does not contain the span
+  fireEvent.change(screen.getByRole('textbox'), {
+    target: { value: 'Supply-chain automation is evolving.' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Submit rewrite' }));
+
+  expect(onSubmit).toHaveBeenCalledWith(
+    'Supply-chain automation is evolving.',
+    expect.arrayContaining([expect.objectContaining({ accepted: true })]),
+  );
+});
+
 it('"I know it" dismisses the save prompt without calling the API', () => {
   const fetchMock = vi.fn();
   vi.stubGlobal('fetch', fetchMock);
