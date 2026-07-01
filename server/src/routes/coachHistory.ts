@@ -9,6 +9,8 @@ const coachHistoryZ = z.object({
   promptId: z.number().int().positive().optional(),
   paragraphIdx: z.number().int().nonnegative(),
   paragraph: z.string().min(1),
+  nativeText: z.string().optional(),
+  elevatedText: z.string().optional(),
   annotations: z.array(submittedAnnotationZ).default([]),
 });
 
@@ -22,6 +24,8 @@ export function createCoachHistoryRouter(deps: AppDependencies): Router {
         date: body.date,
         promptId: body.promptId,
         draftText: body.paragraph,
+        nativeText: body.nativeText,
+        elevatedText: body.elevatedText,
         source: 'coach_review',
       });
 

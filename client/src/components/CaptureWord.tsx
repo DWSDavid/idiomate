@@ -8,6 +8,8 @@ interface CaptureWordProps {
   initialWord?: string;
   initialContextSentence?: string;
   captureSource?: string;
+  captureSourceTitle?: string;
+  captureSourceUrl?: string;
 }
 
 function toLines(items?: string[]): string {
@@ -29,7 +31,21 @@ function dictionaryLinks(term: string): { merriamWebster: string; cambridge: str
   };
 }
 
-export function CaptureWord({ onSaved, initialWord, initialContextSentence, captureSource }: CaptureWordProps) {
+function existingSaveNote(saved: { captureCount: number; previousCaptureCount?: number; captureDelta?: number }, familyNote: string): string {
+  const previous = saved.previousCaptureCount ?? Math.max(0, saved.captureCount - (saved.captureDelta ?? 1));
+  const delta = saved.captureDelta ?? Math.max(1, saved.captureCount - previous);
+  const encounter = delta === 1 ? 'Logged once more' : `Logged ${delta} more encounters`;
+  return `${encounter}. Total seen: ${saved.captureCount}${previous ? `, previously ${previous}` : ''}.${familyNote}`;
+}
+
+export function CaptureWord({
+  onSaved,
+  initialWord,
+  initialContextSentence,
+  captureSource,
+  captureSourceTitle,
+  captureSourceUrl,
+}: CaptureWordProps) {
   const [word, setWord] = useState(initialWord ?? '');
   const [contextSentence, setContextSentence] = useState(initialContextSentence ?? '');
   const [preview, setPreview] = useState<Vocab | null>(null);
@@ -49,6 +65,8 @@ export function CaptureWord({ onSaved, initialWord, initialContextSentence, capt
       setPreview({
         ...enriched,
         source: captureSource ?? enriched.source,
+        sourceTitle: captureSourceTitle ?? enriched.sourceTitle,
+        sourceUrl: captureSourceUrl ?? enriched.sourceUrl,
         contextSentence: contextSentence.trim() || enriched.contextSentence,
       });
       setExamplesText(toLines(enriched.examples));
@@ -70,10 +88,24 @@ export function CaptureWord({ onSaved, initialWord, initialContextSentence, capt
     setSaveNote('');
     try {
       const saved = await saveVocab(next);
-      const savedVocab = { ...next, id: saved.id, captureCount: saved.captureCount };
+      const savedVocab = {
+        ...next,
+        word: saved.canonicalWord ?? next.word,
+        normalized: saved.normalized ?? next.normalized,
+        baseForm: saved.baseForm ?? next.baseForm,
+        id: saved.id,
+        captureCount: saved.captureCount,
+      };
       setPreview(savedVocab);
       if (saved.existed) {
-        setSaveNote(`Already in your list - met ${saved.captureCount} times, priority raised.`);
+        const familyNote = saved.canonicalWord && saved.canonicalWord !== next.word
+          ? ` Stored under "${saved.canonicalWord}" (${saved.baseForm ?? saved.normalized ?? 'word family'}).`
+          : saved.baseForm && saved.baseForm !== (next.normalized ?? next.word)
+            ? ` Family base: ${saved.baseForm}.`
+            : '';
+        setSaveNote(existingSaveNote(saved, familyNote));
+      } else if (saved.canonicalWord && saved.canonicalWord !== next.word) {
+        setSaveNote(`Saved under base form "${saved.canonicalWord}" so this word family stays together.`);
       }
       onSaved?.(savedVocab);
       setStatus('saved');
@@ -133,6 +165,15 @@ export function CaptureWord({ onSaved, initialWord, initialContextSentence, capt
           <label className="field-label">
             Headword
             <input className="field mt-1" value={preview.word} onChange={event => setPreview({ ...preview, word: event.target.value })} />
+          </label>
+          <label className="field-label">
+            Family base
+            <input
+              className="field mt-1"
+              value={preview.baseForm ?? preview.normalized ?? preview.word}
+              onChange={event => setPreview({ ...preview, baseForm: event.target.value })}
+              placeholder="discern, run, allocate"
+            />
           </label>
           <label className="field-label">
             Kind

@@ -38,13 +38,19 @@ it('loads word details, marks related words, shows distinctions and examples, an
   expect(screen.getByText('Compare')).toHaveClass('field-label');
   expect(screen.getByText('In use')).toBeInTheDocument();
   expect(screen.getByText('In use')).toHaveClass('field-label');
-  expect(screen.getByText('allocate')).toHaveClass('chip');
-  expect(screen.getByText('allocation')).toHaveClass('chip-blue');
-  expect(screen.getByText('allocation')).toHaveAttribute('title', 'in your list');
+  expect(screen.getByText('Family map')).toBeInTheDocument();
+  expect(screen.getByText('base form / headword')).toBeInTheDocument();
+  expect(screen.getByText('past tense or past participle')).toBeInTheDocument();
+  expect(screen.getByText('noun form')).toBeInTheDocument();
+  expect(screen.getAllByText(/core meaning: same family as allocate/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText('allocate').some(node => node.classList.contains('chip'))).toBe(true);
+  const allocationChip = screen.getAllByText('allocation').find(node => node.classList.contains('chip-blue'));
+  expect(allocationChip).toBeTruthy();
+  expect(allocationChip).toHaveAttribute('title', 'in your list');
   expect(screen.getAllByText('in your list')).toHaveLength(1);
   expect(screen.getByText(/Use assign for tasks or ownership./)).toBeInTheDocument();
   expect(screen.getByText(/Use distribute when spreading resources/)).toBeInTheDocument();
-  expect(screen.getByText(/The team/)).toBeInTheDocument();
+  expect(screen.getAllByText(/The team/).length).toBeGreaterThan(0);
   expect(document.querySelectorAll('strong')).not.toHaveLength(0);
 
   rerender(<WordDeepDivePanel vocabId={12} word="allocate" />);

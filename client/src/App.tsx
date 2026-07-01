@@ -31,13 +31,14 @@ interface CoachPanelState {
   response: CoachResponse;
 }
 
-type WorkspaceSection = 'write' | 'speak' | 'lab' | 'words' | 'review' | 'me' | 'patterns' | 'admin';
+type WorkspaceSection = 'write' | 'speak' | 'lab' | 'words' | 'history' | 'review' | 'me' | 'patterns' | 'admin';
 
 const workspaceSections: Array<{ id: WorkspaceSection; label: string }> = [
   { id: 'write', label: 'Write' },
   { id: 'speak', label: 'Speak' },
   { id: 'lab', label: 'Lab' },
-  { id: 'words', label: 'Words' },
+  { id: 'words', label: 'Vocabulary' },
+  { id: 'history', label: 'History' },
   { id: 'review', label: 'Review' },
   { id: 'me', label: 'Me' },
   { id: 'patterns', label: 'Patterns' },
@@ -97,6 +98,8 @@ export function App() {
         promptId: prompt?.id,
         paragraphIdx: paragraphIndex,
         paragraph,
+        nativeText: response.nativeVersion,
+        elevatedText: response.elevatedVersion,
         annotations: response.annotations,
       }).then(() => setHistoryKey(key => key + 1)).catch(() => undefined);
     } finally {
@@ -262,7 +265,7 @@ export function App() {
           <OwnerVocabImport onImported={handleVocabSaved} />
           <ChineseToVocabBox onSaved={handleVocabSaved} />
           <CaptureWord onSaved={handleVocabSaved} />
-          <VocabularyPanel refreshKey={vocabKey + profileKey} />
+          <VocabularyPanel refreshKey={vocabKey + profileKey} active={activeSection === 'words'} />
           <GraduatedShelf />
         </section>
 
@@ -270,11 +273,14 @@ export function App() {
           <ReviewPanel onGoWrite={() => setActiveSection('write')} />
         </section>
 
+        <section className={`workspace-page${activeSection === 'history' ? '' : ' hidden'}`} aria-label="history">
+          <HistoryPanel refreshKey={historyKey} />
+        </section>
+
         <section className={`workspace-page two-column-page${activeSection === 'me' ? '' : ' hidden'}`} aria-label="me">
           <ProfileDashboard refreshKey={profileKey} />
           <ProgressPanel refreshKey={profileKey} />
           <MemoryProfileCard />
-          <HistoryPanel refreshKey={historyKey} />
         </section>
 
         <section className={`workspace-page${activeSection === 'patterns' ? '' : ' hidden'}`} aria-label="sentence patterns">

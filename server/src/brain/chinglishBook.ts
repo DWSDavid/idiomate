@@ -10,6 +10,7 @@ const defaultBookPath = join(here, '../../../refs/chinglish-pinkham.txt');
 interface ReferencePattern {
   label: string;
   searchTerms: string[];
+  fallbackQuote?: string;
 }
 
 const PATTERNS: Record<ErrorType, ReferencePattern> = {
@@ -23,6 +24,7 @@ const PATTERNS: Record<ErrorType, ReferencePattern> = {
   },
   noun_plague: {
     label: 'Noun Plague: unnecessary verb plus noun',
+    fallbackQuote: 'the real action is expressed in the noun',
     searchTerms: [
       'real action is expressed in the noun',
       'the basic pattern is unnec. verb + noun',
@@ -140,7 +142,7 @@ export function findChinglishBookReference(
   bookText = localBookText(),
 ): BookReference {
   const pattern = PATTERNS[errorType];
-  const quote = pattern.searchTerms.length ? findQuote(bookText, pattern.searchTerms) : undefined;
+  const quote = pattern.searchTerms.length ? findQuote(bookText, pattern.searchTerms) ?? pattern.fallbackQuote : undefined;
 
   return {
     source: SOURCE,

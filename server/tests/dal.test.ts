@@ -2,6 +2,7 @@
 import { openDb, migrate } from '../src/db/db.js';
 import {
   getDeepDiveCache,
+  getAllVocab,
   getPrimeCandidates,
   getPrimeCandidatePool,
   getDailyMistakeCounts,
@@ -20,6 +21,7 @@ import {
   incrementVocabSuggested,
   incrementVocabUsed,
   insertAnnotations,
+  insertMissingVocab,
   insertSession,
   insertVocab,
   mergeVocabFamilies,
@@ -48,6 +50,8 @@ it('migrates review metadata and session embedding storage', () => {
     'word_family',
     'near_synonyms',
     'base_form',
+    'source_title',
+    'source_url',
   ]));
 
   const embeddingTable = db.prepare(`
@@ -93,9 +97,49 @@ it('stores base-form metadata for captured vocab', () => {
   const row = db.prepare('SELECT base_form FROM vocab WHERE id = ?').get(id) as { base_form: string };
   expect(row.base_form).toBe('run');
   expect(getPrimeCandidates(db, USER_ID, 1)[0]).toEqual(expect.objectContaining({
-    word: 'running',
+    word: 'run',
+    normalized: 'run',
     baseForm: 'run',
   }));
+});
+
+it('insertMissingVocab skips existing words without refreshing last_captured', () => {
+  const id = upsertVocab(db, USER_ID, {
+    word: 'vicious cycle',
+    normalized: 'vicious cycle',
+    kind: 'phrase',
+    source: 'youdao',
+    lastCaptured: '2026-06-01T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  const inserted = insertMissingVocab(db, USER_ID, [{
+    word: 'vicious cycle',
+    normalized: 'vicious cycle',
+    kind: 'phrase',
+    source: 'youdao',
+    timesSuggested: 0,
+    timesUsed: 0,
+  }, {
+    word: 'new owner word',
+    normalized: 'new owner word',
+    kind: 'phrase',
+    source: 'youdao',
+    timesSuggested: 0,
+    timesUsed: 0,
+  }]);
+
+  expect(inserted).toBe(1);
+  const existing = db.prepare('SELECT capture_count, last_captured FROM vocab WHERE id = ?').get(id) as {
+    capture_count: number;
+    last_captured: string;
+  };
+  expect(existing).toEqual({
+    capture_count: 1,
+    last_captured: '2026-06-01T00:00:00.000Z',
+  });
+  expect(getVocabCount(db, USER_ID)).toBe(2);
 });
 
 it('merges vocab families into one primary row and is idempotent', () => {
@@ -295,12 +339,12 @@ it('selects prime candidates by deterministic weighted priority', () => {
   expect(getPrimeCandidates(db, USER_ID, 2).map(v => v.word)).toEqual(['risk premium', 'plain']);
 });
 
-it('lists vocab by the same priority order used for prime candidates', () => {
+it('lists vocab with latest captures first', () => {
   upsertVocab(db, USER_ID, {
     word: 'fresh word',
     kind: 'word',
     captureCount: 1,
-    lastCaptured: '2026-06-04T00:00:00.000Z',
+    lastCaptured: '2026-06-05T00:00:00.000Z',
     timesSuggested: 0,
     timesUsed: 0,
     defCn: 'newly captured',
@@ -329,19 +373,90 @@ it('lists vocab by the same priority order used for prime candidates', () => {
   const list = getVocabList(db, USER_ID, 10);
 
   expect(getVocabCount(db, USER_ID)).toBe(3);
-  expect(list.map(item => item.word)).toEqual(getPrimeCandidates(db, USER_ID, 10).map(item => item.word));
+  expect(list.map(item => item.word)).toEqual(['fresh word', 'overused term', 'well worn phrase']);
   expect(list[0]).toEqual(expect.objectContaining({
     id: expect.any(Number),
-    word: 'well worn phrase',
-    kind: 'phrase',
-    defCn: 'seen many times',
-    pos: 'noun',
-    nearSynonyms: [{ word: 'familiar expression', distinction: 'Use this for a phrase readers know well.' }],
-    captureCount: 5,
+    word: 'fresh word',
+    kind: 'word',
+    defCn: 'newly captured',
+    captureCount: 1,
     timesSuggested: 0,
     timesUsed: 0,
-    lastCaptured: '2026-05-10T00:00:00.000Z',
-    capturedDate: '2026-05-10',
+    lastCaptured: '2026-06-05T00:00:00.000Z',
+    capturedDate: '2026-06-05',
+  }));
+  expect(list[2]).toEqual(expect.objectContaining({
+    word: 'well worn phrase',
+    pos: 'noun',
+    nearSynonyms: [{ word: 'familiar expression', distinction: 'Use this for a phrase readers know well.' }],
+  }));
+});
+
+it('stores webpage source metadata and examples on vocab list items', () => {
+  upsertVocab(db, USER_ID, {
+    word: 'capex cycle',
+    kind: 'phrase',
+    source: 'website_reading',
+    sourceTitle: 'Markets digest: AI capex cycle',
+    sourceUrl: 'https://example.com/markets',
+    contextSentence: 'From Markets digest: AI capex cycle: https://example.com/markets: capex cycle',
+    examples: ['The capex cycle could reshape cloud margins.'],
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  expect(getVocabList(db, USER_ID, 10)[0]).toEqual(expect.objectContaining({
+    word: 'capex cycle',
+    source: 'website_reading',
+    sourceTitle: 'Markets digest: AI capex cycle',
+    sourceUrl: 'https://example.com/markets',
+    contextSentence: 'From Markets digest: AI capex cycle: https://example.com/markets: capex cycle',
+    examples: ['The capex cycle could reshape cloud margins.'],
+  }));
+});
+
+it('keeps website source metadata when an inflected capture merges into an existing family', () => {
+  upsertVocab(db, USER_ID, {
+    word: 'enchant',
+    normalized: 'enchant',
+    baseForm: 'enchant',
+    kind: 'word',
+    source: 'capture',
+    captureCount: 1,
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  upsertVocab(db, USER_ID, {
+    word: 'enchants',
+    normalized: 'enchants',
+    baseForm: 'enchant',
+    kind: 'word',
+    source: 'website_reading',
+    sourceTitle: 'Culture desk',
+    sourceUrl: 'https://example.com/culture',
+    contextSentence: 'From Culture desk: https://example.com/culture: enchants',
+    examples: ['The image enchants readers before the headline lands.'],
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  const all = getAllVocab(db, USER_ID, {
+    offset: 0,
+    limit: 10,
+    sort: 'date',
+    source: 'website_reading',
+  });
+
+  expect(getVocabCount(db, USER_ID)).toBe(1);
+  expect(all.items[0]).toEqual(expect.objectContaining({
+    word: 'enchant',
+    captureCount: 2,
+    source: 'website_reading',
+    sourceTitle: 'Culture desk',
+    sourceUrl: 'https://example.com/culture',
+    contextSentence: 'From Culture desk: https://example.com/culture: enchants',
+    examples: ['The image enchants readers before the headline lands.'],
   }));
 });
 
@@ -427,6 +542,44 @@ it('builds a blended prime pool from priority terms and oldest unused terms', ()
   expect(pool).toEqual(expect.arrayContaining(['top phrase one', 'top phrase two', 'top phrase three']));
   expect(pool).toContain('old unused');
   expect(pool).not.toContain('old but used');
+});
+
+it('keeps prime candidate pools stable and favors topic matches', () => {
+  upsertVocab(db, USER_ID, {
+    word: 'margin pressure',
+    kind: 'phrase',
+    defCn: 'profit margin strain',
+    examples: ['AI infrastructure spending can create margin pressure.'],
+    captureCount: 1,
+    lastCaptured: '2026-06-01T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+  upsertVocab(db, USER_ID, {
+    word: 'coffee run',
+    kind: 'phrase',
+    defCn: 'buying coffee',
+    captureCount: 9,
+    lastCaptured: '2026-06-02T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+  upsertVocab(db, USER_ID, {
+    word: 'infrastructure buildout',
+    kind: 'collocation',
+    collocations: ['AI infrastructure buildout'],
+    captureCount: 1,
+    lastCaptured: '2026-06-03T00:00:00.000Z',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  const prompt = 'Should AI infrastructure spending create margin risk for investors?';
+  const first = getPrimeCandidatePool(db, USER_ID, prompt, 3).map(v => v.word);
+  const second = getPrimeCandidatePool(db, USER_ID, prompt, 3).map(v => v.word);
+
+  expect(second).toEqual(first);
+  expect(first.slice(0, 2)).toEqual(expect.arrayContaining(['margin pressure', 'infrastructure buildout']));
 });
 
 it('increments vocab usage by normalized word', () => {
@@ -640,6 +793,25 @@ it('returns speaking reviews in history with reading context', () => {
   }));
 });
 
+it('returns polished and evidence versions in writing history', () => {
+  insertSession(db, USER_ID, {
+    date: '2026-06-30',
+    draftText: 'AI change work.',
+    finalText: 'AI is changing work.',
+    nativeText: 'AI is changing how people work.',
+    elevatedText: 'AI is reshaping how knowledge workers organize and execute daily tasks.',
+    evidenceText: 'AI is reshaping work. Recent evidence shows adoption inside daily workflows, which makes the change operational rather than abstract.',
+  });
+
+  expect(getWritingHistory(db, USER_ID, 1)[0]).toEqual(expect.objectContaining({
+    draftText: 'AI change work.',
+    finalText: 'AI is changing work.',
+    nativeText: 'AI is changing how people work.',
+    elevatedText: 'AI is reshaping how knowledge workers organize and execute daily tasks.',
+    evidenceText: 'AI is reshaping work. Recent evidence shows adoption inside daily workflows, which makes the change operational rather than abstract.',
+  }));
+});
+
 it('migrates last_suggested_at column onto vocab table', () => {
   const vocabColumns = db.prepare('PRAGMA table_info(vocab)').all() as Array<{ name: string }>;
   expect(vocabColumns.map(column => column.name)).toContain('last_suggested_at');
@@ -785,7 +957,7 @@ it('returns mistake trends for the top error types by overall count', () => {
     },
   ]);
 
-  expect(getMistakeTrend(db, USER_ID, 30, 2)).toEqual([
+  expect(getMistakeTrend(db, USER_ID, 365, 2)).toEqual([
     {
       errorType: 'redundancy',
       points: [

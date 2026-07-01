@@ -49,6 +49,21 @@ function HistoryContextUrl({ value }: { value: string }) {
   );
 }
 
+function HistoryVersion({ label, text, tone = 'emerald' }: { label: string; text?: string; tone?: 'emerald' | 'violet' | 'amber' }) {
+  if (!text) return null;
+  const toneClass = tone === 'violet'
+    ? 'bg-violet-50 text-violet-900'
+    : tone === 'amber'
+      ? 'bg-amber-50 text-amber-900'
+      : 'bg-emerald-50 text-emerald-900';
+  return (
+    <div className={`mt-3 rounded-xl p-3 text-sm leading-6 ${toneClass}`}>
+      <p className="mb-1 text-xs font-semibold uppercase tracking-wide opacity-70">{label}</p>
+      <p className="whitespace-pre-wrap">{text}</p>
+    </div>
+  );
+}
+
 export function HistoryPanel({ refreshKey = 0 }: HistoryPanelProps) {
   const [history, setHistory] = useState<WritingHistoryResponse>({ entries: [] });
   const [status, setStatus] = useState<'loading' | 'idle' | 'error'>('loading');
@@ -110,10 +125,14 @@ export function HistoryPanel({ refreshKey = 0 }: HistoryPanelProps) {
                 {entry.context.excerpt ? <p className="mt-2">{entry.context.excerpt}</p> : null}
               </div>
             ) : null}
-            <p className="prose mt-3 whitespace-pre-wrap text-base text-slate-800">{entry.draftText}</p>
-            {entry.finalText ? (
-              <p className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm leading-6 text-emerald-900">{entry.finalText}</p>
-            ) : null}
+            <div className="mt-3">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Original</p>
+              <p className="prose whitespace-pre-wrap text-base text-slate-800">{entry.draftText}</p>
+            </div>
+            <HistoryVersion label="Your rewrite / saved final" text={entry.finalText} />
+            <HistoryVersion label="Grammar polished" text={entry.nativeText} />
+            <HistoryVersion label="Elevated version" text={entry.elevatedText} tone="violet" />
+            <HistoryVersion label="Evidence highlighted version" text={entry.evidenceText} tone="amber" />
             {entry.annotations.length ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {entry.annotations.map(annotation => (

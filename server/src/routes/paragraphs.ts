@@ -10,6 +10,9 @@ const paragraphResultZ = z.object({
   paragraphIdx: z.number().int().nonnegative(),
   paragraph: z.string().min(1),
   rewrite: z.string().min(1),
+  nativeText: z.string().optional(),
+  elevatedText: z.string().optional(),
+  evidenceText: z.string().optional(),
   annotations: z.array(submittedAnnotationZ).default([]),
 });
 

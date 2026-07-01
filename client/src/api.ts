@@ -7,6 +7,7 @@ import type {
   MistakeLogItem,
   MistakeRankingItem,
   Prompt,
+  PromptLibraryResponse,
   ProgressResponse,
   ResearchResponse,
   SentenceLabDiagnosisResponse,
@@ -87,6 +88,9 @@ export interface ParagraphResultPayload {
   paragraphIdx: number;
   paragraph: string;
   rewrite: string;
+  nativeText?: string;
+  elevatedText?: string;
+  evidenceText?: string;
   annotations?: Omit<SubmittedAnnotation, 'paragraphIdx' | 'userRewrite'>[];
 }
 
@@ -95,6 +99,8 @@ export interface CoachDiagnosisPayload {
   promptId?: number;
   paragraphIdx: number;
   paragraph: string;
+  nativeText?: string;
+  elevatedText?: string;
   annotations?: Omit<SubmittedAnnotation, 'paragraphIdx' | 'userRewrite'>[];
 }
 
@@ -193,6 +199,22 @@ function postJson<T>(url: string, body: unknown): Promise<T> {
 
 export function getTodayPrompt(): Promise<Prompt> {
   return apiFetch('/api/prompt/today').then(readJson<Prompt>);
+}
+
+export function getPromptLibrary(opts?: { limit?: number; savedOnly?: boolean }): Promise<PromptLibraryResponse> {
+  const params = new URLSearchParams();
+  if (opts?.limit !== undefined) params.set('limit', String(opts.limit));
+  if (opts?.savedOnly !== undefined) params.set('saved', String(opts.savedOnly));
+  const query = params.toString();
+  return apiFetch(`/api/prompt/library${query ? `?${query}` : ''}`).then(readJson<PromptLibraryResponse>);
+}
+
+export function savePrompt(id: number, saved = true): Promise<Prompt> {
+  return postJson<Prompt>(`/api/prompt/${id}/save`, { saved });
+}
+
+export function usePrompt(id: number): Promise<Prompt> {
+  return postJson<Prompt>(`/api/prompt/${id}/use`, {});
 }
 
 export function primeVocab(promptText: string, limit = 10): Promise<{ topic: string; vocab: Vocab[] }> {
@@ -401,6 +423,9 @@ export interface CaptureAndSaveResponse {
   id: number;
   captureCount: number;
   existed: boolean;
+  canonicalWord?: string;
+  normalized?: string;
+  baseForm?: string;
   vocab: Vocab;
 }
 

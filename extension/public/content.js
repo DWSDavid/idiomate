@@ -45,3 +45,22 @@ document.addEventListener('mouseup', () => {
 
   storeSelection(text);
 });
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== 'idiomate-get-selection') {
+    return false;
+  }
+
+  const text = window.getSelection()?.toString().trim() || '';
+  if (text) {
+    storeSelection(text);
+  }
+
+  sendResponse({
+    text,
+    title: document.title || '',
+    url: normalizeUrl(window.location.href),
+    ts: Date.now(),
+  });
+  return true;
+});

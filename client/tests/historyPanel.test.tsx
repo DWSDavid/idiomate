@@ -20,6 +20,9 @@ it('renders speaking review history with friendly label and reading context', as
         date: '2026-06-29',
         draftText: 'This article has a useful perspective.',
         finalText: 'This article offers a useful perspective.',
+        nativeText: 'This article offers a useful perspective.',
+        elevatedText: 'This article provides a timely perspective on how agents are reshaping finance work.',
+        evidenceText: 'AI agents are moving into finance workflows. Evidence from the article shows faster adoption, which suggests the shift is already operational rather than hypothetical.',
         context: {
           label: 'reading_reaction',
           title: 'AI agents move into finance workflows',
@@ -56,4 +59,9 @@ it('renders speaking review history with friendly label and reading context', as
   expect(screen.getByText('javascript:alert(1)')).toBeInTheDocument();
   expect(screen.queryByRole('link', { name: 'javascript:alert(1)' })).not.toBeInTheDocument();
   expect(screen.getByText('Agents are entering finance workflows faster than expected.')).toBeInTheDocument();
+  expect(screen.getAllByText('Original').length).toBeGreaterThan(0);
+  expect(screen.getAllByText('Your rewrite / saved final').length).toBeGreaterThan(0);
+  expect(screen.getByText('Grammar polished')).toBeInTheDocument();
+  expect(screen.getByText('Elevated version')).toBeInTheDocument();
+  expect(screen.getByText('Evidence highlighted version')).toBeInTheDocument();
 });

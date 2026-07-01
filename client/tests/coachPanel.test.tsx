@@ -30,6 +30,8 @@ it('shows actionable fix guidance before submit while hiding the full native rew
   expect(screen.getByText(/Two words can do this job/)).toBeInTheDocument();
   expect(screen.getByText('What to change')).toBeInTheDocument();
   expect(screen.getByText('Why it matters')).toBeInTheDocument();
+  expect(screen.getByText('Rule + Chinese-L1 mindset')).toBeInTheDocument();
+  expect(screen.getByText(/中文可以靠语境补全关系/)).toBeInTheDocument();
   expect(screen.getByText('Try this pattern')).toBeInTheDocument();
   expect(screen.getByText('From your text')).toBeInTheDocument();
   expect(screen.getByText('Change to')).toBeInTheDocument();
@@ -196,7 +198,12 @@ it('offers content research only after the user submits a rewrite', async () => 
   fireEvent.click(screen.getByRole('button', { name: 'Evidence check' }));
 
   expect(await screen.findByText('The argument needs fresher evidence.')).toBeInTheDocument();
-  expect(screen.getByText('Cloud firms raise AI spending')).toBeInTheDocument();
+  expect(screen.getAllByText('Cloud firms raise AI spending').length).toBeGreaterThan(0);
+  expect(screen.getByText('Highlighted body paragraph')).toBeInTheDocument();
+  expect(screen.getByText('Topic sentence')).toBeInTheDocument();
+  expect(screen.getByText('Evidence')).toBeInTheDocument();
+  expect(screen.getByText('Commentary')).toBeInTheDocument();
+  expect(screen.getByText('Source communication + synthesis')).toBeInTheDocument();
   expect(screen.getByText('We did X to Y. Current evidence would make the claim stronger.')).toBeInTheDocument();
   expect(fetchMock).toHaveBeenCalledWith('/api/research', expect.objectContaining({ method: 'POST' }));
 });
@@ -264,6 +271,9 @@ it('shows distinction text and inline save buttons for vocab_suggestion; saves o
 
   // distinction text visible
   expect(await screen.findByText(/give out is generic and informal/)).toBeInTheDocument();
+  expect(screen.getByText('Recommended expression')).toBeInTheDocument();
+  expect(screen.getAllByText(/precise verb \+ natural collocation/).length).toBeGreaterThan(0);
+  expect(screen.getAllByText(/save and reuse the whole expression/).length).toBeGreaterThan(0);
 
   // inline save buttons
   expect(screen.getByRole('button', { name: 'I know it' })).toBeInTheDocument();

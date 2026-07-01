@@ -69,7 +69,7 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
 
   expect(await screen.findByRole('banner', { name: 'Writing desk header' })).toBeInTheDocument();
   const nav = screen.getByRole('navigation', { name: 'Workspace sections' });
-  expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual(['Write', 'Speak', 'Lab', 'Words', 'Review', 'Me', 'Patterns']);
+  expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual(['Write', 'Speak', 'Lab', 'Vocabulary', 'History', 'Review', 'Me', 'Patterns']);
   expect(within(nav).getByRole('button', { name: 'Write' })).toHaveAttribute('aria-pressed', 'true');
   expect(within(nav).queryByRole('button', { name: 'Admin' })).not.toBeInTheDocument();
   expect(within(nav).queryByRole('button', { name: 'Sentence Lab' })).not.toBeInTheDocument();
@@ -105,10 +105,14 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
     expect(historyCalls).toBeGreaterThan(historyCallsBeforeReview);
   });
 
-  fireEvent.click(within(nav).getByRole('button', { name: 'Words' }));
+  fireEvent.click(within(nav).getByRole('button', { name: 'Vocabulary' }));
 
   expect(screen.getByText('Add a word you met today')).toBeInTheDocument();
   expect(screen.getByText('My vocabulary (0)')).toBeInTheDocument();
+
+  fireEvent.click(within(nav).getByRole('button', { name: 'History' }));
+
+  expect(screen.getByText('Writing history')).toBeInTheDocument();
 
   fireEvent.click(within(nav).getByRole('button', { name: 'Review' }));
 
@@ -119,7 +123,6 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
   expect(screen.getByText('Your patterns')).toBeInTheDocument();
   expect(screen.getByText('Progress')).toBeInTheDocument();
   expect(screen.getByText('What I know about you')).toBeInTheDocument();
-  expect(screen.getByText('Writing history')).toBeInTheDocument();
 });
 
 it('records a paragraph result and refetches the profile after rewrite submit', async () => {

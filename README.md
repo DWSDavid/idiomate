@@ -16,6 +16,10 @@ npm install
 OPENAI_API_KEY=sk-your-key-here
 OPENAI_MODEL_COACH=gpt-4o
 OPENAI_MODEL_UTILITY=gpt-4o
+LLM_UTILITY_PROVIDER=auto
+DEEPSEEK_API_KEY=
+DEEPSEEK_MODEL_UTILITY=deepseek-v4-flash
+DEEPSEEK_BASE_URL=https://api.deepseek.com
 ACCESS_CODE=
 DB_PATH=server/idiomate.sqlite
 SEED_VOCAB_PATH=server/seed/vocab.txt
@@ -30,6 +34,13 @@ PORT=8787
 ```
 
 `.env` is ignored by git. Keep the key only in this local file.
+
+Idiomate uses two model lanes:
+
+- Coach lane: writing diagnosis, speaking review, and higher-stakes language feedback stay on OpenAI by default through `OPENAI_API_KEY` and `OPENAI_MODEL_COACH`.
+- Utility lane: lighter but frequent work, such as vocab enrichment, daily prompts, vocab prime, follow-up, lessons, structure checks, and research helpers, can run on DeepSeek.
+
+With `LLM_UTILITY_PROVIDER=auto`, the utility lane uses OpenAI until `DEEPSEEK_API_KEY` is filled, then switches to DeepSeek automatically. Set `LLM_UTILITY_PROVIDER=openai` to force everything back to OpenAI, or `LLM_UTILITY_PROVIDER=deepseek` to force utility work to DeepSeek.
 
 3. Start the app:
 
@@ -99,6 +110,10 @@ Required production environment variables:
 OPENAI_API_KEY=sk-your-key-here
 OPENAI_MODEL_COACH=gpt-4o
 OPENAI_MODEL_UTILITY=gpt-4o
+LLM_UTILITY_PROVIDER=auto
+DEEPSEEK_API_KEY=
+DEEPSEEK_MODEL_UTILITY=deepseek-v4-flash
+DEEPSEEK_BASE_URL=https://api.deepseek.com
 ACCESS_CODE=choose-a-private-code
 DB_PATH=/data/idiomate.sqlite
 SEED_VOCAB_PATH=/app/server/seed/vocab.txt
@@ -118,11 +133,12 @@ Deploy steps:
 2. In Render, create a new Blueprint from the repo and use `render.yaml`.
 3. Confirm the service uses Docker and the disk `idiomate-data` is mounted at `/data`.
 4. Set `OPENAI_API_KEY` as a secret value.
-5. Set `ACCESS_CODE` as a secret value. Use a short private code you can send to testers.
-6. Set `OWNER_VOCAB_CODE`, `RUBI_PROFILE_CODE`, and `ADMIN_CODE` as secret values if you want to override the local defaults.
-7. Keep `DB_PATH=/data/idiomate.sqlite`, `SEED_VOCAB_PATH=/app/server/seed/vocab.txt`, `AUTO_SEED_VOCAB=false`, `OWNER_VOCAB_PATH=/app/Vocabs.txt`, `RUBI_PROFILE_USER_ID=rubi`, `RUBI_PROFILE_NAME=Rubi`, `OPENAI_MODEL_COACH=gpt-4o`, `OPENAI_MODEL_UTILITY=gpt-4o`, and `PORT=10000`.
-8. The Vocabulary page can switch to Rubi's profile with `RUBI_PROFILE_CODE` and automatically import the owner vocabulary file for that profile.
-9. Deploy, then open the Render service URL.
+5. Optional but recommended for cheaper utility calls: set `DEEPSEEK_API_KEY` as a secret value. With `LLM_UTILITY_PROVIDER=auto`, Render will keep utility calls on OpenAI until this key is present, then route utility calls to DeepSeek.
+6. Set `ACCESS_CODE` as a secret value. Use a short private code you can send to testers.
+7. Set `OWNER_VOCAB_CODE`, `RUBI_PROFILE_CODE`, and `ADMIN_CODE` as secret values if you want to override the local defaults.
+8. Keep `DB_PATH=/data/idiomate.sqlite`, `SEED_VOCAB_PATH=/app/server/seed/vocab.txt`, `AUTO_SEED_VOCAB=false`, `OWNER_VOCAB_PATH=/app/Vocabs.txt`, `RUBI_PROFILE_USER_ID=rubi`, `RUBI_PROFILE_NAME=Rubi`, `OPENAI_MODEL_COACH=gpt-4o`, `OPENAI_MODEL_UTILITY=gpt-4o`, `LLM_UTILITY_PROVIDER=auto`, `DEEPSEEK_MODEL_UTILITY=deepseek-v4-flash`, and `PORT=10000`.
+9. The Vocabulary page can switch to Rubi's profile with `RUBI_PROFILE_CODE` and automatically import the owner vocabulary file for that profile.
+10. Deploy, then open the Render service URL.
 
 Share the Render URL and access code with peers. Each peer enters the access code, then each peer enters a name. Their browser generates a private `idiomate_uid`, and the server stores vocab, sessions, mistakes, and Sentence Lab data separately for that user.
 

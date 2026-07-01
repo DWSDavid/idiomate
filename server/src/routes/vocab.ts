@@ -44,6 +44,8 @@ const saveVocabZ = z.object({
   pos: z.string().optional(),
   status: z.string().optional(),
   source: z.string().optional(),
+  sourceTitle: z.string().optional(),
+  sourceUrl: z.string().url().optional(),
   direction: z.string().optional(),
   contextSentence: z.string().optional(),
   examples: z.array(z.string()).optional(),
@@ -145,6 +147,7 @@ export function createVocabRouter(deps: AppDependencies): Router {
       const saved = upsertVocabWithResult(deps.db, req.userId, {
         ...body,
         source: body.source ?? 'capture',
+        captureCount: 1,
         timesSuggested: body.timesSuggested ?? 0,
         timesUsed: body.timesUsed ?? 0,
       });
@@ -166,9 +169,17 @@ export function createVocabRouter(deps: AppDependencies): Router {
       res.status(201).json({
         id: saved.id,
         captureCount: saved.captureCount,
+        previousCaptureCount: saved.previousCaptureCount,
+        captureDelta: saved.captureDelta,
         existed: saved.existed,
+        canonicalWord: saved.canonicalWord,
+        normalized: saved.normalized,
+        baseForm: saved.baseForm,
         vocab: {
           ...translated,
+          word: saved.canonicalWord ?? translated.word,
+          normalized: saved.normalized ?? translated.normalized,
+          baseForm: saved.baseForm ?? translated.baseForm,
           id: saved.id,
           captureCount: saved.captureCount,
         },
@@ -195,8 +206,20 @@ export function createVocabRouter(deps: AppDependencies): Router {
       res.status(result.existed ? 200 : 201).json({
         id: result.id,
         captureCount: result.captureCount,
+        previousCaptureCount: result.previousCaptureCount,
+        captureDelta: result.captureDelta,
         existed: result.existed,
-        vocab: { ...enriched, id: result.id, captureCount: result.captureCount },
+        canonicalWord: result.canonicalWord,
+        normalized: result.normalized,
+        baseForm: result.baseForm,
+        vocab: {
+          ...enriched,
+          word: result.canonicalWord ?? enriched.word,
+          normalized: result.normalized ?? enriched.normalized,
+          baseForm: result.baseForm ?? enriched.baseForm,
+          id: result.id,
+          captureCount: result.captureCount,
+        },
       });
     } catch (err) {
       next(err);
@@ -218,11 +241,15 @@ export function createVocabRouter(deps: AppDependencies): Router {
   router.get('/all', (req, res, next) => {
     try {
       const query = allVocabQueryZ.parse(req.query);
+      const sharedWebsiteUserIds = query.source === 'website_reading'
+        ? [config.rubiProfileUserId]
+        : undefined;
       res.json(getAllVocab(deps.db, req.userId, {
         offset: query.offset,
         limit: query.limit,
         sort: query.sort,
         source: query.source,
+        userIds: sharedWebsiteUserIds,
       }));
     } catch (err) {
       next(err);
@@ -357,8 +384,7 @@ export function createVocabRouter(deps: AppDependencies): Router {
         if (item) selected.set(normalizeVocabWord(item.normalized ?? item.word), item);
         if (selected.size >= limit) break;
       }
-      const poolShuffled = [...pool].sort(() => Math.random() - 0.5);
-      for (const item of poolShuffled) {
+      for (const item of pool) {
         selected.set(normalizeVocabWord(item.normalized ?? item.word), item);
         if (selected.size >= limit) break;
       }

@@ -30,14 +30,139 @@ function statusClass(status: StructureStatus): string {
 
 type VocabSaveState = 'idle' | 'saving' | 'saved' | 'known';
 
+function splitSentences(text: string): string[] {
+  return text
+    .split(/(?<=[.!?])\s+/)
+    .map(sentence => sentence.trim())
+    .filter(Boolean);
+}
+
+function EvidenceBodyParagraph({ research }: { research: ResearchResponse }) {
+  const sentences = splitSentences(research.integratedEssay);
+  const topicSentence = sentences[0] ?? research.integratedEssay;
+  const synthesis = sentences.length > 1 ? sentences[sentences.length - 1] : research.analysis;
+  const notesFor = (part: string) => research.integrationNotes.filter(note => note.structurePart === part);
+  const evidenceNotes = notesFor('evidence');
+  const commentaryNotes = notesFor('commentary');
+
+  return (
+    <div className="result-block result-block-strong">
+      <div className="section-label">Highlighted body paragraph</div>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div className="mini-brief">
+          <p className="section-label">Topic sentence</p>
+          <p className="mt-2 text-sm leading-6 text-slate-800">{topicSentence}</p>
+        </div>
+        <div className="mini-brief">
+          <p className="section-label">Evidence</p>
+          <ul className="mt-2 space-y-2 text-sm leading-6 text-slate-700">
+            {(evidenceNotes.length ? evidenceNotes : research.sources.slice(0, 2).map(source => ({
+              insertedAfter: source.title,
+              what: source.summary,
+              why: 'Use this source as a concrete evidence slot.',
+              structurePart: 'evidence' as const,
+            }))).map(note => (
+              <li key={`${note.insertedAfter}-${note.what}`}>
+                <strong>{note.what}</strong>
+                <span className="text-slate-500"> {note.why}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="mini-brief">
+          <p className="section-label">Commentary</p>
+          <ul className="mt-2 space-y-2 text-sm leading-6 text-slate-700">
+            {(commentaryNotes.length ? commentaryNotes : research.integrationNotes.slice(0, 2)).map(note => (
+              <li key={`${note.insertedAfter}-${note.why}`}>{note.why}</li>
+            ))}
+          </ul>
+        </div>
+        <div className="mini-brief">
+          <p className="section-label">Source communication + synthesis</p>
+          <p className="mt-2 text-sm leading-6 text-slate-700">
+            {research.otherAngles[0] ? `${research.otherAngles[0]} ` : ''}
+            {synthesis}
+          </p>
+        </div>
+      </div>
+      {research.sources.length ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {research.sources.map(source => (
+            <a key={source.link} className="chip chip-blue" href={source.link} target="_blank" rel="noreferrer">
+              {source.title}
+            </a>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function chineseMindsetNote(annotation: Annotation): string {
+  const text = `${annotation.rule ?? ''} ${annotation.explanation} ${annotation.hint} ${annotation.distinction ?? ''}`.toLowerCase();
+  const explanationText = `${annotation.rule ?? ''} ${annotation.explanation} ${annotation.distinction ?? ''}`.toLowerCase();
+  if (annotation.errorType === 'tense' || /ongoing|finished|present perfect|has done|is doing|has been|revolutionizing/.test(text)) {
+    return '中文常靠上下文表示时间线；英语需要把过程状态说出来。Use present perfect for a result that exists now, and present progressive for an ongoing process, such as "AI has changed hiring" vs. "AI is revolutionizing hiring."';
+  }
+  if (annotation.errorType === 'modality' || /\bcould\b|\bcan\b|\bwould\b|\bwill\b/.test(explanationText)) {
+    return '中文的“可以/会”常很宽；英语会区分 certainty and distance. "Can/will" sounds direct and likely; "could/would" creates possibility, caution, or a conditional frame.';
+  }
+  if (annotation.errorType === 'vocab_suggestion') {
+    return '中文写作容易先选一个泛词或直译词块；英语更偏向用 precise verb + natural collocation, so the reader knows the action, register, and relationship at once.';
+  }
+  if (annotation.errorType === 'calque' || annotation.errorType === 'word_choice') {
+    return '中文表达可以先给概念再补语境；英语句子更常直接选择一个搭配好的词组，让 meaning and usage move together.';
+  }
+  return '中文可以靠语境补全关系；英语更依赖 form: tense, preposition, article, and collocation need to carry part of the meaning.';
+}
+
+function formDetail(annotation: Annotation): string {
+  const target = annotation.vocabWord ?? annotation.modelRewrite ?? annotation.ruleExample?.after ?? '';
+  const lower = `${target} ${annotation.rule ?? ''} ${annotation.explanation}`.toLowerCase();
+  if (/\bworth\b/.test(lower) && /\bing\b/.test(lower)) {
+    return 'Fixed combo: worth + v-ing. Keep the gerund because "worth" evaluates the action itself.';
+  }
+  if (/\bdesign(ed|ing)? for\b/.test(lower)) {
+    return 'Fixed combo: design for + audience/purpose. The preposition "for" names who or what the design serves.';
+  }
+  if (/\bdecision on\b|\bdecide on\b/.test(lower)) {
+    return 'Fixed combo: make a decision on / decide on + issue. "On" points to the matter being settled.';
+  }
+  if (/\bcould\b|\bcan\b/.test(lower)) {
+    return 'Modal detail: can = real ability/permission; could = possible, softer, or conditional.';
+  }
+  if (/\bwould\b|\bwill\b/.test(lower)) {
+    return 'Modal detail: will = expected future/result; would = conditional, hypothetical, or more cautious.';
+  }
+  if ((target.trim().split(/\s+/).length > 1) || annotation.errorType === 'vocab_suggestion') {
+    return 'Chunk detail: save and reuse the whole expression, including its preposition or noun pattern, instead of memorizing only the head word.';
+  }
+  return 'Form detail: notice the exact tense, preposition, and word form because small form choices often carry the real meaning.';
+}
+
+function AnnotationInsight({ annotation }: { annotation: Annotation }) {
+  return (
+    <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/70 p-3">
+      <p className="section-label text-amber-800">Rule + Chinese-L1 mindset</p>
+      <div className="mt-2 grid gap-2 text-sm leading-6 text-slate-700 md:grid-cols-2">
+        <p><strong>Rule:</strong> {annotation.rule ?? annotation.hint}</p>
+        <p><strong>中文提醒:</strong> {chineseMindsetNote(annotation)}</p>
+        <p className="md:col-span-2"><strong>Form detail:</strong> {formDetail(annotation)}</p>
+      </div>
+    </div>
+  );
+}
+
 function VocabSuggestCard({ annotation }: { annotation: Annotation }) {
   const [saveState, setSaveState] = useState<VocabSaveState>('idle');
+  const [savedWord, setSavedWord] = useState('');
 
   const handleSave = async () => {
     if (!annotation.vocabWord) return;
     setSaveState('saving');
     try {
-      await captureAndSaveVocab(annotation.vocabWord, annotation.span);
+      const saved = await captureAndSaveVocab(annotation.vocabWord, annotation.span);
+      setSavedWord(saved.canonicalWord ?? saved.vocab?.word ?? annotation.vocabWord);
       setSaveState('saved');
     } catch {
       setSaveState('idle');
@@ -45,10 +170,30 @@ function VocabSuggestCard({ annotation }: { annotation: Annotation }) {
   };
 
   return (
-    <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/60 p-3 space-y-2">
+    <div className="mt-3 rounded-xl border border-violet-200 bg-violet-50/70 p-3 space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="section-label text-violet-800">Recommended expression</span>
+        {annotation.vocabWord && annotation.vocabWord.trim().split(/\s+/).length > 1 ? (
+          <span className="chip">chunk / fixed combo</span>
+        ) : null}
+      </div>
       {annotation.distinction ? (
-        <p className="text-sm leading-6 text-slate-700">{annotation.distinction}</p>
+        <p className="text-sm leading-6 text-slate-700">
+          <strong>Why this word works:</strong> {annotation.distinction}
+        </p>
       ) : null}
+      <div className="rounded-lg bg-white/75 p-2 text-sm leading-6 text-slate-700">
+        <span className="font-medium text-slate-900">Context move:</span>{' '}
+        replace <mark className="rounded bg-rose-100 px-1 text-rose-900">{annotation.span}</mark>{' '}
+        with <mark className="rounded bg-emerald-100 px-1 text-emerald-900">{annotation.vocabWord ?? annotation.modelRewrite}</mark>
+        .
+      </div>
+      <p className="text-sm leading-6 text-slate-700">
+        <strong>中文提醒:</strong> {chineseMindsetNote(annotation)}
+      </p>
+      <p className="text-sm leading-6 text-slate-700">
+        <strong>Pattern detail:</strong> {formDetail(annotation)}
+      </p>
       {annotation.vocabWord ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-semibold text-slate-900">{annotation.vocabWord}</span>
@@ -72,7 +217,7 @@ function VocabSuggestCard({ annotation }: { annotation: Annotation }) {
           ) : saveState === 'saving' ? (
             <span className="text-xs text-slate-400">Saving…</span>
           ) : saveState === 'saved' ? (
-            <span className="text-xs text-emerald-600">✓ Saved to your words</span>
+            <span className="text-xs text-emerald-600">✓ Saved to your words{savedWord ? ` as ${savedWord}` : ''}</span>
           ) : (
             <span className="text-xs text-slate-400">Got it</span>
           )}
@@ -116,6 +261,8 @@ export function CoachPanel({ paragraph, nativeVersion, elevatedVersion, elevatio
         ...recordContext,
         paragraph,
         rewrite,
+        nativeText: nativeVersion,
+        elevatedText: elevatedVersion,
         annotations: compared.map(({ userRewrite: _userRewrite, ...annotation }) => annotation),
       }).then(onRecorded).catch(() => undefined);
     }
@@ -125,7 +272,20 @@ export function CoachPanel({ paragraph, nativeVersion, elevatedVersion, elevatio
     setIsResearching(true);
     setResearchError('');
     void researchEssay(rewrite)
-      .then(result => setResearch(result))
+      .then(result => {
+        setResearch(result);
+        if (recordContext) {
+          void recordParagraph({
+            ...recordContext,
+            paragraph,
+            rewrite,
+            nativeText: nativeVersion,
+            elevatedText: elevatedVersion,
+            evidenceText: result.integratedEssay,
+            annotations: accepted.map(({ userRewrite: _userRewrite, ...annotation }) => annotation),
+          }).then(onRecorded).catch(() => undefined);
+        }
+      })
       .catch(() => setResearchError('Evidence check is unavailable right now.'))
       .finally(() => setIsResearching(false));
   };
@@ -239,6 +399,7 @@ export function CoachPanel({ paragraph, nativeVersion, elevatedVersion, elevatio
                   </ul>
                 </div>
               ) : null}
+              <EvidenceBodyParagraph research={research} />
               <div className="result-block result-block-strong">
                 <div className="section-label">Evidence-integrated essay</div>
                 <p className="mt-2 whitespace-pre-wrap text-stone-900">{research.integratedEssay}</p>
@@ -320,6 +481,7 @@ export function CoachPanel({ paragraph, nativeVersion, elevatedVersion, elevatio
                   <p className="mt-2 text-sm leading-6 text-slate-700">{annotation.explanation}</p>
                 </div>
               </div>
+              <AnnotationInsight annotation={annotation} />
               {annotation.rule ? (
                 <div className="mt-3 rounded-xl border border-indigo-100 bg-indigo-50/60 p-3">
                   <p className="section-label text-indigo-500">Try this pattern</p>

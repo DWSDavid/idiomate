@@ -27,7 +27,15 @@ services:
         value: gpt-4o
       - key: OPENAI_MODEL_UTILITY
         value: gpt-4o
+      - key: LLM_UTILITY_PROVIDER
+        value: auto
+      - key: DEEPSEEK_MODEL_UTILITY
+        value: deepseek-v4-flash
+      - key: DEEPSEEK_BASE_URL
+        value: https://api.deepseek.com
       - key: OPENAI_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
         sync: false
       - key: ACCESS_CODE
         sync: false

@@ -19,9 +19,10 @@ export function ChineseToVocabBox({ onSaved }: ChineseToVocabBoxProps) {
     setSaveNote('');
     try {
       const response = await saveChineseVocab(text, contextSentence);
+      const previous = response.previousCaptureCount ?? Math.max(0, response.captureCount - (response.captureDelta ?? 1));
       setSaved(response.vocab);
       setSaveNote(response.existed
-        ? `Already in your list - met ${response.captureCount} times, priority raised.`
+        ? `Logged once more. Total seen: ${response.captureCount}${previous ? `, previously ${previous}` : ''}.`
         : 'Saved to your vocabulary.');
       setText('');
       setContextSentence('');
@@ -87,7 +88,7 @@ export function ChineseToVocabBox({ onSaved }: ChineseToVocabBoxProps) {
           <div className="mt-2 flex flex-wrap gap-2">
             {saved.pos ? <span className="chip chip-slate">{saved.pos}</span> : null}
             {saved.kind ? <span className="chip">{saved.kind}</span> : null}
-            <span className="chip chip-blue">met {saved.captureCount ?? 1}x</span>
+            <span className="chip chip-blue">seen {saved.captureCount ?? 1} total</span>
           </div>
           {saved.defCn ? <p className="mt-2 text-sm leading-6 text-slate-600">{saved.defCn}</p> : null}
           {saveNote ? <p className="mt-2 text-sm text-emerald-700">{saveNote}</p> : null}

@@ -104,6 +104,121 @@ describe('getAllVocab', () => {
     expect(result.items.map(item => item.word)).not.toContain('golf');
   });
 
+  it('includes legacy webpage captures in the website source filter', () => {
+    upsertVocab(db, USER_ID, {
+      word: 'source tagged',
+      normalized: 'source tagged',
+      kind: 'phrase',
+      source: 'website_reading',
+      timesSuggested: 0,
+      timesUsed: 0,
+    });
+    upsertVocab(db, USER_ID, {
+      word: 'url tagged',
+      normalized: 'url tagged',
+      kind: 'phrase',
+      source: 'capture',
+      sourceUrl: 'https://example.com/article',
+      timesSuggested: 0,
+      timesUsed: 0,
+    });
+    upsertVocab(db, USER_ID, {
+      word: 'context tagged',
+      normalized: 'context tagged',
+      kind: 'phrase',
+      source: 'capture',
+      contextSentence: 'From Article: https://example.com/article: context tagged',
+      timesSuggested: 0,
+      timesUsed: 0,
+    });
+    upsertVocab(db, USER_ID, {
+      word: 'plain capture',
+      normalized: 'plain capture',
+      kind: 'phrase',
+      source: 'capture',
+      timesSuggested: 0,
+      timesUsed: 0,
+    });
+
+    const result = getAllVocab(db, USER_ID, {
+      offset: 0,
+      limit: 50,
+      sort: 'date',
+      source: 'website_reading',
+    });
+
+    expect(result.total).toBe(3);
+    expect(result.items.map(item => item.word)).toEqual(expect.arrayContaining([
+      'source tagged',
+      'url tagged',
+      'context tagged',
+    ]));
+    expect(result.items.map(item => item.word)).not.toContain('plain capture');
+  });
+
+  it('infers website source metadata from captured context on write', () => {
+    upsertVocab(db, USER_ID, {
+      word: 'enchants',
+      normalized: 'enchants',
+      kind: 'word',
+      contextSentence: 'From Culture desk: https://example.com/culture?utm=secret#section: enchants',
+      timesSuggested: 0,
+      timesUsed: 0,
+    });
+
+    const result = getAllVocab(db, USER_ID, {
+      offset: 0,
+      limit: 50,
+      sort: 'date',
+      source: 'website_reading',
+    });
+
+    expect(result.total).toBe(1);
+    expect(result.items[0]).toEqual(expect.objectContaining({
+      word: 'enchants',
+      source: 'website_reading',
+      sourceTitle: 'Culture desk',
+      sourceUrl: 'https://example.com/culture',
+    }));
+  });
+
+  it('can include shared extension website captures from another profile', () => {
+    upsertVocab(db, 'rubi', {
+      word: 'cross-origin capture',
+      normalized: 'cross-origin capture',
+      kind: 'phrase',
+      source: 'website_reading',
+      sourceTitle: 'Browser article',
+      sourceUrl: 'https://example.com/browser',
+      timesSuggested: 0,
+      timesUsed: 0,
+    });
+    seedWord(db, 'local capture', '2026-01-01', 'capture');
+
+    const withoutShared = getAllVocab(db, USER_ID, {
+      offset: 0,
+      limit: 50,
+      sort: 'date',
+      source: 'website_reading',
+    });
+    expect(withoutShared.total).toBe(0);
+
+    const withShared = getAllVocab(db, USER_ID, {
+      offset: 0,
+      limit: 50,
+      sort: 'date',
+      source: 'website_reading',
+      userIds: ['rubi'],
+    });
+
+    expect(withShared.total).toBe(1);
+    expect(withShared.items[0]).toEqual(expect.objectContaining({
+      word: 'cross-origin capture',
+      source: 'website_reading',
+      sourceTitle: 'Browser article',
+    }));
+  });
+
   it('excludes graduated words', () => {
     const id = seedWord(db, 'juliet', '2026-01-01');
     seedWord(db, 'kilo', '2026-01-02');

@@ -15,15 +15,21 @@ vi.mock('../../client/src/components/CaptureWord', async () => {
   return {
     CaptureWord: ({
     captureSource,
+    captureSourceTitle,
+    captureSourceUrl,
     initialContextSentence,
     initialWord,
   }: {
     captureSource?: string;
+    captureSourceTitle?: string;
+    captureSourceUrl?: string;
     initialContextSentence?: string;
     initialWord?: string;
   }) => {
       const [mountedProps] = React.useState({
         captureSource,
+        captureSourceTitle,
+        captureSourceUrl,
         initialContextSentence,
         initialWord,
       });
@@ -35,6 +41,8 @@ vi.mock('../../client/src/components/CaptureWord', async () => {
           </button>
           <p data-testid="capture-word">{mountedProps.initialWord}</p>
           <p data-testid="capture-source">{mountedProps.captureSource}</p>
+          <p data-testid="capture-source-title">{mountedProps.captureSourceTitle}</p>
+          <p data-testid="capture-source-url">{mountedProps.captureSourceUrl}</p>
           <p data-testid="capture-context">{mountedProps.initialContextSentence}</p>
         </div>
       );
@@ -79,9 +87,24 @@ it('shows the cold-start notice while a panel request is in flight', async () =>
   let resolveFetch: (() => void) | undefined;
   vi.stubGlobal(
     'fetch',
-    vi.fn(() => new Promise<Response>(resolve => {
-      resolveFetch = () => resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
-    })),
+    vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('/api/profile/rubi')) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({
+            user: { id: 'rubi', name: 'Rubi' },
+            imported: 0,
+            total: 0,
+            ownerVocabAvailable: true,
+          }),
+        } as Response);
+      }
+
+      return new Promise<Response>(resolve => {
+        resolveFetch = () => resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+      });
+    }),
   );
 
   render(<App />);
@@ -92,6 +115,36 @@ it('shows the cold-start notice while a panel request is in flight', async () =>
   await waitFor(() => {
     expect(screen.queryByText('Waking the server, ~20s on first request')).not.toBeInTheDocument();
   });
+});
+
+it('activates the Rubi profile identity when the extension already has an access code', async () => {
+  localStorage.setItem('idiomate_access_code', 'Rubi8');
+  const fetchMock = vi.fn((input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url.includes('/api/profile/rubi')) {
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({
+          user: { id: 'rubi', name: 'Rubi' },
+          imported: 0,
+          total: 2701,
+          ownerVocabAvailable: true,
+        }),
+      } as Response);
+    }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) } as Response);
+  });
+  vi.stubGlobal('fetch', fetchMock);
+
+  render(<App />);
+
+  await waitFor(() => {
+    expect(localStorage.getItem('idiomate_uid')).toBe('rubi');
+    expect(localStorage.getItem('idiomate_user_name')).toBe('Rubi');
+  });
+  expect(fetchMock).toHaveBeenCalledWith('/api/profile/rubi', expect.objectContaining({
+    method: 'POST',
+  }));
 });
 
 it('offers Speak mode with page context from the pending selection', async () => {
@@ -164,6 +217,115 @@ it('clears pending page metadata and website_reading source after manual edits',
   expect(screen.getByTestId('capture-word')).toHaveTextContent('Manual reflection about revenue pressure.');
   expect(screen.getByTestId('capture-source')).toBeEmptyDOMElement();
   expect(screen.getByTestId('capture-context')).toBeEmptyDOMElement();
+});
+
+it('uses the active tab as source context for manual word capture', async () => {
+  localStorage.setItem('idiomate_access_code', 'Rubi8');
+  vi.stubGlobal('chrome', {
+    tabs: {
+      query: vi.fn(() => Promise.resolve([{
+        title: 'Markets digest: AI capex cycle',
+        url: 'https://example.com/markets?utm=secret#comments',
+      }])),
+    },
+  });
+
+  render(<App />);
+
+  const sourceTextarea = screen.getByLabelText('Selected or pasted text');
+  fireEvent.change(sourceTextarea, { target: { value: 'capex cycle' } });
+
+  await waitFor(() => {
+    expect(screen.getByTestId('capture-source')).toHaveTextContent('website_reading');
+    expect(screen.getByTestId('capture-source-title')).toHaveTextContent('Markets digest: AI capex cycle');
+    expect(screen.getByTestId('capture-source-url')).toHaveTextContent('https://example.com/markets');
+    expect(screen.getByTestId('capture-context')).toHaveTextContent(
+      'From Markets digest: AI capex cycle: https://example.com/markets: capex cycle',
+    );
+  });
+});
+
+it('pulls the current page selection into the side panel input', async () => {
+  localStorage.setItem('idiomate_access_code', 'Rubi8');
+  vi.stubGlobal('chrome', {
+    tabs: {
+      query: vi.fn(() => Promise.resolve([{
+        id: 12,
+        title: 'FT: Investors chase above-norm growth',
+        url: 'https://www.ft.com/content/growth?shareType=nongift#comments',
+      }])),
+      sendMessage: vi.fn(() => Promise.resolve({
+        text: 'above-norm growth',
+        title: 'FT: Investors chase above-norm growth',
+        url: 'https://www.ft.com/content/growth?shareType=nongift#comments',
+        ts: 3000,
+      })),
+    },
+    storage: {
+      local: {
+        get: vi.fn(() => Promise.resolve({})),
+        set: vi.fn(() => Promise.resolve()),
+      },
+      onChanged: {
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      },
+    },
+  });
+
+  render(<App />);
+
+  await waitFor(() => {
+    expect(screen.getByLabelText('Selected or pasted text')).toHaveValue('above-norm growth');
+    expect(screen.getByTestId('capture-source')).toHaveTextContent('website_reading');
+    expect(screen.getByTestId('capture-source-title')).toHaveTextContent('FT: Investors chase above-norm growth');
+    expect(screen.getByTestId('capture-source-url')).toHaveTextContent('https://www.ft.com/content/growth');
+    expect(screen.getByTestId('capture-context')).toHaveTextContent(
+      'From FT: Investors chase above-norm growth: https://www.ft.com/content/growth: above-norm growth',
+    );
+  });
+});
+
+it('falls back to scripting when the content script cannot answer selection requests', async () => {
+  localStorage.setItem('idiomate_access_code', 'Rubi8');
+  vi.stubGlobal('chrome', {
+    tabs: {
+      query: vi.fn(() => Promise.resolve([{
+        id: 15,
+        title: 'FT fallback page',
+        url: 'https://www.ft.com/content/fallback?shareType=nongift',
+      }])),
+      sendMessage: vi.fn(() => Promise.reject(new Error('no receiver'))),
+    },
+    scripting: {
+      executeScript: vi.fn(() => Promise.resolve([{
+        result: {
+          text: 'above-norm growth',
+          title: 'FT fallback page',
+          url: 'https://www.ft.com/content/fallback?shareType=nongift',
+          ts: 4000,
+        },
+      }])),
+    },
+    storage: {
+      local: {
+        get: vi.fn(() => Promise.resolve({})),
+        set: vi.fn(() => Promise.resolve()),
+      },
+      onChanged: {
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+      },
+    },
+  });
+
+  render(<App />);
+
+  await waitFor(() => {
+    expect(screen.getByLabelText('Selected or pasted text')).toHaveValue('above-norm growth');
+    expect(screen.getByTestId('capture-source')).toHaveTextContent('website_reading');
+    expect(screen.getByTestId('capture-source-url')).toHaveTextContent('https://www.ft.com/content/fallback');
+  });
 });
 
 it('refreshes word capture context when the same text is selected on a different page', async () => {
