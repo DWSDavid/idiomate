@@ -1,9 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { ACCESS_DENIED_EVENT, getStoredAccessCode, saveAccessCode } from '../../client/src/api';
+import { ACCESS_DENIED_EVENT, getStoredAccessCode, saveAccessCode, switchToRubiProfile } from '../../client/src/api';
+import { setClientIdentity } from '../../client/src/identity';
 import { AccessGate } from '../../client/src/components/AccessGate';
 import { CaptureWord } from '../../client/src/components/CaptureWord';
 import { SentenceLab } from '../../client/src/components/SentenceLab';
 import { SpeakingReview } from '../../client/src/components/SpeakingReview';
+
+// The side panel is a single-tenant surface for the shared "Rubi" vocab list: the extension
+// page and the web app are different storage origins, so identity can only be bridged over
+// the network (see activateRubiIdentity). Seeding it synchronously here, before any component
+// mounts or fires a request, closes the race where an early fetch calls getClientIdentity()
+// before the network switch resolves, falls back to a random UUID, and triggers a native
+// prompt() asking for a name — silently splitting captures off into a disconnected identity.
+setClientIdentity({ id: 'rubi', name: 'Rubi' });
 
 type PendingSelection = {
   text: string;
@@ -18,6 +27,11 @@ type SelectionContext = {
   url?: string;
 };
 
+type ActivePageSnapshot = {
+  context: SelectionContext | null;
+  selection: PendingSelection | null;
+};
+
 type Mode = 'word' | 'sentence' | 'speak';
 
 const PENDING_SELECTION_KEY = 'idiomate_pending_selection';
@@ -26,6 +40,14 @@ const COLD_START_COPY = 'Waking the server, ~20s on first request';
 
 function hasChromeStorage(): boolean {
   return typeof chrome !== 'undefined' && Boolean(chrome.storage?.local);
+}
+
+function hasChromeTabs(): boolean {
+  return typeof chrome !== 'undefined' && Boolean(chrome.tabs?.query);
+}
+
+function hasChromeScripting(): boolean {
+  return typeof chrome !== 'undefined' && Boolean(chrome.scripting?.executeScript);
 }
 
 function isPendingSelection(value: unknown): value is PendingSelection {
@@ -71,6 +93,75 @@ function toSelectionContext(selection: PendingSelection): SelectionContext {
   };
 }
 
+function selectionFromPagePayload(value: unknown, fallback?: chrome.tabs.Tab): PendingSelection | null {
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const payload = value as Partial<PendingSelection>;
+  const text = payload.text?.trim();
+  if (!text) {
+    return null;
+  }
+
+  return {
+    text,
+    title: payload.title?.trim() || fallback?.title?.trim() || undefined,
+    url: normalizeUrl(payload.url) || normalizeUrl(fallback?.url) || undefined,
+    ts: typeof payload.ts === 'number' ? payload.ts : Date.now(),
+  };
+}
+
+function contextFromTab(tab: chrome.tabs.Tab | undefined): SelectionContext | null {
+  const title = tab?.title?.trim();
+  const url = normalizeUrl(tab?.url);
+  if (!title && !url) {
+    return null;
+  }
+
+  return {
+    ts: Date.now(),
+    title: title || undefined,
+    url: url || undefined,
+  };
+}
+
+async function readSelectionFromTab(tab: chrome.tabs.Tab | undefined): Promise<PendingSelection | null> {
+  if (!tab?.id) {
+    return null;
+  }
+
+  try {
+    const response = await chrome.tabs.sendMessage(tab.id, { type: 'idiomate-get-selection' });
+    const selection = selectionFromPagePayload(response, tab);
+    if (selection) {
+      return selection;
+    }
+  } catch {
+    // Some pages miss or block the content script; the activeTab grant can still
+    // allow a direct one-shot read when the side panel was opened from that tab.
+  }
+
+  if (!hasChromeScripting()) {
+    return null;
+  }
+
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => ({
+        text: window.getSelection()?.toString().trim() || '',
+        title: document.title || '',
+        url: window.location.href,
+        ts: Date.now(),
+      }),
+    });
+    return selectionFromPagePayload(result?.result, tab);
+  } catch {
+    return null;
+  }
+}
+
 function usePendingSelection(): PendingSelection | null {
   const [selection, setSelection] = useState<PendingSelection | null>(null);
 
@@ -107,13 +198,103 @@ function usePendingSelection(): PendingSelection | null {
   return selection;
 }
 
+function useActivePageSnapshot(): ActivePageSnapshot {
+  const [snapshot, setSnapshot] = useState<ActivePageSnapshot>({ context: null, selection: null });
+
+  useEffect(() => {
+    if (!hasChromeTabs()) {
+      return undefined;
+    }
+
+    let alive = true;
+    const refresh = async () => {
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!alive) {
+          return;
+        }
+
+        const tabContext = contextFromTab(tab);
+        setSnapshot({ context: tabContext, selection: null });
+
+        const selection = await readSelectionFromTab(tab);
+        if (!alive || !selection) {
+          return;
+        }
+
+        setSnapshot({ context: toSelectionContext(selection), selection });
+        if (hasChromeStorage()) {
+          await chrome.storage.local.set({ [PENDING_SELECTION_KEY]: selection });
+        }
+      } catch {
+        // Keep the side panel usable for manual entry if Chrome page access fails.
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refresh();
+      }
+    };
+    const handleFocus = () => {
+      void refresh();
+    };
+    const handleTabActivated = () => {
+      void refresh();
+    };
+    const handleTabUpdated = (_tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => {
+      if (tab.active && (changeInfo.status === 'complete' || changeInfo.title || changeInfo.url)) {
+        void refresh();
+      }
+    };
+
+    void refresh();
+    globalThis.addEventListener?.('focus', handleFocus);
+    document.addEventListener?.('visibilitychange', handleVisibilityChange);
+    // The side panel is a persistent surface: switching tabs (or navigating within the
+    // active tab) doesn't fire focus/visibilitychange on the panel itself, so without these
+    // listeners the page context silently goes stale and never picks up the page you're on.
+    chrome.tabs?.onActivated?.addListener?.(handleTabActivated);
+    chrome.tabs?.onUpdated?.addListener?.(handleTabUpdated);
+
+    return () => {
+      alive = false;
+      globalThis.removeEventListener?.('focus', handleFocus);
+      document.removeEventListener?.('visibilitychange', handleVisibilityChange);
+      chrome.tabs?.onActivated?.removeListener?.(handleTabActivated);
+      chrome.tabs?.onUpdated?.removeListener?.(handleTabUpdated);
+    };
+  }, []);
+
+  return snapshot;
+}
+
 function detectMode(text: string): Mode {
   const trimmed = text.trim();
   if (!trimmed) {
     return 'word';
   }
 
-  return trimmed.split(/\s+/).length === 1 && trimmed.length <= 40 ? 'word' : 'sentence';
+  return trimmed.split(/\s+/).length <= 4 && trimmed.length <= 60 ? 'word' : 'sentence';
+}
+
+async function activateRubiIdentity(code: string) {
+  // Identity itself is already seeded to 'rubi' at module load (see setClientIdentity call
+  // above), so failures here only cost the owner-vocab import side effect, not correctness.
+  // Logging keeps that visible instead of silently vanishing, since a persistent failure here
+  // usually means the server's rubi/owner-vocab code no longer matches what this build sends.
+  try {
+    await switchToRubiProfile(code);
+    return;
+  } catch (err) {
+    console.warn('[Idiomate] Rubi profile switch failed for the stored access code, retrying with default code.', err);
+  }
+
+  try {
+    await switchToRubiProfile('rubi-vocab');
+  } catch (err) {
+    console.warn('[Idiomate] Rubi profile switch failed with the default code too; owner vocab import was skipped.', err);
+  }
 }
 
 function usePendingRequests(): number {
@@ -145,6 +326,7 @@ function usePendingRequests(): number {
 
 export default function App() {
   const pendingSelection = usePendingSelection();
+  const activePageSnapshot = useActivePageSnapshot();
   const pendingRequests = usePendingRequests();
   const [hasAccess, setHasAccess] = useState(() => Boolean(getStoredAccessCode()));
   const [sourceText, setSourceText] = useState('');
@@ -162,20 +344,35 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!pendingSelection?.text) {
+    const code = getStoredAccessCode();
+    if (!code) {
       return;
     }
 
-    setSourceText(pendingSelection.text);
-    setSelectionContext(toSelectionContext(pendingSelection));
+    void activateRubiIdentity(code);
+  }, []);
+
+  useEffect(() => {
+    const activeSelection = activePageSnapshot.selection;
+    const latestSelection = activeSelection && (!pendingSelection || activeSelection.ts >= pendingSelection.ts)
+      ? activeSelection
+      : pendingSelection;
+
+    if (!latestSelection?.text) {
+      return;
+    }
+
+    setSourceText(latestSelection.text);
+    setSelectionContext(toSelectionContext(latestSelection));
     setModeOverride(null);
-  }, [pendingSelection?.ts]);
+  }, [activePageSnapshot.selection?.ts, pendingSelection?.ts]);
 
   if (!hasAccess) {
     return (
       <AccessGate
-        onSubmit={code => {
+        onSubmit={async code => {
           saveAccessCode(code);
+          await activateRubiIdentity(code);
           setHasAccess(Boolean(getStoredAccessCode()));
         }}
       />
@@ -185,16 +382,17 @@ export default function App() {
   const trimmedSource = sourceText.trim();
   const detectedMode = detectMode(trimmedSource);
   const activeMode = modeOverride ?? detectedMode;
+  const pageContext = selectionContext ?? activePageSnapshot.context;
   const readingContext = {
     contextLabel: 'reading_reaction',
-    contextTitle: selectionContext?.title,
-    contextUrl: selectionContext?.url,
-    contextExcerpt: selectionContext ? trimmedSource || undefined : undefined,
+    contextTitle: pageContext?.title,
+    contextUrl: pageContext?.url,
+    contextExcerpt: pageContext ? trimmedSource || undefined : undefined,
   };
-  const readingContextSentence = selectionContext
+  const readingContextSentence = pageContext
     ? [
-      selectionContext.title ? `From ${selectionContext.title}` : undefined,
-      selectionContext.url,
+      pageContext.title ? `From ${pageContext.title}` : undefined,
+      pageContext.url,
       trimmedSource,
     ].filter(Boolean).join(': ')
     : undefined;
@@ -267,10 +465,12 @@ export default function App() {
         <div>
           {activeMode === 'word' ? (
             <CaptureWord
-              key={`word:${selectionContext?.ts ?? 'manual'}:${trimmedSource}`}
+              key={`word:${pageContext?.ts ?? 'manual'}:${trimmedSource}`}
               initialWord={trimmedSource}
               initialContextSentence={readingContextSentence}
-              captureSource={selectionContext ? 'website_reading' : undefined}
+              captureSource={pageContext ? 'website_reading' : undefined}
+              captureSourceTitle={pageContext?.title}
+              captureSourceUrl={pageContext?.url}
             />
           ) : activeMode === 'sentence' ? (
             <SentenceLab key={`sentence:${trimmedSource}`} initialSentence={trimmedSource} />
