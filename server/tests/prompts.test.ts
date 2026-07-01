@@ -9,6 +9,7 @@ import {
   assembleResearchPrompt,
   assembleSourceSummaryPrompt,
   assembleStructurePrompt,
+  extractSourceQuotes,
   generateNewsPrompt,
   generateDailyPrompt,
   selectPrimeWords,
@@ -16,11 +17,11 @@ import {
 import { ERROR_TYPES } from '../../shared/types.js';
 import type { LLMProvider } from '../src/brain/provider.js';
 
-it('assembles a daily prompt request with the required theme mix', () => {
+it('assembles a daily prompt request that spans a broad domain mix', () => {
   const prompt = assembleDailyPrompt({ theme: 'finance' });
 
-  expect(prompt.system).toContain('finance/tech dominant');
-  expect(prompt.system).toContain('occasional professional');
+  expect(prompt.system).toContain('broad, varied range of domains');
+  expect(prompt.system).toContain('do not let any single domain dominate');
   expect(prompt.user).toContain('finance');
 });
 
@@ -267,6 +268,8 @@ it('assembles a news-grounded discussion prompt from headlines', () => {
 
   expect(prompt.system).toContain('25 words');
   expect(prompt.system).toContain('3 to 5 sentences');
+  expect(prompt.system).toContain('Avoid repeating');
+  expect(prompt.system).toContain('humanoid robots');
   expect(prompt.system).toContain('Return ONLY JSON');
   expect(prompt.user).toContain('humanoid robotics');
   expect(prompt.user).toContain('Humanoid robots enter warehouses');
@@ -277,10 +280,12 @@ it('injects top errors into news prompt system string', () => {
     topic: 'AI infrastructure',
     headlines: [],
     topErrors: ['noun_plague', 'calque'],
+    previousPrompts: ['Do you think humanoid robots will replace workers?'],
   });
 
   expect(prompt.system).toContain('noun_plague');
   expect(prompt.system).toContain('calque');
+  expect(prompt.user).toContain('Do you think humanoid robots will replace workers?');
 });
 
 it('validates generated news prompt JSON and sends headlines to the provider', async () => {
@@ -304,6 +309,68 @@ it('validates generated news prompt JSON and sends headlines to the provider', a
   expect(prompt.text).toContain('humanoid robots');
   expect(captured!.model).toBe('utility-test');
   expect(captured!.user).toContain('Humanoid robots enter warehouses');
+});
+
+it('asks for both a short and an essay-length debatable prompt', () => {
+  const prompt = assembleNewsPrompt({ topic: 'personal finance', headlines: [] });
+
+  expect(prompt.system).toContain('essayPrompt');
+  expect(prompt.system).toContain('DEBATABLE');
+  expect(prompt.system).toContain('argumentative-essay');
+  expect(prompt.system).toContain('Return ONLY JSON matching: {theme,text,essayPrompt}.');
+});
+
+it('blocks the previous domain when a previous theme is supplied', () => {
+  const prompt = assembleNewsPrompt({
+    topic: 'education technology',
+    headlines: [],
+    previousTheme: 'humanoid robotics',
+  });
+
+  expect(prompt.system).toContain('clearly different domain');
+  expect(prompt.system).toContain('humanoid robotics');
+});
+
+it('keeps only verbatim quotes that appear in the fetched article text', async () => {
+  const articleText = 'Regulators warned that the rollout was rushed. Adoption doubled in a year despite the risks.';
+  const mock: LLMProvider = {
+    async complete() {
+      return JSON.stringify({
+        quotes: [
+          { quote: 'Adoption doubled in a year despite the risks.', source: 'The Verge', link: 'https://example.com/a' },
+          { quote: 'This sentence was never in the article.', source: 'Fabricated', link: 'https://example.com/b' },
+        ],
+      });
+    },
+  };
+
+  const quotes = await extractSourceQuotes(mock, {
+    promptText: 'Should new tech ship fast or slow?',
+    model: 'utility-test',
+    articles: [
+      { title: 'Rollout under scrutiny', link: 'https://example.com/a', source: 'The Verge', text: articleText },
+    ],
+  });
+
+  expect(quotes).toHaveLength(1);
+  expect(quotes[0].quote).toContain('Adoption doubled in a year');
+  expect(quotes[0].source).toBe('The Verge');
+});
+
+it('returns no quotes when no article text was fetched', async () => {
+  const mock: LLMProvider = {
+    async complete() {
+      throw new Error('should not be called when there is no article text');
+    },
+  };
+
+  const quotes = await extractSourceQuotes(mock, {
+    promptText: 'Any debate',
+    model: 'utility-test',
+    articles: [{ title: 'Paywalled', link: 'https://example.com/x', text: '' }],
+  });
+
+  expect(quotes).toEqual([]);
 });
 
 it('assembles research prompts for analysis, source summaries, and evidence integration', () => {

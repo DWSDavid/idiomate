@@ -34,6 +34,17 @@ export const speakingReviewResponseZ = z.object({
 export const dailyPromptZ = z.object({
   theme: z.string().min(1),
   text: z.string().min(1),
+  // Optional so the older single-length generator and any model that omits it still parse;
+  // the news generator is instructed to always return it.
+  essayPrompt: z.string().min(1).optional(),
+});
+
+export const sourceQuotesZ = z.object({
+  quotes: z.array(z.object({
+    quote: z.string().min(1),
+    source: z.string().optional(),
+    link: z.string().optional(),
+  })).default([]),
 });
 
 export const primeWordsZ = z.object({

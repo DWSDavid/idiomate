@@ -2,10 +2,17 @@ import type { NewsItem } from '../../shared/types.js';
 
 export const NEWS_TOPICS = [
   'private equity',
-  'humanoid robotics',
   'artificial intelligence',
+  'consumer technology',
+  'climate technology',
   'financial markets',
-  'geopolitics',
+  'healthcare innovation',
+  'education technology',
+  'media and creator economy',
+  'supply chains',
+  'urban life',
+  'personal finance',
+  'management decisions',
   'technology policy',
 ] as const;
 
@@ -42,6 +49,36 @@ export async function fetchNews(
   } catch {
     return [];
   }
+}
+
+// Best-effort: fetch a source article and return readable plain text. Google News RSS links
+// redirect to the publisher (fetch follows redirects) and many outlets are paywalled, so this
+// can legitimately return '' — callers must degrade gracefully rather than depend on it.
+export async function fetchArticleText(
+  url: string,
+  fetchImpl: FetchLike = fetch,
+  maxChars = 6000,
+): Promise<string> {
+  try {
+    const response = await fetchImpl(url);
+    if (response.ok === false) return '';
+    const html = await response.text();
+    return htmlToText(html).slice(0, maxChars);
+  } catch {
+    return '';
+  }
+}
+
+export function htmlToText(html: string): string {
+  const withoutBlocks = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ');
+  return decodeXml(withoutBlocks.replace(/<[^>]+>/g, ' '))
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function googleNewsUrl(query: string): string {

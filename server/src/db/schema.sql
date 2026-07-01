@@ -8,17 +8,30 @@ CREATE TABLE IF NOT EXISTS vocab (
   word TEXT NOT NULL, normalized TEXT NOT NULL,
   base_form TEXT,
   kind TEXT NOT NULL DEFAULT 'word', ipa TEXT, def_cn TEXT, pos TEXT,
-  status TEXT, source TEXT, context_sentence TEXT, examples TEXT,
+  status TEXT, source TEXT, source_title TEXT, source_url TEXT, context_sentence TEXT, examples TEXT,
   collocations TEXT, register TEXT, capture_count INTEGER DEFAULT 1,
   last_captured TEXT DEFAULT (datetime('now')), date_added TEXT DEFAULT (datetime('now')),
   times_suggested INTEGER DEFAULT 0, times_used INTEGER DEFAULT 0,
   UNIQUE(user_id, normalized));
 CREATE TABLE IF NOT EXISTS prompts (
-  id INTEGER PRIMARY KEY, date TEXT, theme TEXT, text TEXT, source_url TEXT);
+  id INTEGER PRIMARY KEY,
+  user_id TEXT NOT NULL DEFAULT 'local',
+  date TEXT,
+  theme TEXT,
+  text TEXT,
+  essay_prompt TEXT,
+  source_url TEXT,
+  news_items TEXT,
+  source_quotes TEXT,
+  source TEXT DEFAULT 'generated',
+  saved INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now')),
+  last_used_at TEXT);
 CREATE TABLE IF NOT EXISTS sessions (
   id INTEGER PRIMARY KEY, user_id TEXT NOT NULL DEFAULT 'local',
   date TEXT, prompt_id INTEGER, draft_text TEXT,
   final_text TEXT, duration_s INTEGER,
+  native_text TEXT, elevated_text TEXT, evidence_text TEXT,
   source TEXT DEFAULT 'daily_writing',
   created_at TEXT DEFAULT (datetime('now')));
 CREATE TABLE IF NOT EXISTS annotations (

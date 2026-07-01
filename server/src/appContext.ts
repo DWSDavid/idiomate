@@ -5,6 +5,7 @@ import type { NewsItem } from '../../shared/types.js';
 
 export type HeadlineFetcher = (topic: string) => Promise<string[]>;
 export type NewsFetcher = (query: string) => Promise<NewsItem[]>;
+export type ArticleTextFetcher = (url: string) => Promise<string>;
 
 export interface AppDependencies {
   db: Database.Database;
@@ -13,4 +14,5 @@ export interface AppDependencies {
   embeddingProvider?: EmbeddingProvider;
   headlineFetcher?: HeadlineFetcher;
   newsFetcher?: NewsFetcher;
+  articleFetcher?: ArticleTextFetcher;
 }

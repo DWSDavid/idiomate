@@ -48,6 +48,8 @@ export interface Vocab {
   pos?: string;
   status?: string;
   source?: string;
+  sourceTitle?: string;
+  sourceUrl?: string;
   direction?: YoudaoDirection;
   contextSentence?: string;
   examples?: string[];
@@ -85,6 +87,10 @@ export interface VocabListItem {
   nextReviewAt?: string;
   dateAdded?: string;
   source?: string;
+  sourceTitle?: string;
+  sourceUrl?: string;
+  contextSentence?: string;
+  examples?: string[];
 }
 
 export interface VocabListResponse {
@@ -95,14 +101,46 @@ export interface VocabListResponse {
 export interface SaveVocabResponse {
   id: number;
   captureCount: number;
+  previousCaptureCount?: number;
+  captureDelta?: number;
   existed: boolean;
+  canonicalWord?: string;
+  normalized?: string;
+  baseForm?: string;
 }
 
 export interface ChineseVocabResponse extends SaveVocabResponse {
   vocab: Vocab;
 }
 
-export interface Prompt { id?: number; date: string; theme: string; text: string; sourceUrl?: string; newsItems?: NewsItem[]; }
+export interface Prompt {
+  id?: number;
+  date: string;
+  theme: string;
+  text: string;
+  // An essay-length, argumentative version of the same day's prompt. `text` stays the short
+  // (3-5 sentence) opinion prompt; `essayPrompt` invites a full stance-and-support essay.
+  essayPrompt?: string;
+  sourceUrl?: string;
+  newsItems?: NewsItem[];
+  // Verbatim, attributable pull-quotes extracted from the source articles so the writer can
+  // cite them directly or paraphrase in their own words.
+  sourceQuotes?: SourceQuote[];
+  saved?: boolean;
+  createdAt?: string;
+  lastUsedAt?: string;
+  source?: string;
+}
+
+export interface SourceQuote {
+  quote: string;
+  source?: string;
+  link?: string;
+}
+
+export interface PromptLibraryResponse {
+  prompts: Prompt[];
+}
 export interface ErrorTally { errorType: ErrorType; count: number; lastSeen: string; }
 
 export interface MistakeExample {
@@ -239,6 +277,9 @@ export interface WritingHistoryEntry {
   source: WritingSource;
   draftText: string;
   finalText?: string;
+  nativeText?: string;
+  elevatedText?: string;
+  evidenceText?: string;
   annotations: WritingHistoryAnnotation[];
   context?: WritingHistoryContext;
 }

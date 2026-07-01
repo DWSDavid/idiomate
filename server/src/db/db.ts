@@ -28,6 +28,17 @@ export function migrate(db: Database.Database) {
   ensureColumn(db, 'sessions', 'context_title', 'TEXT');
   ensureColumn(db, 'sessions', 'context_url', 'TEXT');
   ensureColumn(db, 'sessions', 'context_excerpt', 'TEXT');
+  ensureColumn(db, 'sessions', 'native_text', 'TEXT');
+  ensureColumn(db, 'sessions', 'elevated_text', 'TEXT');
+  ensureColumn(db, 'sessions', 'evidence_text', 'TEXT');
+  ensureColumn(db, 'prompts', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
+  ensureColumn(db, 'prompts', 'news_items', 'TEXT');
+  ensureColumn(db, 'prompts', 'essay_prompt', 'TEXT');
+  ensureColumn(db, 'prompts', 'source_quotes', 'TEXT');
+  ensureColumn(db, 'prompts', 'source', "TEXT DEFAULT 'generated'");
+  ensureColumn(db, 'prompts', 'saved', 'INTEGER DEFAULT 0');
+  ensureColumn(db, 'prompts', 'created_at', 'TEXT');
+  ensureColumn(db, 'prompts', 'last_used_at', 'TEXT');
   ensureColumn(db, 'error_tally', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
   ensureColumn(db, 'sentence_lab_drafts', 'user_id', "TEXT NOT NULL DEFAULT 'local'");
   rebuildVocabIfLegacy(db);
@@ -37,6 +48,8 @@ export function migrate(db: Database.Database) {
   ensureColumn(db, 'vocab', 'word_family', 'TEXT');
   ensureColumn(db, 'vocab', 'near_synonyms', 'TEXT');
   ensureColumn(db, 'vocab', 'base_form', 'TEXT');
+  ensureColumn(db, 'vocab', 'source_title', 'TEXT');
+  ensureColumn(db, 'vocab', 'source_url', 'TEXT');
   db.prepare(`
     UPDATE vocab
     SET base_form = normalized

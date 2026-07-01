@@ -1,5 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { fetchHeadlines, fetchNews } from '../src/news.js';
+import { fetchArticleText, fetchHeadlines, fetchNews, htmlToText } from '../src/news.js';
+
+it('strips scripts, styles, and tags into readable text', () => {
+  const html = `
+    <html><head><style>.a{color:red}</style><script>alert(1)</script></head>
+    <body><h1>Rollout under scrutiny</h1><p>Adoption doubled &amp; risks grew.</p></body></html>
+  `;
+
+  const text = htmlToText(html);
+
+  expect(text).toContain('Rollout under scrutiny');
+  expect(text).toContain('Adoption doubled & risks grew.');
+  expect(text).not.toContain('alert(1)');
+  expect(text).not.toContain('color:red');
+});
+
+it('returns article text and degrades to empty on fetch failure', async () => {
+  const ok = await fetchArticleText('https://example.com/a', async () => ({
+    ok: true,
+    async text() {
+      return '<article><p>Regulators warned the rollout was rushed.</p></article>';
+    },
+  }));
+  expect(ok).toContain('Regulators warned the rollout was rushed.');
+
+  const failed = await fetchArticleText('https://example.com/b', async () => {
+    throw new Error('paywalled');
+  });
+  expect(failed).toBe('');
+});
 
 it('fetches Google News RSS headlines for an encoded topic', async () => {
   let requestedUrl = '';

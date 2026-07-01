@@ -10,8 +10,11 @@ import type {
   MistakeLogItem,
   MistakeRankingItem,
   MistakeTrendSeries,
+  NewsItem,
+  Prompt,
   ProgressDailyPoint,
   SaveVocabResponse,
+  SourceQuote,
   Vocab,
   VocabKind,
   VocabListItem,
@@ -32,6 +35,8 @@ interface VocabRow {
   pos: string | null;
   status: string | null;
   source: string | null;
+  source_title: string | null;
+  source_url: string | null;
   context_sentence: string | null;
   examples: string | null;
   collocations: string | null;
@@ -123,6 +128,9 @@ interface HistorySessionRow {
   date: string | null;
   draft_text: string;
   final_text: string | null;
+  native_text: string | null;
+  elevated_text: string | null;
+  evidence_text: string | null;
   source: WritingSource | null;
   created_at: string | null;
   context_label: string | null;
@@ -149,11 +157,30 @@ interface SentenceLabHistoryAnnotationRow {
   accepted: number;
 }
 
+interface PromptRow {
+  id: number;
+  user_id: string;
+  date: string | null;
+  theme: string | null;
+  text: string | null;
+  essay_prompt: string | null;
+  source_url: string | null;
+  news_items: string | null;
+  source_quotes: string | null;
+  source: string | null;
+  saved: number | null;
+  created_at: string | null;
+  last_used_at: string | null;
+}
+
 export interface InsertSessionInput {
   date?: string;
   promptId?: number;
   draftText: string;
   finalText?: string;
+  nativeText?: string;
+  elevatedText?: string;
+  evidenceText?: string;
   durationS?: number;
   source?: WritingSource;
   contextLabel?: string;
@@ -174,6 +201,9 @@ export interface ParagraphResultInput {
   paragraphIdx: number;
   paragraph: string;
   rewrite: string;
+  nativeText?: string;
+  elevatedText?: string;
+  evidenceText?: string;
   source?: WritingSource;
   annotations: Array<Omit<InsertAnnotationInput, 'paragraphIdx' | 'userRewrite'> & {
     paragraphIdx?: number;
@@ -228,6 +258,127 @@ function fromJson(value: string | null): string[] | undefined {
   }
 }
 
+function fromNewsJson(value: string | null): NewsItem[] | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return undefined;
+    return parsed
+      .map(item => ({
+        title: String(item?.title ?? ''),
+        link: String(item?.link ?? ''),
+        source: item?.source ? String(item.source) : undefined,
+      }))
+      .filter(item => item.title && item.link);
+  } catch {
+    return undefined;
+  }
+}
+
+function fromQuotesJson(value: string | null): SourceQuote[] | undefined {
+  if (!value) return undefined;
+  try {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed)) return undefined;
+    const quotes = parsed
+      .map(item => ({
+        quote: String(item?.quote ?? ''),
+        source: item?.source ? String(item.source) : undefined,
+        link: item?.link ? String(item.link) : undefined,
+      }))
+      .filter(item => item.quote);
+    return quotes.length ? quotes : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function promptFromRow(row: PromptRow): Prompt {
+  return {
+    id: row.id,
+    date: row.date ?? '',
+    theme: row.theme ?? '',
+    text: row.text ?? '',
+    essayPrompt: row.essay_prompt ?? undefined,
+    sourceUrl: row.source_url ?? undefined,
+    newsItems: fromNewsJson(row.news_items),
+    sourceQuotes: fromQuotesJson(row.source_quotes),
+    saved: row.saved === 1,
+    createdAt: row.created_at ?? undefined,
+    lastUsedAt: row.last_used_at ?? undefined,
+    source: row.source ?? undefined,
+  };
+}
+
+export function insertGeneratedPrompt(
+  db: Database.Database,
+  userId: string,
+  prompt: Omit<Prompt, 'id' | 'saved' | 'createdAt' | 'lastUsedAt'>,
+): Prompt {
+  const info = db.prepare(`
+    INSERT INTO prompts (user_id, date, theme, text, essay_prompt, source_url, news_items, source_quotes, source, saved)
+    VALUES (@userId, @date, @theme, @text, @essayPrompt, @sourceUrl, @newsItems, @sourceQuotes, @source, 0)
+  `).run({
+    userId,
+    date: prompt.date,
+    theme: prompt.theme,
+    text: prompt.text,
+    essayPrompt: prompt.essayPrompt ?? null,
+    sourceUrl: prompt.sourceUrl ?? null,
+    newsItems: prompt.newsItems ? JSON.stringify(prompt.newsItems) : null,
+    sourceQuotes: prompt.sourceQuotes?.length ? JSON.stringify(prompt.sourceQuotes) : null,
+    source: prompt.source ?? 'generated',
+  });
+  return getPromptById(db, userId, Number(info.lastInsertRowid))!;
+}
+
+export function getPromptById(db: Database.Database, userId: string, id: number): Prompt | undefined {
+  const row = db.prepare(`
+    SELECT id, user_id, date, theme, text, essay_prompt, source_url, news_items, source_quotes, source, saved, created_at, last_used_at
+    FROM prompts
+    WHERE id = ? AND user_id = ?
+  `).get(id, userId) as PromptRow | undefined;
+  return row ? promptFromRow(row) : undefined;
+}
+
+export function getPromptLibrary(
+  db: Database.Database,
+  userId: string,
+  opts: { limit?: number; savedOnly?: boolean } = {},
+): Prompt[] {
+  const safeLimit = Math.max(1, Math.min(100, opts.limit ?? 20));
+  const savedFilter = opts.savedOnly ? 'AND saved = 1' : '';
+  const rows = db.prepare(`
+    SELECT id, user_id, date, theme, text, essay_prompt, source_url, news_items, source_quotes, source, saved, created_at, last_used_at
+    FROM prompts
+    WHERE user_id = ?
+      ${savedFilter}
+    ORDER BY
+      COALESCE(last_used_at, created_at) DESC,
+      id DESC
+    LIMIT ?
+  `).all(userId, safeLimit) as PromptRow[];
+  return rows.map(promptFromRow);
+}
+
+export function setPromptSaved(db: Database.Database, userId: string, id: number, saved: boolean): Prompt | undefined {
+  db.prepare(`
+    UPDATE prompts
+    SET saved = ?
+    WHERE id = ? AND user_id = ?
+  `).run(saved ? 1 : 0, id, userId);
+  return getPromptById(db, userId, id);
+}
+
+export function markPromptUsed(db: Database.Database, userId: string, id: number): Prompt | undefined {
+  db.prepare(`
+    UPDATE prompts
+    SET last_used_at = datetime('now')
+    WHERE id = ? AND user_id = ?
+  `).run(id, userId);
+  return getPromptById(db, userId, id);
+}
+
 function nearSynonymsFromJson(value: string | null): Array<{ word: string; distinction: string }> | undefined {
   if (!value) return undefined;
   try {
@@ -255,6 +406,8 @@ function mapVocab(row: VocabRow): Vocab {
     pos: row.pos ?? undefined,
     status: row.status ?? undefined,
     source: row.source ?? undefined,
+    sourceTitle: row.source_title ?? undefined,
+    sourceUrl: row.source_url ?? undefined,
     contextSentence: row.context_sentence ?? undefined,
     examples: fromJson(row.examples),
     collocations: fromJson(row.collocations),
@@ -297,25 +450,56 @@ function mapVocabListItem(row: VocabRow): VocabListItem {
     nextReviewAt: row.next_review_at ?? undefined,
     dateAdded: row.date_added ?? undefined,
     source: row.source ?? undefined,
+    sourceTitle: row.source_title ?? undefined,
+    sourceUrl: row.source_url ?? undefined,
+    contextSentence: row.context_sentence ?? undefined,
+    examples: fromJson(row.examples),
   };
 }
 
+function websiteUrlFromContext(context: string | undefined): string | undefined {
+  const rawUrl = context?.match(/https?:\/\/[^\s|]+/)?.[0]?.replace(/[),.;:]+$/, '');
+  if (!rawUrl) return undefined;
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return undefined;
+    parsed.search = '';
+    parsed.hash = '';
+    return parsed.toString().slice(0, 500);
+  } catch {
+    return undefined;
+  }
+}
+
+function websiteTitleFromContext(context: string | undefined): string | undefined {
+  const title = context?.match(/^From\s+(.+?):\s+https?:\/\//)?.[1]?.trim();
+  return title || undefined;
+}
+
 function vocabParams(userId: string, item: Vocab) {
-  const normalized = normalizeVocabWord(item.normalized ?? item.word);
+  const rawNormalized = normalizeVocabWord(item.normalized ?? item.word);
   const baseForm = item.baseForm?.trim()
     ? normalizeVocabWord(item.baseForm)
-    : normalized;
+    : rawNormalized;
+  const kind = item.kind ?? inferVocabKind(item.word);
+  const storeAsBase = kind === 'word' && baseForm !== rawNormalized;
+  const normalized = storeAsBase ? baseForm : rawNormalized;
+  const inferredWebsiteUrl = item.sourceUrl ?? websiteUrlFromContext(item.contextSentence);
+  const inferredWebsiteTitle = item.sourceTitle ?? websiteTitleFromContext(item.contextSentence);
+  const isWebsiteSource = item.source === 'website_reading' || Boolean(inferredWebsiteUrl);
   return {
     userId,
-    word: item.word.trim().replace(/\s+/g, ' '),
+    word: storeAsBase ? baseForm : item.word.trim().replace(/\s+/g, ' '),
     normalized,
     baseForm,
-    kind: item.kind ?? inferVocabKind(item.word),
+    kind,
     ipa: item.ipa ?? null,
     defCn: item.defCn ?? null,
     pos: item.pos ?? null,
     status: item.status ?? null,
-    source: item.source ?? null,
+    source: isWebsiteSource ? 'website_reading' : item.source ?? null,
+    sourceTitle: inferredWebsiteTitle ?? null,
+    sourceUrl: inferredWebsiteUrl ?? null,
     contextSentence: item.contextSentence ?? null,
     examples: toJson(item.examples),
     collocations: toJson(item.collocations),
@@ -331,17 +515,26 @@ function vocabParams(userId: string, item: Vocab) {
   };
 }
 
+function vocabStorageNormalized(item: Vocab): string {
+  const rawNormalized = normalizeVocabWord(item.normalized ?? item.word);
+  const baseForm = item.baseForm?.trim()
+    ? normalizeVocabWord(item.baseForm)
+    : rawNormalized;
+  const kind = item.kind ?? inferVocabKind(item.word);
+  return kind === 'word' && baseForm !== rawNormalized ? baseForm : rawNormalized;
+}
+
 function runVocabUpsert(db: Database.Database, params: ReturnType<typeof vocabParams>): number {
   const stmt = db.prepare(`
     INSERT INTO vocab (
       user_id, word, normalized, base_form, kind, ipa, def_cn, pos, status, source,
-      context_sentence, examples, collocations, register, capture_count,
+      source_title, source_url, context_sentence, examples, collocations, register, capture_count,
       last_captured, times_suggested, times_used, ease, last_reviewed,
       word_family, near_synonyms
     )
     VALUES (
       @userId, @word, @normalized, @baseForm, @kind, @ipa, @defCn, @pos, @status, @source,
-      @contextSentence, @examples, @collocations, @register, @captureCount,
+      @sourceTitle, @sourceUrl, @contextSentence, @examples, @collocations, @register, @captureCount,
       COALESCE(@lastCaptured, datetime('now')), @timesSuggested, @timesUsed, @ease,
       @lastReviewed, @wordFamily, @nearSynonyms
     )
@@ -354,6 +547,8 @@ function runVocabUpsert(db: Database.Database, params: ReturnType<typeof vocabPa
       pos = COALESCE(excluded.pos, vocab.pos),
       status = COALESCE(excluded.status, vocab.status),
       source = COALESCE(excluded.source, vocab.source),
+      source_title = COALESCE(excluded.source_title, vocab.source_title),
+      source_url = COALESCE(excluded.source_url, vocab.source_url),
       context_sentence = COALESCE(excluded.context_sentence, vocab.context_sentence),
       examples = COALESCE(excluded.examples, vocab.examples),
       collocations = COALESCE(excluded.collocations, vocab.collocations),
@@ -380,14 +575,14 @@ export function upsertVocabWithResult(
 ): SaveVocabResponse {
   const params = vocabParams(userId, vocab);
   const existing = db.prepare(`
-    SELECT id, capture_count
+    SELECT id, word, normalized, base_form, capture_count
     FROM vocab
     WHERE user_id = ? AND normalized = ?
-  `).get(userId, params.normalized) as { id: number; capture_count: number } | undefined;
+  `).get(userId, params.normalized) as { id: number; word: string; normalized: string; base_form: string | null; capture_count: number } | undefined;
 
   if (!existing) {
     const familyMatch = db.prepare(`
-      SELECT id, capture_count, last_captured
+      SELECT id, word, normalized, base_form, capture_count, last_captured
       FROM vocab
       WHERE user_id = ? AND (base_form = ? OR normalized = ?)
         AND id != COALESCE((SELECT id FROM vocab WHERE user_id = ? AND normalized = ?), -1)
@@ -398,33 +593,53 @@ export function upsertVocabWithResult(
       params.baseForm,
       userId,
       params.normalized,
-    ) as { id: number; capture_count: number; last_captured: string | null } | undefined;
+    ) as { id: number; word: string; normalized: string; base_form: string | null; capture_count: number; last_captured: string | null } | undefined;
 
     if (familyMatch) {
+      const captureDelta = params.captureCount;
       db.prepare(`
         UPDATE vocab
-        SET capture_count = capture_count + 1,
-            last_captured = datetime('now')
-        WHERE id = ? AND user_id = ?
-      `).run(familyMatch.id, userId);
+        SET capture_count = capture_count + @captureDelta,
+            last_captured = datetime('now'),
+            source = COALESCE(@source, source),
+            source_title = COALESCE(@sourceTitle, source_title),
+            source_url = COALESCE(@sourceUrl, source_url),
+            context_sentence = COALESCE(@contextSentence, context_sentence),
+            examples = COALESCE(@examples, examples),
+            collocations = COALESCE(@collocations, collocations),
+            word_family = COALESCE(@wordFamily, word_family),
+            near_synonyms = COALESCE(@nearSynonyms, near_synonyms)
+        WHERE id = @id AND user_id = @userId
+      `).run({ ...params, captureDelta, id: familyMatch.id });
       return {
         id: familyMatch.id,
-        captureCount: familyMatch.capture_count + 1,
+        captureCount: familyMatch.capture_count + captureDelta,
+        previousCaptureCount: familyMatch.capture_count,
+        captureDelta,
         existed: true,
+        canonicalWord: familyMatch.word,
+        normalized: familyMatch.normalized,
+        baseForm: familyMatch.base_form ?? params.baseForm,
       };
     }
   }
 
   const id = runVocabUpsert(db, params);
   const row = db.prepare(`
-    SELECT capture_count
+    SELECT word, normalized, base_form, capture_count
     FROM vocab
     WHERE id = ? AND user_id = ?
-  `).get(id, userId) as { capture_count: number };
+  `).get(id, userId) as { word: string; normalized: string; base_form: string | null; capture_count: number };
+  const previousCaptureCount = existing?.capture_count ?? 0;
   return {
     id,
     captureCount: row.capture_count,
+    previousCaptureCount,
+    captureDelta: Math.max(0, row.capture_count - previousCaptureCount),
     existed: Boolean(existing),
+    canonicalWord: row.word,
+    normalized: row.normalized,
+    baseForm: row.base_form ?? params.baseForm,
   };
 }
 
@@ -444,7 +659,13 @@ export function insertVocab(db: Database.Database, userId: string, vocab: Vocab[
 export function insertMissingVocab(db: Database.Database, userId: string, vocab: Vocab[]): number {
   const insertMany = db.transaction((items: Vocab[]) => {
     let inserted = 0;
+    const exists = db.prepare('SELECT 1 FROM vocab WHERE user_id = ? AND normalized = ? LIMIT 1');
     for (const item of items) {
+      const normalized = vocabStorageNormalized(item);
+      if (exists.get(userId, normalized)) {
+        continue;
+      }
+
       const saved = upsertVocabWithResult(db, userId, item);
       if (!saved.existed) inserted += 1;
     }
@@ -498,10 +719,10 @@ export function getPrimeCandidates(db: Database.Database, userId: string, n: num
 export function getVocabList(db: Database.Database, userId: string, limit = 200): VocabListItem[] {
   const safeLimit = boundedPositiveInt(limit, 200, 500);
   const rows = db.prepare(`
-    SELECT *, ${VOCAB_PRIORITY_SCORE_SQL} AS priority_score
+    SELECT *, 0 AS priority_score
     FROM vocab
     WHERE user_id = ? AND COALESCE(graduated, 0) = 0
-    ORDER BY ${VOCAB_PRIORITY_ORDER_SQL}
+    ORDER BY COALESCE(last_captured, date_added) DESC, date_added DESC, id DESC
     LIMIT ?
   `).all(userId, safeLimit) as VocabRow[];
   return rows.map(mapVocabListItem);
@@ -517,6 +738,7 @@ export interface GetAllVocabOpts {
   limit: number;
   sort: 'date' | 'priority';
   source?: string;
+  userIds?: string[];
 }
 
 export function getAllVocab(
@@ -527,25 +749,42 @@ export function getAllVocab(
   const safeOffset = Math.max(0, Math.trunc(opts.offset));
   const safeLimit = Math.max(1, Math.min(Math.trunc(opts.limit), 500));
   const orderBy = opts.sort === 'date'
-    ? 'date_added DESC, id DESC'
+    ? 'COALESCE(last_captured, date_added) DESC, date_added DESC, id DESC'
     : `${VOCAB_PRIORITY_ORDER_SQL}`;
+  const userIds = Array.from(new Set([userId, ...(opts.userIds ?? [])].filter(Boolean)));
+  const userFilter = userIds.length > 1
+    ? `user_id IN (${userIds.map(() => '?').join(', ')})`
+    : 'user_id = ?';
 
-  const sourceFilter = opts.source ? 'AND source LIKE ?' : '';
-  const sourceParam = opts.source ? `${opts.source}%` : undefined;
+  const sourceFilter = opts.source === 'website_reading'
+    ? `AND (
+        source LIKE ?
+        OR source_url IS NOT NULL
+        OR context_sentence LIKE ?
+        OR context_sentence LIKE ?
+      )`
+    : opts.source
+      ? 'AND source LIKE ?'
+      : '';
+  const sourceParams = opts.source === 'website_reading'
+    ? [`${opts.source}%`, 'From %http%', '%https://%']
+    : opts.source
+      ? [`${opts.source}%`]
+      : [];
 
-  const countParams: unknown[] = [userId];
-  if (sourceParam !== undefined) countParams.push(sourceParam);
+  const countParams: unknown[] = userIds.length > 1 ? [...userIds] : [userId];
+  countParams.push(...sourceParams);
 
   const countRow = db.prepare(`
     SELECT COUNT(*) AS count
     FROM vocab
-    WHERE user_id = ?
+    WHERE ${userFilter}
       AND COALESCE(graduated, 0) = 0
       ${sourceFilter}
   `).get(...countParams) as { count: number };
 
-  const rowParams: unknown[] = [userId];
-  if (sourceParam !== undefined) rowParams.push(sourceParam);
+  const rowParams: unknown[] = userIds.length > 1 ? [...userIds] : [userId];
+  rowParams.push(...sourceParams);
   rowParams.push(safeLimit, safeOffset);
 
   const scoreSelect = opts.sort === 'priority'
@@ -555,7 +794,7 @@ export function getAllVocab(
   const rows = db.prepare(`
     SELECT *${scoreSelect}
     FROM vocab
-    WHERE user_id = ?
+    WHERE ${userFilter}
       AND COALESCE(graduated, 0) = 0
       ${sourceFilter}
     ORDER BY ${orderBy}
@@ -854,11 +1093,31 @@ function keywordsFromText(text: string): string[] {
   return Array.from(new Set(words)).filter(w => !PRIME_STOPWORDS.has(w)).slice(0, 14);
 }
 
+function topicMatchScore(item: Vocab, keywords: string[]): number {
+  if (!keywords.length) return 0;
+  const word = normalizeVocabWord(item.word);
+  const normalized = normalizeVocabWord(item.normalized ?? item.word);
+  const defCn = item.defCn?.toLowerCase() ?? '';
+  const examples = (item.examples ?? []).join(' ').toLowerCase();
+  const collocations = (item.collocations ?? []).join(' ').toLowerCase();
+  let score = 0;
+  for (const keyword of keywords) {
+    if (word === keyword || normalized === keyword) score += 12;
+    if (word.includes(keyword) || normalized.includes(keyword)) score += 8;
+    if (collocations.includes(keyword)) score += 5;
+    if (examples.includes(keyword)) score += 3;
+    if (defCn.includes(keyword)) score += 2;
+  }
+  if (item.kind === 'collocation') score += 2;
+  if (item.kind === 'phrase') score += 1;
+  return score;
+}
+
 /**
  * Build a candidate pool for topic-fit priming. Blends:
  *  1. topical lexical matches - vocab whose word/def/examples/collocations contain a prompt keyword
  *  2. memory                  - priority (frequent/recent/phrase) + oldest unused
- *  3. coverage                - random sample, so relevant words exist even when scores tie
+ *  3. coverage                - deterministic fill, so tab switches do not reshuffle suggestions
  * The LLM then ranks this pool down to the final set.
  */
 export function getPrimeCandidatePool(db: Database.Database, userId: string, promptText = '', n = 120): Vocab[] {
@@ -890,7 +1149,17 @@ export function getPrimeCandidatePool(db: Database.Database, userId: string, pro
         LIMIT 60
       `)
       .all(userId, ...params) as VocabRow[];
-    add(rows.map(mapVocab));
+    add(rows
+      .map(mapVocab)
+      .sort((a, b) => {
+        const scoreDelta = topicMatchScore(b, keywords) - topicMatchScore(a, keywords);
+        if (scoreDelta !== 0) return scoreDelta;
+        const usedDelta = (a.timesUsed ?? 0) - (b.timesUsed ?? 0);
+        if (usedDelta !== 0) return usedDelta;
+        const captureDelta = (b.captureCount ?? 0) - (a.captureCount ?? 0);
+        if (captureDelta !== 0) return captureDelta;
+        return normalizeVocabWord(a.normalized ?? a.word).localeCompare(normalizeVocabWord(b.normalized ?? b.word));
+      }));
   }
 
   // 2. Memory blend: priority + oldest unused, proportional so old words keep a guaranteed slot.
@@ -909,11 +1178,16 @@ export function getPrimeCandidatePool(db: Database.Database, userId: string, pro
     add(oldest.map(mapVocab));
   }
 
-  // 3. Coverage: random fill so topical words can surface even when scores tie.
+  // 3. Coverage: stable fill for breadth without changing every time the tab remounts.
   if (byNormalized.size < limit) {
-    const random = db.prepare('SELECT * FROM vocab WHERE user_id = ? AND COALESCE(graduated, 0) = 0 ORDER BY RANDOM() LIMIT ?')
+    const coverage = db.prepare(`
+      SELECT * FROM vocab
+      WHERE user_id = ? AND COALESCE(graduated, 0) = 0
+      ORDER BY capture_count DESC, times_used ASC, times_suggested ASC, last_captured DESC, normalized ASC
+      LIMIT ?
+    `)
       .all(userId, limit * 2) as VocabRow[];
-    add(random.map(mapVocab));
+    add(coverage.map(mapVocab));
   }
 
   return Array.from(byNormalized.values()).slice(0, limit);
@@ -1278,6 +1552,9 @@ export function getWritingHistory(db: Database.Database, userId: string, limit =
         date,
         draft_text,
         final_text,
+        native_text,
+        elevated_text,
+        evidence_text,
         COALESCE(source, 'daily_writing') AS source,
         created_at,
         context_label,
@@ -1297,6 +1574,9 @@ export function getWritingHistory(db: Database.Database, userId: string, limit =
         date,
         draft_text,
         final_text,
+        native_text,
+        elevated_text,
+        evidence_text,
         COALESCE(source, 'daily_writing') AS source,
         created_at,
         context_label,
@@ -1335,6 +1615,9 @@ export function getWritingHistory(db: Database.Database, userId: string, limit =
     context: sessionContext(session),
     draftText: session.draft_text,
     finalText: session.final_text ?? undefined,
+    nativeText: session.native_text ?? undefined,
+    elevatedText: session.elevated_text ?? undefined,
+    evidenceText: session.evidence_text ?? undefined,
     annotations: annotationsBySession.get(session.id) ?? [],
   }));
 
@@ -1400,10 +1683,12 @@ export function insertSession(db: Database.Database, userId: string, input: Inse
   const result = db.prepare(`
     INSERT INTO sessions (
       user_id, date, prompt_id, draft_text, final_text, duration_s, source,
+      native_text, elevated_text, evidence_text,
       context_label, context_title, context_url, context_excerpt, created_at
     )
     VALUES (
       @userId, @date, @promptId, @draftText, @finalText, @durationS, @source,
+      @nativeText, @elevatedText, @evidenceText,
       @contextLabel, @contextTitle, @contextUrl, @contextExcerpt, datetime('now')
     )
   `).run({
@@ -1412,6 +1697,9 @@ export function insertSession(db: Database.Database, userId: string, input: Inse
     promptId: input.promptId ?? null,
     draftText: input.draftText,
     finalText: input.finalText ?? null,
+    nativeText: input.nativeText ?? null,
+    elevatedText: input.elevatedText ?? null,
+    evidenceText: input.evidenceText ?? null,
     durationS: input.durationS ?? null,
     source: input.source ?? 'daily_writing',
     contextLabel: input.contextLabel?.trim() || null,
@@ -1508,9 +1796,20 @@ function getOrCreateParagraphSession(db: Database.Database, userId: string, inpu
           WHEN draft_text IS NULL OR draft_text = '' THEN @paragraph
           ELSE draft_text
         END,
-        final_text = @rewrite
+        final_text = @rewrite,
+        native_text = COALESCE(@nativeText, native_text),
+        elevated_text = COALESCE(@elevatedText, elevated_text),
+        evidence_text = COALESCE(@evidenceText, evidence_text)
       WHERE user_id = @userId AND id = @id
-    `).run({ userId, id: existing, paragraph: input.paragraph, rewrite: input.rewrite });
+    `).run({
+      userId,
+      id: existing,
+      paragraph: input.paragraph,
+      rewrite: input.rewrite,
+      nativeText: input.nativeText ?? null,
+      elevatedText: input.elevatedText ?? null,
+      evidenceText: input.evidenceText ?? null,
+    });
     return { sessionId: existing, created: false };
   }
 
@@ -1519,6 +1818,9 @@ function getOrCreateParagraphSession(db: Database.Database, userId: string, inpu
     promptId: input.promptId,
     draftText: input.paragraph,
     finalText: input.rewrite,
+    nativeText: input.nativeText,
+    elevatedText: input.elevatedText,
+    evidenceText: input.evidenceText,
     source,
   });
   return { sessionId, created: true };

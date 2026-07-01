@@ -1,6 +1,7 @@
 ﻿import { describe, it, expect, beforeEach } from 'vitest';
 import type { Server } from 'node:http';
 import { createApp } from '../src/index.js';
+import { config } from '../src/config.js';
 import { openDb, migrate } from '../src/db/db.js';
 import {
   getPrimeCandidates,
@@ -849,6 +850,9 @@ it('POST /api/paragraph-result records a paragraph rewrite idempotently', async 
       paragraphIdx: 0,
       paragraph: 'We need support margins in order to calm investors.',
       rewrite: 'We need to shore up margins to calm investors.',
+      nativeText: 'We need to shore up margins to calm investors.',
+      elevatedText: 'We need to strengthen margins to reassure investors.',
+      evidenceText: 'AI spending may pressure margins. Evidence should show whether that pressure is temporary or structural.',
       annotations: [
         {
           span: 'in order to',
@@ -884,6 +888,11 @@ it('POST /api/paragraph-result records a paragraph rewrite idempotently', async 
 
     expect(first.status).toBe(201);
     expect(duplicate.status).toBe(200);
+    expect(getWritingHistory(db, USER_ID, 1)[0]).toEqual(expect.objectContaining({
+      nativeText: 'We need to shore up margins to calm investors.',
+      elevatedText: 'We need to strengthen margins to reassure investors.',
+      evidenceText: 'AI spending may pressure margins. Evidence should show whether that pressure is temporary or structural.',
+    }));
     expect(getTallies(db, USER_ID)).toEqual([
       expect.objectContaining({ errorType: 'redundancy', count: 1 }),
     ]);
@@ -1001,7 +1010,7 @@ it('POST /api/vocab/save upserts and GET /api/vocab/prime returns LLM-selected t
   });
 });
 
-it('GET /api/vocab/list returns priority-ordered vocab with total count', async () => {
+it('GET /api/vocab/list returns latest-first vocab with total count', async () => {
   upsertVocab(db, USER_ID, {
     word: 'fresh word',
     kind: 'word',
@@ -1030,14 +1039,14 @@ it('GET /api/vocab/list returns priority-ordered vocab with total count', async 
     expect(json.items).toEqual([
       expect.objectContaining({
         id: expect.any(Number),
-        word: 'well worn phrase',
-        kind: 'phrase',
-        defCn: 'seen many times',
-        captureCount: 5,
-        timesSuggested: 2,
-        timesUsed: 1,
-        lastCaptured: '2026-05-10T00:00:00.000Z',
-        capturedDate: '2026-05-10',
+        word: 'fresh word',
+        kind: 'word',
+        defCn: 'newly captured',
+        captureCount: 1,
+        timesSuggested: 0,
+        timesUsed: 0,
+        lastCaptured: '2026-06-04T00:00:00.000Z',
+        capturedDate: '2026-06-04',
       }),
     ]);
   });
@@ -1199,12 +1208,84 @@ it('POST /api/vocab/save returns existed true and incremented captureCount for a
 
     expect(res.status).toBe(201);
     const json = await res.json();
-    expect(json).toEqual({
+    expect(json).toEqual(expect.objectContaining({
       id: expect.any(Number),
       captureCount: 2,
+      previousCaptureCount: 1,
+      captureDelta: 1,
       existed: true,
-    });
+      canonicalWord: 'risk premium',
+      normalized: 'risk premium',
+      baseForm: 'risk premium',
+    }));
     expect(getPrimeCandidates(db, USER_ID, 1)[0].captureCount).toBe(2);
+  });
+});
+
+it('POST /api/vocab/save logs one new encounter even if the client sends an old total', async () => {
+  upsertVocab(db, USER_ID, {
+    word: 'Risk premium',
+    kind: 'phrase',
+    captureCount: 4,
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/vocab/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        word: 'risk premium',
+        kind: 'phrase',
+        captureCount: 4,
+      }),
+    });
+
+    expect(res.status).toBe(201);
+    const json = await res.json();
+    expect(json).toEqual(expect.objectContaining({
+      captureCount: 5,
+      previousCaptureCount: 4,
+      captureDelta: 1,
+      existed: true,
+    }));
+    expect(getPrimeCandidates(db, USER_ID, 1)[0].captureCount).toBe(5);
+  });
+});
+
+it('GET /api/vocab/all website source includes shared extension captures from the Rubi profile', async () => {
+  upsertVocab(db, 'rubi', {
+    word: 'browser sourced phrase',
+    kind: 'phrase',
+    source: 'website_reading',
+    sourceTitle: 'Browser page',
+    sourceUrl: 'https://example.com/browser-page',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+  upsertVocab(db, USER_ID, {
+    word: 'plain local phrase',
+    kind: 'phrase',
+    source: 'capture',
+    timesSuggested: 0,
+    timesUsed: 0,
+  });
+
+  await withServer(createApp({ db }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/vocab/all?offset=0&limit=50&sort=date&source=website_reading`);
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.total).toBe(1);
+    expect(json.items).toEqual([
+      expect.objectContaining({
+        word: 'browser sourced phrase',
+        source: 'website_reading',
+        sourceTitle: 'Browser page',
+        sourceUrl: 'https://example.com/browser-page',
+      }),
+    ]);
   });
 });
 
@@ -1234,11 +1315,14 @@ it('POST /api/vocab/save deduplicates singular and plural captures by base form'
     expect(first.status).toBe(201);
     expect(second.status).toBe(201);
     const firstJson = await first.json();
-    await expect(second.json()).resolves.toEqual({
+    await expect(second.json()).resolves.toEqual(expect.objectContaining({
       id: firstJson.id,
       captureCount: 2,
       existed: true,
-    });
+      canonicalWord: 'fortune',
+      normalized: 'fortune',
+      baseForm: 'fortune',
+    }));
     const rows = db.prepare(`
       SELECT word, normalized, base_form, capture_count
       FROM vocab
@@ -1247,8 +1331,8 @@ it('POST /api/vocab/save deduplicates singular and plural captures by base form'
     `).all(USER_ID);
     expect(rows).toEqual([
       {
-        word: 'fortunes',
-        normalized: 'fortunes',
+        word: 'fortune',
+        normalized: 'fortune',
         base_form: 'fortune',
         capture_count: 2,
       },
@@ -1272,11 +1356,14 @@ it('POST /api/vocab/save deduplicates inflected verb captures by base form', asy
     expect(first.status).toBe(201);
     expect(second.status).toBe(201);
     const firstJson = await first.json();
-    await expect(second.json()).resolves.toEqual({
+    await expect(second.json()).resolves.toEqual(expect.objectContaining({
       id: firstJson.id,
       captureCount: 2,
       existed: true,
-    });
+      canonicalWord: 'run',
+      normalized: 'run',
+      baseForm: 'run',
+    }));
     expect(db.prepare('SELECT COUNT(*) AS count FROM vocab WHERE user_id = ?').get(USER_ID)).toEqual({ count: 1 });
   });
 });
@@ -1501,10 +1588,41 @@ it('GET /api/prompt/today generates a fresh news-grounded prompt through the uti
     const secondJson = await second.json();
     expect(firstJson.text).toContain('angle 1');
     expect(secondJson.text).toContain('angle 2');
+    expect(firstJson.id).toEqual(expect.any(Number));
+    expect(firstJson.saved).toBe(false);
     expect(calls).toBe(2);
     expect(captured!.user).toContain('Humanoid robots enter warehouses');
+    expect(captured!.user).toContain('angle 1');
     expect(captured!.system).toContain('noun_plague');
     expect(captured!.system).toContain('calque');
+
+    const save = await fetch(`${baseUrl}/api/prompt/${firstJson.id}/save`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ saved: true }),
+    });
+    expect(save.status).toBe(200);
+    await expect(save.json()).resolves.toEqual(expect.objectContaining({
+      id: firstJson.id,
+      saved: true,
+    }));
+
+    const savedLibrary = await fetch(`${baseUrl}/api/prompt/library?saved=true&limit=10`);
+    expect(savedLibrary.status).toBe(200);
+    const savedJson = await savedLibrary.json();
+    expect(savedJson.prompts).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: firstJson.id, text: firstJson.text, saved: true }),
+    ]));
+
+    const use = await fetch(`${baseUrl}/api/prompt/${firstJson.id}/use`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(use.status).toBe(200);
+    await expect(use.json()).resolves.toEqual(expect.objectContaining({
+      id: firstJson.id,
+      lastUsedAt: expect.any(String),
+    }));
   });
 });
 
@@ -1532,7 +1650,53 @@ it('GET /api/prompt/today falls back to LLM-only generation when news fetch fail
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.date).toEqual(expect.any(String));
+    expect(json.id).toEqual(expect.any(Number));
     expect(json.text).toContain('?');
+  });
+});
+
+it('GET /api/prompt/today attaches essay prompt and verbatim source quotes', async () => {
+  const articleText = 'Regulators warned that the rollout was rushed. Adoption doubled in a year despite the risks.';
+  const utilityProvider: LLMProvider = {
+    async complete(opts) {
+      if (opts.system.includes('extract short, quotable sentences')) {
+        return JSON.stringify({
+          quotes: [
+            { quote: 'Adoption doubled in a year despite the risks.', source: 'The Verge', link: 'https://example.com/a' },
+            { quote: 'A sentence that was never published anywhere.', source: 'Fake', link: 'https://example.com/z' },
+          ],
+        });
+      }
+      return JSON.stringify({
+        theme: 'consumer technology',
+        text: 'Do you agree fast tech rollouts do more good than harm? Argue one side.',
+        essayPrompt: 'Some argue rapid product rollouts benefit consumers while others warn they externalize risk. Take a clear stance, support it with reasons and evidence, and rebut the strongest counterargument.',
+      });
+    },
+  };
+
+  await withServer(createApp({
+    db,
+    utilityProvider,
+    headlineFetcher: async () => ['Rollout under scrutiny'],
+    newsFetcher: async () => [{ title: 'Rollout under scrutiny', link: 'https://example.com/a', source: 'The Verge' }],
+    articleFetcher: async () => articleText,
+  }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/prompt/today`);
+    expect(res.status).toBe(200);
+    const json = await res.json();
+
+    expect(json.essayPrompt).toContain('counterargument');
+    expect(json.sourceQuotes).toHaveLength(1);
+    expect(json.sourceQuotes[0].quote).toContain('Adoption doubled in a year');
+    expect(json.sourceQuotes[0].source).toBe('The Verge');
+
+    // The essay prompt and quotes must survive a round-trip through the prompt library.
+    const library = await fetch(`${baseUrl}/api/prompt/library?limit=5`);
+    const libraryJson = await library.json();
+    const stored = libraryJson.prompts.find((p: { id: number }) => p.id === json.id);
+    expect(stored.essayPrompt).toContain('counterargument');
+    expect(stored.sourceQuotes[0].quote).toContain('Adoption doubled in a year');
   });
 });
 
@@ -1779,7 +1943,7 @@ it('GET /api/lesson returns a systematic lesson for a requested mistake type', a
       before: 'carried out the implementation of the policy',
       after: 'implemented the policy',
     });
-    expect(captured!.model).toBe('gpt-4o');
+    expect(captured!.model).toBe(config.modelUtility);
     expect(captured!.user).toContain('implementation of the policy');
     expect(captured!.system).toContain('before/after pairs must stay in English');
   });
@@ -1990,7 +2154,7 @@ it('POST /api/structure returns an ideal outline and per-part draft observations
       { part: 'Evidence', status: 'weak', note: 'The draft gestures at spending but gives no concrete evidence.' },
       { part: 'Commentary', status: 'missing', note: 'The draft needs a sentence explaining the implication.' },
     ]);
-    expect(captured!.model).toBe('gpt-4o');
+    expect(captured!.model).toBe(config.modelUtility);
     expect(captured!.system).toContain('writing structure coach');
     expect(captured!.user).toContain('AI capex may hurt margins');
   });

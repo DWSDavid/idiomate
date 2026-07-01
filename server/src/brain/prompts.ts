@@ -6,13 +6,14 @@ import type {
   MistakeLogItem,
   NewsItem,
   ResearchSource,
+  SourceQuote,
   Vocab,
 } from '../../../shared/types.js';
 import { ERROR_TYPES } from '../../../shared/types.js';
 import { ALL_ERROR_TYPES, ERROR_TAXONOMY } from './taxonomy.js';
 import { GRAMMAR_RULES, type GrammarRule, rulesForTypes } from './rules.js';
 import type { LLMProvider } from './provider.js';
-import { dailyPromptZ, primeWordsZ } from './schema.js';
+import { dailyPromptZ, primeWordsZ, sourceQuotesZ } from './schema.js';
 
 export interface CoachPromptContext {
   paragraph: string;
@@ -449,7 +450,7 @@ export function assembleDailyPrompt(ctx: { theme: string }): { system: string; u
   return {
     system: [
       'You generate concise daily writing prompts for Idiomate.',
-      'The prompt bank should be finance/tech dominant with occasional professional/workplace themes.',
+      'Draw across a broad, varied range of domains (society, ethics, culture, education, science, environment, health, media, work, personal decisions, tech, finance); do not let any single domain dominate.',
       'Return ONLY JSON matching: {theme,text}.',
     ].join(' '),
     user: [
@@ -464,28 +465,44 @@ export function assembleNewsPrompt(ctx: {
   topic: string;
   headlines: string[];
   topErrors?: string[];
+  previousPrompts?: string[];
+  previousTheme?: string;
 }): { system: string; user: string } {
   const headlines = ctx.headlines.length
     ? ctx.headlines.map((headline, index) => `${index + 1}. ${headline}`).join('\n')
-    : 'No fresh headlines were available. Generate a timely but non-specific discussion prompt from the topic alone.';
+    : 'No fresh headlines were available. Generate a timely but non-specific debatable prompt from the topic alone.';
   const errorHint = ctx.topErrors?.length
     ? `The learner commonly makes these errors: ${ctx.topErrors.join(', ')}. When possible, frame the scenario so a natural answer would practise avoiding these patterns.`
     : '';
+  const previousPrompts = ctx.previousPrompts?.length
+    ? ctx.previousPrompts.map((text, index) => `${index + 1}. ${text}`).join('\n')
+    : 'No recent prompt memory.';
+  const domainBlock = ctx.previousTheme?.trim()
+    ? `The immediately previous prompt was in the domain "${ctx.previousTheme.trim()}". Your new prompt MUST be in a clearly different domain and must not reuse its central subject, examples, or framing.`
+    : 'Vary the domain from prompt to prompt so consecutive prompts do not cluster in the same subject area.';
 
   return {
     system: [
-      'You generate one short daily writing prompt for Idiomate.',
-      'The learner is an advanced Chinese-L1 English writer in tech, finance, or startups.',
-      'Rules: maximum 25 words for the prompt question. Concrete and specific: name an industry, technology, company type, or real scenario. Opinion OR story format: "Do you think X?", "Would you rather X?", or "Describe a time when X". The answer must fit in 3 to 5 sentences. Avoid geopolitics, sports diplomacy, abstract philosophy, or questions that need expert knowledge the writer may not have.',
-      'Ground the prompt in the supplied headlines when they are available, but make it answerable from personal experience or opinion.',
+      'You generate one daily writing prompt for Idiomate, tuned for argumentative-essay practice.',
+      'The learner is an advanced Chinese-L1 English writer whose core interests are tech and finance, so those remain the backbone of the prompt diet. Stay anchored to the supplied topic and headlines rather than wandering off into unrelated domains.',
+      'Every prompt must be DEBATABLE: it must present a contestable position the writer can argue for or against and defend with reasons and evidence. Not a soft "how do you feel" question.',
+      domainBlock,
+      'Avoid repeating the recent prompt memory in wording OR subject. Do not overuse workplace automation, humanoid robots, or labor-replacement angles unless the supplied headlines truly require them.',
+      'Produce TWO calibrated versions of the SAME underlying debate:',
+      '- text: a short prompt, maximum 25 words, answerable in 3 to 5 sentences, that still forces the writer to take a clear side (e.g. "Do you agree that X? Argue one side.", "Which matters more, X or Y? Defend your choice.").',
+      '- essayPrompt: an essay-length version, 2 to 4 sentences, that frames the same debate as a formal argumentative-essay task: state the contestable claim, invite a thesis, and ask the writer to support a stance with reasons and evidence and to address a counterargument. It may reference the source material for evidence.',
+      'Both versions must be answerable from reasoning and opinion, not require insider expert data. Avoid live geopolitics, partisan politics, sports diplomacy, and abstract philosophy with no concrete anchor.',
+      'Ground both versions in the supplied headlines when available, but keep them answerable from the writer\'s own reasoning.',
       errorHint,
-      'Return ONLY JSON matching: {theme,text}.',
+      'The theme field should name the broad domain (e.g. "education", "media ethics", "personal finance") so downstream logic can avoid repeating it.',
+      'Return ONLY JSON matching: {theme,text,essayPrompt}.',
     ].filter(Boolean).join(' '),
     user: [
       `Topic: ${ctx.topic}`,
       `Headlines:\n${headlines}`,
-      'Write one fresh prompt with a concrete angle. Do not copy a headline verbatim.',
-      "What's your view prompt:",
+      `Recent prompt memory to avoid (wording and subject):\n${previousPrompts}`,
+      'Write one fresh debatable prompt in both a short and an essay-length form. Do not copy a headline verbatim.',
+      'Return {theme,text,essayPrompt}.',
     ].join('\n\n'),
   };
 }
@@ -524,8 +541,9 @@ export function assemblePrimePrompt(ctx: PrimePromptContext): { system: string; 
     system: [
       'You select vocabulary activation candidates for a writing practice session.',
       `Choose up to ${limit} words, phrases, or collocations that naturally fit the full prompt text.`,
-      'Favor phrases and collocations, especially terms useful for academic or professional writing.',
-      'Prefer daily-life, tech, and business chunks the learner can reuse, including native slang, niche phrases, and common collocations such as equal footing or move in lockstep when they fit.',
+      'Separate the choice mentally into single words, fixed combos, and larger chunks; do not let generic single words crowd out useful collocations.',
+      'Favor precise phrases and fixed combinations for academic or professional writing, including prepositions and gerund patterns such as design for, make a decision on, worth doing, or move in lockstep when they fit the topic.',
+      'Prefer daily-life, tech, and business chunks the learner can reuse, including native slang, niche phrases, and common academic or professional collocations.',
       'Use recency and memory value only as secondary signals; relevance to the prompt wins.',
       'Return ONLY JSON matching: {words:[string]}.',
     ].join(' '),
@@ -547,8 +565,15 @@ export async function generateDailyPrompt(
 
 export async function generateNewsPrompt(
   provider: LLMProvider,
-  ctx: { topic: string; headlines: string[]; model: string; topErrors?: string[] },
-): Promise<{ theme: string; text: string }> {
+  ctx: {
+    topic: string;
+    headlines: string[];
+    model: string;
+    topErrors?: string[];
+    previousPrompts?: string[];
+    previousTheme?: string;
+  },
+): Promise<{ theme: string; text: string; essayPrompt?: string }> {
   const { system, user } = assembleNewsPrompt(ctx);
   const raw = await provider.complete({ system, user, model: ctx.model });
   return dailyPromptZ.parse(JSON.parse(raw));
@@ -561,4 +586,75 @@ export async function selectPrimeWords(
   const { system, user } = assemblePrimePrompt(ctx);
   const raw = await provider.complete({ system, user, model: ctx.model });
   return primeWordsZ.parse(JSON.parse(raw)).words;
+}
+
+export interface QuoteArticle {
+  title: string;
+  link: string;
+  source?: string;
+  text: string;
+}
+
+export interface QuoteExtractionContext {
+  promptText: string;
+  articles: QuoteArticle[];
+}
+
+export function assembleQuoteExtractionPrompt(ctx: QuoteExtractionContext): { system: string; user: string } {
+  const articles = ctx.articles
+    .map((article, index) => [
+      `[Article ${index + 1}] ${article.title}`,
+      article.source ? `Source: ${article.source}` : undefined,
+      `Link: ${article.link}`,
+      `Text: ${article.text}`,
+    ].filter(Boolean).join('\n'))
+    .join('\n\n');
+
+  return {
+    system: [
+      'You extract short, quotable sentences from source articles so a writer can cite or paraphrase them in an argumentative essay.',
+      'CRITICAL: every quote MUST appear word-for-word in the provided article text. Never paraphrase, never summarize, never invent, never stitch fragments together. If an article has nothing suitable, skip it.',
+      'Prefer 1 to 2 sentence quotes that carry a fact, statistic, concrete claim, or vivid phrasing relevant to the prompt debate.',
+      'Choose up to 4 quotes total across all articles, most useful first, and avoid near-duplicates.',
+      'For each quote, set source to the outlet name and link to the exact article link provided.',
+      'Return ONLY JSON matching: {quotes:[{quote,source,link}]}. If no verbatim quote qualifies, return {quotes:[]}.',
+    ].join(' '),
+    user: [
+      `Prompt debate: ${ctx.promptText}`,
+      `Articles:\n${articles}`,
+      'Extract only verbatim quotes that genuinely help argue this prompt.',
+    ].join('\n\n'),
+  };
+}
+
+// Normalize for verbatim comparison: models often return curly quotes or reflowed whitespace
+// even when the substance is copied faithfully. We compare on a punctuation/space-insensitive
+// form so we keep genuine copies while still dropping anything not actually in the source.
+function normalizeForVerbatim(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[‘’“”'"`]/g, '')
+    .replace(/[\s ]+/g, ' ')
+    .trim();
+}
+
+export async function extractSourceQuotes(
+  provider: LLMProvider,
+  ctx: QuoteExtractionContext & { model: string },
+): Promise<SourceQuote[]> {
+  const usable = ctx.articles.filter(article => article.text.trim().length > 0);
+  if (!usable.length) return [];
+
+  const { system, user } = assembleQuoteExtractionPrompt({ promptText: ctx.promptText, articles: usable });
+  const raw = await provider.complete({ system, user, model: ctx.model });
+  const parsed = sourceQuotesZ.parse(JSON.parse(raw));
+
+  const haystacks = usable.map(article => normalizeForVerbatim(article.text));
+  return parsed.quotes
+    .filter(item => {
+      const needle = normalizeForVerbatim(item.quote);
+      // Guard against fabrication: only keep quotes that literally occur in a fetched article.
+      return needle.length >= 12 && haystacks.some(text => text.includes(needle));
+    })
+    .slice(0, 4);
 }

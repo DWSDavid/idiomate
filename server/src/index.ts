@@ -4,8 +4,10 @@ import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AppDependencies } from './appContext.js';
+import { DeepSeekProvider } from './brain/deepseek.js';
 import { OpenAIProvider } from './brain/openai.js';
 import { OpenAIEmbeddingProvider } from './brain/openaiEmbedding.js';
+import type { LLMProvider } from './brain/provider.js';
 import { config } from './config.js';
 import { migrate, openDb } from './db/db.js';
 import { accessMiddleware } from './middleware/access.js';
@@ -34,6 +36,13 @@ interface CreateAppOptions {
   clientDistPath?: string;
 }
 
+function createUtilityProvider(): LLMProvider {
+  if (config.utilityProvider === 'deepseek') {
+    return new DeepSeekProvider(config.deepseekApiKey, { baseUrl: config.deepseekBaseUrl });
+  }
+  return new OpenAIProvider(config.apiKey);
+}
+
 export function createApp(overrides: Partial<AppDependencies> = {}, options: CreateAppOptions = {}) {
   const db = overrides.db ?? openDb();
   migrate(db);
@@ -47,10 +56,11 @@ export function createApp(overrides: Partial<AppDependencies> = {}, options: Cre
   const deps: AppDependencies = {
     db,
     coachProvider: overrides.coachProvider ?? new OpenAIProvider(config.apiKey),
-    utilityProvider: overrides.utilityProvider ?? new OpenAIProvider(config.apiKey),
+    utilityProvider: overrides.utilityProvider ?? createUtilityProvider(),
     embeddingProvider: hasEmbeddingOverride ? overrides.embeddingProvider : new OpenAIEmbeddingProvider(config.apiKey),
     headlineFetcher: overrides.headlineFetcher,
     newsFetcher: overrides.newsFetcher,
+    articleFetcher: overrides.articleFetcher,
   };
 
   const app = express();
