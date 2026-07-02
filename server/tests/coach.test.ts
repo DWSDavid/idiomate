@@ -60,6 +60,36 @@ it('throws on malformed JSON', async () => {
   })).rejects.toThrow();
 });
 
+it('tolerates annotations missing modelRewrite/hint/explanation instead of failing the whole response', async () => {
+  // gpt-4o intermittently omits required string fields; a single omission must not 400 the
+  // entire coach/sentence-lab/speaking response.
+  const partial: LLMProvider = {
+    async complete() {
+      return JSON.stringify({
+        paragraphIndex: 0,
+        annotations: [
+          { span: 'the entrenched incumbents', errorType: 'noun_plague' },
+        ],
+        nativeVersion: 'The incumbents are entrenched.',
+      });
+    },
+  };
+
+  const res = await coachParagraph(partial, {
+    paragraph: 'the entrenched incumbents dominate',
+    paragraphIndex: 0,
+    topErrors: [],
+    vocabCandidates: [],
+    model: 'test',
+  });
+
+  expect(res.annotations).toHaveLength(1);
+  expect(res.annotations[0].span).toBe('the entrenched incumbents');
+  expect(res.annotations[0].modelRewrite).toBe('');
+  expect(res.annotations[0].hint).toBe('');
+  expect(res.annotations[0].explanation).toBe('');
+});
+
 it('validates speaking review responses with takeaways', () => {
   const parsed = speakingReviewResponseZ.parse({
     nativeVersion: 'I think the article makes a fair point, but it overlooks execution risk.',

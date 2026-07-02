@@ -10,11 +10,15 @@ export const annotationZ = z.object({
   span: z.string().min(1),
   // Tolerant: if the model invents an out-of-enum errorType, fall back rather than 500 the whole response.
   errorType: z.enum(ERROR_TYPES).catch('small_grammar'),
-  hint: z.string().min(1),
-  explanation: z.string().min(1),
+  // gpt-4o intermittently omits these required strings on an annotation. A single omission
+  // must degrade that field to empty, not reject the entire coach/sentence-lab/speaking
+  // response (which surfaced to the user as "Sentence Lab is unavailable"). modelRewrite is
+  // hidden until the user rewrites anyway, so an empty fallback is harmless.
+  hint: z.string().min(1).catch(''),
+  explanation: z.string().min(1).catch(''),
   rule: z.string().min(1).optional(),
   ruleExample: ruleExampleZ.optional(),
-  modelRewrite: z.string(),
+  modelRewrite: z.string().catch(''),
   vocabWord: z.string().optional(),
   distinction: z.string().optional(),
 });
