@@ -23,6 +23,7 @@ import { createLessonsRouter } from './routes/lessons.js';
 import { createMemoryRouter } from './routes/memory.js';
 import { createMistakesRouter } from './routes/mistakes.js';
 import { createParagraphsRouter } from './routes/paragraphs.js';
+import { createPatternsRouter } from './routes/patterns.js';
 import { createProfileRouter } from './routes/profile.js';
 import { createProgressRouter } from './routes/progress.js';
 import { createPromptsRouter } from './routes/prompts.js';
@@ -90,6 +91,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}, options: Cre
   app.use('/api/memory', createMemoryRouter(deps));
   app.use('/api/mistakes', createMistakesRouter(deps));
   app.use('/api/paragraph-result', createParagraphsRouter(deps));
+  app.use('/api/patterns', createPatternsRouter(deps));
   app.use('/api/prompt', createPromptsRouter(deps));
   app.use('/api/progress', createProgressRouter(deps));
   app.use('/api/sessions', createSessionsRouter(deps));

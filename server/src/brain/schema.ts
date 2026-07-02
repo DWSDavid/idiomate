@@ -82,6 +82,12 @@ export const flowDrillCheckZ = z.object({
   modelAnswer: z.string().min(1),
 });
 
+export const patternUsageCheckZ = z.object({
+  correct: z.boolean().catch(false),
+  feedback: z.string().min(1),
+  modelSentence: z.string().min(1),
+});
+
 export const primeWordsZ = z.object({
   words: z.array(z.string().min(1)).min(1).max(10),
 });

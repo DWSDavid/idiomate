@@ -17,6 +17,7 @@ import { ReviewPanel } from './components/ReviewPanel';
 import { DailyDashboard } from './components/DailyDashboard';
 import { GraduatedShelf } from './components/GraduatedShelf';
 import { FlowCoach } from './components/FlowCoach';
+import { PatternsPanel } from './components/PatternsPanel';
 import { SentenceLab } from './components/SentenceLab';
 import { SentencePatterns } from './components/SentencePatterns';
 import { SpeakingReview } from './components/SpeakingReview';
@@ -32,18 +33,19 @@ interface CoachPanelState {
   response: CoachResponse;
 }
 
-type WorkspaceSection = 'write' | 'speak' | 'lab' | 'flow' | 'words' | 'history' | 'review' | 'me' | 'patterns' | 'admin';
+type WorkspaceSection = 'write' | 'speak' | 'lab' | 'flow' | 'patterns' | 'words' | 'history' | 'review' | 'me' | 'sentencePatterns' | 'admin';
 
 const workspaceSections: Array<{ id: WorkspaceSection; label: string }> = [
   { id: 'write', label: 'Write' },
   { id: 'speak', label: 'Speak' },
   { id: 'lab', label: 'Lab' },
   { id: 'flow', label: 'Flow' },
+  { id: 'patterns', label: 'Patterns' },
   { id: 'words', label: 'Vocabulary' },
   { id: 'history', label: 'History' },
   { id: 'review', label: 'Review' },
   { id: 'me', label: 'Me' },
-  { id: 'patterns', label: 'Patterns' },
+  { id: 'sentencePatterns', label: 'Sentence patterns' },
 ];
 
 export function App() {
@@ -292,7 +294,11 @@ export function App() {
           <MemoryProfileCard />
         </section>
 
-        <section className={`workspace-page${activeSection === 'patterns' ? '' : ' hidden'}`} aria-label="sentence patterns">
+        <section className={`workspace-page${activeSection === 'patterns' ? '' : ' hidden'}`} aria-label="preposition patterns">
+          <PatternsPanel />
+        </section>
+
+        <section className={`workspace-page${activeSection === 'sentencePatterns' ? '' : ' hidden'}`} aria-label="sentence patterns">
           <SentencePatterns />
         </section>
 

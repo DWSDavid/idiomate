@@ -6,6 +6,8 @@ import type {
   FlowAnalysisResponse,
   FlowDrillCheckResponse,
   LessonResponse,
+  Pattern,
+  PatternUsageCheckResponse,
   MistakeLogItem,
   MistakeRankingItem,
   Prompt,
@@ -473,5 +475,43 @@ export function checkFlowDrill(payload: {
     drillPrompt: payload.drillPrompt,
     targetSkill: payload.targetSkill,
     attempt: payload.attempt.trim(),
+  });
+}
+
+export function getPatterns(): Promise<{ items: Pattern[] }> {
+  return apiFetch('/api/patterns').then(readJson<{ items: Pattern[] }>);
+}
+
+export function addPattern(payload: {
+  phrase: string;
+  preposition?: string;
+  example?: string;
+  note?: string;
+}): Promise<Pattern> {
+  return postJson<Pattern>('/api/patterns', {
+    phrase: payload.phrase.trim(),
+    preposition: payload.preposition?.trim() || undefined,
+    example: payload.example?.trim() || undefined,
+    note: payload.note?.trim() || undefined,
+  });
+}
+
+export function reviewPattern(id: number, correct: boolean): Promise<Pattern> {
+  return postJson<Pattern>(`/api/patterns/${id}/review`, { correct });
+}
+
+export function deletePattern(id: number): Promise<void> {
+  return apiFetch(`/api/patterns/${id}`, { method: 'DELETE' }).then(readVoid);
+}
+
+export function checkPatternUsage(payload: {
+  phrase: string;
+  preposition: string;
+  sentence: string;
+}): Promise<PatternUsageCheckResponse> {
+  return postJson<PatternUsageCheckResponse>('/api/patterns/check-usage', {
+    phrase: payload.phrase,
+    preposition: payload.preposition,
+    sentence: payload.sentence.trim(),
   });
 }

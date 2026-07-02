@@ -69,7 +69,7 @@ it('renders a tabbed workspace with prompt and draft visible in the same workben
 
   expect(await screen.findByRole('banner', { name: 'Writing desk header' })).toBeInTheDocument();
   const nav = screen.getByRole('navigation', { name: 'Workspace sections' });
-  expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual(['Write', 'Speak', 'Lab', 'Flow', 'Vocabulary', 'History', 'Review', 'Me', 'Patterns']);
+  expect(within(nav).getAllByRole('button').map(button => button.textContent)).toEqual(['Write', 'Speak', 'Lab', 'Flow', 'Patterns', 'Vocabulary', 'History', 'Review', 'Me', 'Sentence patterns']);
   expect(within(nav).getByRole('button', { name: 'Write' })).toHaveAttribute('aria-pressed', 'true');
   expect(within(nav).queryByRole('button', { name: 'Admin' })).not.toBeInTheDocument();
   expect(within(nav).queryByRole('button', { name: 'Sentence Lab' })).not.toBeInTheDocument();

@@ -46,3 +46,10 @@ CREATE TABLE IF NOT EXISTS sentence_lab_drafts (
   id INTEGER PRIMARY KEY, user_id TEXT NOT NULL DEFAULT 'local',
   date TEXT, sentence TEXT NOT NULL, context TEXT,
   response_json TEXT NOT NULL, created_at TEXT DEFAULT (datetime('now')));
+CREATE TABLE IF NOT EXISTS patterns (
+  id INTEGER PRIMARY KEY, user_id TEXT NOT NULL DEFAULT 'local',
+  phrase TEXT NOT NULL, preposition TEXT NOT NULL, cue TEXT NOT NULL,
+  example TEXT, note TEXT,
+  times_seen INTEGER DEFAULT 0, times_correct INTEGER DEFAULT 0,
+  last_reviewed TEXT, created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(user_id, phrase));

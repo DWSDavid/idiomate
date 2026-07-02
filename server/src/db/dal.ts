@@ -11,6 +11,7 @@ import type {
   MistakeRankingItem,
   MistakeTrendSeries,
   NewsItem,
+  Pattern,
   Prompt,
   ProgressDailyPoint,
   SaveVocabResponse,
@@ -1935,4 +1936,95 @@ export function recordParagraphResult(
   });
 
   return applyResult();
+}
+
+interface PatternRow {
+  id: number;
+  phrase: string;
+  preposition: string;
+  cue: string;
+  example: string | null;
+  note: string | null;
+  times_seen: number;
+  times_correct: number;
+  last_reviewed: string | null;
+  created_at: string | null;
+}
+
+function patternFromRow(row: PatternRow): Pattern {
+  return {
+    id: row.id,
+    phrase: row.phrase,
+    preposition: row.preposition,
+    cue: row.cue,
+    example: row.example ?? undefined,
+    note: row.note ?? undefined,
+    timesSeen: row.times_seen,
+    timesCorrect: row.times_correct,
+    lastReviewed: row.last_reviewed ?? undefined,
+    createdAt: row.created_at ?? undefined,
+  };
+}
+
+export interface InsertPatternInput {
+  phrase: string;
+  preposition: string;
+  cue: string;
+  example?: string;
+  note?: string;
+}
+
+export function insertPattern(db: Database.Database, userId: string, input: InsertPatternInput): Pattern {
+  const info = db.prepare(`
+    INSERT INTO patterns (user_id, phrase, preposition, cue, example, note)
+    VALUES (@userId, @phrase, @preposition, @cue, @example, @note)
+    ON CONFLICT(user_id, phrase) DO UPDATE SET
+      preposition = excluded.preposition,
+      cue = excluded.cue,
+      example = COALESCE(excluded.example, patterns.example),
+      note = COALESCE(excluded.note, patterns.note)
+  `).run({
+    userId,
+    phrase: input.phrase,
+    preposition: input.preposition,
+    cue: input.cue,
+    example: input.example ?? null,
+    note: input.note ?? null,
+  });
+  const id = info.lastInsertRowid
+    ? Number(info.lastInsertRowid)
+    : (db.prepare('SELECT id FROM patterns WHERE user_id = ? AND phrase = ?').get(userId, input.phrase) as { id: number }).id;
+  return getPattern(db, userId, id)!;
+}
+
+export function getPattern(db: Database.Database, userId: string, id: number): Pattern | undefined {
+  const row = db.prepare('SELECT * FROM patterns WHERE id = ? AND user_id = ?').get(id, userId) as PatternRow | undefined;
+  return row ? patternFromRow(row) : undefined;
+}
+
+export function listPatterns(db: Database.Database, userId: string): Pattern[] {
+  const rows = db.prepare(`
+    SELECT * FROM patterns
+    WHERE user_id = ?
+    ORDER BY preposition COLLATE NOCASE ASC, phrase COLLATE NOCASE ASC
+  `).all(userId) as PatternRow[];
+  return rows.map(patternFromRow);
+}
+
+export function recordPatternReview(db: Database.Database, userId: string, id: number, correct: boolean): Pattern | undefined {
+  const existing = db.prepare('SELECT id FROM patterns WHERE id = ? AND user_id = ?').get(id, userId) as { id: number } | undefined;
+  if (!existing) return undefined;
+  db.prepare(`
+    UPDATE patterns
+    SET times_seen = times_seen + 1,
+        times_correct = times_correct + ?,
+        last_reviewed = datetime('now')
+    WHERE id = ? AND user_id = ?
+  `).run(correct ? 1 : 0, id, userId);
+  return getPattern(db, userId, id);
+}
+
+export function deletePattern(db: Database.Database, userId: string, id: number): boolean {
+  const info = db.prepare('DELETE FROM patterns WHERE id = ? AND user_id = ?').run(id, userId);
+  return info.changes > 0;
 }

@@ -386,6 +386,59 @@ export interface FlowDrillCheckResponse {
   modelAnswer: string;
 }
 
+// Pattern bank: fixed prepositional collocations ("on the stage", "at an event",
+// "play with") that have no derivable logic and must be memorized + drilled.
+export interface Pattern {
+  id: number;
+  phrase: string;         // "on the stage"
+  preposition: string;    // "on"  (the gap answer)
+  cue: string;            // "___ the stage"
+  example?: string;
+  note?: string;
+  timesSeen: number;
+  timesCorrect: number;
+  lastReviewed?: string;
+  createdAt?: string;
+}
+
+export interface PatternUsageCheckResponse {
+  correct: boolean;
+  feedback: string;
+  modelSentence: string;
+}
+
+// Common English prepositions/particles used to auto-detect the gap when adding a
+// pattern. Ordered longest-first so multi-word ones win (e.g. "out of" before "of").
+export const PREPOSITIONS: readonly string[] = [
+  'according to', 'out of', 'because of', 'instead of', 'ahead of', 'in front of',
+  'about', 'above', 'across', 'after', 'against', 'along', 'among', 'around',
+  'at', 'before', 'behind', 'below', 'beneath', 'beside', 'between', 'beyond',
+  'by', 'down', 'during', 'for', 'from', 'in', 'inside', 'into', 'near', 'of',
+  'off', 'on', 'onto', 'over', 'through', 'to', 'toward', 'towards', 'under',
+  'until', 'up', 'upon', 'with', 'within', 'without',
+];
+
+function wordBoundaryRegex(token: string): RegExp {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`\\b${escaped}\\b`, 'i');
+}
+
+// Best-effort: pick the preposition to blank out. Longest match first so multi-word
+// prepositions win. Returns '' if none found (the user then picks it manually).
+export function detectPreposition(phrase: string): string {
+  const lower = ` ${phrase.toLowerCase()} `;
+  for (const prep of PREPOSITIONS) {
+    if (wordBoundaryRegex(prep).test(lower)) return prep;
+  }
+  return '';
+}
+
+// Replace the first whole-word occurrence of the preposition with a blank.
+export function buildPatternCue(phrase: string, preposition: string): string {
+  if (!preposition) return phrase;
+  return phrase.replace(wordBoundaryRegex(preposition), '___');
+}
+
 export type FollowUpScope = 'sentence_lab' | 'paragraph';
 export type FollowUpMode = 'pre_rewrite' | 'post_rewrite';
 
