@@ -16,6 +16,7 @@ import { ProgressPanel } from './components/ProgressPanel';
 import { ReviewPanel } from './components/ReviewPanel';
 import { DailyDashboard } from './components/DailyDashboard';
 import { GraduatedShelf } from './components/GraduatedShelf';
+import { FlowCoach } from './components/FlowCoach';
 import { SentenceLab } from './components/SentenceLab';
 import { SentencePatterns } from './components/SentencePatterns';
 import { SpeakingReview } from './components/SpeakingReview';
@@ -31,12 +32,13 @@ interface CoachPanelState {
   response: CoachResponse;
 }
 
-type WorkspaceSection = 'write' | 'speak' | 'lab' | 'words' | 'history' | 'review' | 'me' | 'patterns' | 'admin';
+type WorkspaceSection = 'write' | 'speak' | 'lab' | 'flow' | 'words' | 'history' | 'review' | 'me' | 'patterns' | 'admin';
 
 const workspaceSections: Array<{ id: WorkspaceSection; label: string }> = [
   { id: 'write', label: 'Write' },
   { id: 'speak', label: 'Speak' },
   { id: 'lab', label: 'Lab' },
+  { id: 'flow', label: 'Flow' },
   { id: 'words', label: 'Vocabulary' },
   { id: 'history', label: 'History' },
   { id: 'review', label: 'Review' },
@@ -258,7 +260,14 @@ export function App() {
         </section>
 
         <section className={`workspace-page${activeSection === 'lab' ? '' : ' hidden'}`} aria-label="sentence lab">
-          <SentenceLab onRecorded={() => { setProfileKey(key => key + 1); setHistoryKey(key => key + 1); }} />
+          <SentenceLab
+            onRecorded={() => { setProfileKey(key => key + 1); setHistoryKey(key => key + 1); }}
+            onVocabSaved={handleVocabSaved}
+          />
+        </section>
+
+        <section className={`workspace-page${activeSection === 'flow' ? '' : ' hidden'}`} aria-label="flow coach">
+          <FlowCoach />
         </section>
 
         <section className={`workspace-page two-column-page${activeSection === 'words' ? '' : ' hidden'}`} aria-label="vocabulary">

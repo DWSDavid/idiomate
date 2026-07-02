@@ -47,6 +47,41 @@ export const sourceQuotesZ = z.object({
   })).default([]),
 });
 
+const flowConnectiveZ = z.object({
+  connective: z.string().min(1),
+  why: z.string().min(1),
+}).nullable().catch(null);
+
+const flowTenseNoteZ = z.object({
+  tense: z.string().min(1),
+  why: z.string().min(1),
+}).nullable().catch(null);
+
+const flowDrillZ = z.object({
+  prompt: z.string().min(1),
+  targetSkill: z.string().min(1).catch('sentence flow'),
+  vocabUsed: z.array(z.string().min(1)).default([]),
+  modelAnswer: z.string().min(1),
+});
+
+export const flowAnalysisZ = z.object({
+  lines: z.array(z.object({
+    original: z.string().min(1),
+    pieces: z.array(z.string().min(1)).default([]),
+    rewrite: z.string().min(1),
+    linkToPrevious: flowConnectiveZ,
+    tenseNote: flowTenseNoteZ,
+    changes: z.array(z.string().min(1)).default([]),
+    drill: flowDrillZ,
+  })).min(1),
+});
+
+export const flowDrillCheckZ = z.object({
+  correct: z.boolean().catch(false),
+  feedback: z.string().min(1),
+  modelAnswer: z.string().min(1),
+});
+
 export const primeWordsZ = z.object({
   words: z.array(z.string().min(1)).min(1).max(10),
 });

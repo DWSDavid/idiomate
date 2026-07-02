@@ -3,6 +3,8 @@ import type {
   CoachResponse,
   ErrorTally,
   ErrorType,
+  FlowAnalysisResponse,
+  FlowDrillCheckResponse,
   LessonResponse,
   MistakeLogItem,
   MistakeRankingItem,
@@ -12,6 +14,7 @@ import type {
   ResearchResponse,
   SentenceLabDiagnosisResponse,
   SentenceLabResultResponse,
+  SentenceTranslationResponse,
   SpeakingReviewResponse,
   SessionSaveResult,
   StructureResponse,
@@ -372,6 +375,16 @@ export function diagnoseSentenceLab(
   });
 }
 
+export function translateSentenceToChinese(
+  sentence: string,
+  context?: string,
+): Promise<SentenceTranslationResponse> {
+  return postJson<SentenceTranslationResponse>('/api/sentence-lab/translate', {
+    sentence,
+    context: context?.trim() || undefined,
+  });
+}
+
 export function revealSentenceLabResult(
   id: number,
   rewrite: string,
@@ -442,4 +455,23 @@ export interface GraduatedVocabResponse {
 
 export function getGraduatedVocab(): Promise<GraduatedVocabResponse> {
   return apiFetch('/api/vocab/graduated').then(readJson<GraduatedVocabResponse>);
+}
+
+export function analyzeFlow(draft: string, context?: string): Promise<FlowAnalysisResponse> {
+  return postJson<FlowAnalysisResponse>('/api/flow/analyze', {
+    draft: draft.trim(),
+    context: context?.trim() || undefined,
+  });
+}
+
+export function checkFlowDrill(payload: {
+  drillPrompt: string;
+  targetSkill: string;
+  attempt: string;
+}): Promise<FlowDrillCheckResponse> {
+  return postJson<FlowDrillCheckResponse>('/api/flow/drill/check', {
+    drillPrompt: payload.drillPrompt,
+    targetSkill: payload.targetSkill,
+    attempt: payload.attempt.trim(),
+  });
 }

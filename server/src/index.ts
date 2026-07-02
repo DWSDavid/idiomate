@@ -17,6 +17,7 @@ import { createAdminRouter } from './routes/admin.js';
 import { createCoachRouter } from './routes/coach.js';
 import { createCoachHistoryRouter } from './routes/coachHistory.js';
 import { createFollowUpRouter } from './routes/followUp.js';
+import { createFlowRouter } from './routes/flow.js';
 import { createHistoryRouter } from './routes/history.js';
 import { createLessonsRouter } from './routes/lessons.js';
 import { createMemoryRouter } from './routes/memory.js';
@@ -83,6 +84,7 @@ export function createApp(overrides: Partial<AppDependencies> = {}, options: Cre
   app.use('/api/coach', createCoachRouter(deps));
   app.use('/api/coach-history', createCoachHistoryRouter(deps));
   app.use('/api/follow-up', createFollowUpRouter(deps));
+  app.use('/api/flow', createFlowRouter(deps));
   app.use('/api/history', createHistoryRouter(deps));
   app.use('/api/lesson', createLessonsRouter(deps));
   app.use('/api/memory', createMemoryRouter(deps));

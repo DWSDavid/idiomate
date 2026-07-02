@@ -717,16 +717,20 @@ it('POST /api/follow-up keeps pre-rewrite answers reveal-safe and allows post-re
 });
 
 it('POST /api/sessions records errors and increments accepted vocab suggestions', async () => {
-  insertVocab(db, USER_ID, [{ word: 'shore up', kind: 'phrase', timesSuggested: 0, timesUsed: 0 }]);
+  insertVocab(db, USER_ID, [
+    { word: 'shore up', kind: 'phrase', timesSuggested: 0, timesUsed: 0 },
+    { word: 'risk premium', kind: 'phrase', timesSuggested: 2, timesUsed: 0 },
+  ]);
 
   await withServer(createApp({ db }), async baseUrl => {
     const res = await fetch(`${baseUrl}/api/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        draftText: 'We need support margins.',
+        draftText: 'We need support margins because the risk premium widened.',
         finalText: 'We need to shore up margins.',
         durationS: 120,
+        primedVocab: ['risk premium', 'duration mismatch'],
         annotations: [
           {
             paragraphIdx: 0,
@@ -762,11 +766,19 @@ it('POST /api/sessions records errors and increments accepted vocab suggestions'
       expect.objectContaining({ errorType: 'redundancy', count: 1 }),
     ]);
     const usageAfterFirst = db.prepare(`
-      SELECT times_used
+      SELECT normalized, times_used
       FROM vocab
-      WHERE user_id = ? AND normalized = ?
-    `).get(USER_ID, 'shore up') as { times_used: number };
-    expect(usageAfterFirst.times_used).toBe(1);
+      WHERE user_id = ? AND normalized IN (?, ?)
+      ORDER BY normalized
+    `).all(USER_ID, 'risk premium', 'shore up') as Array<{ normalized: string; times_used: number }>;
+    expect(usageAfterFirst).toEqual([
+      { normalized: 'risk premium', times_used: 1 },
+      { normalized: 'shore up', times_used: 1 },
+    ]);
+    expect(json).toEqual(expect.objectContaining({
+      vocabUsed: 1,
+      vocabTotal: 2,
+    }));
     const row = db.prepare(`
       SELECT rule, rule_example
       FROM annotations
@@ -1697,6 +1709,90 @@ it('GET /api/prompt/today attaches essay prompt and verbatim source quotes', asy
     const stored = libraryJson.prompts.find((p: { id: number }) => p.id === json.id);
     expect(stored.essayPrompt).toContain('counterargument');
     expect(stored.sourceQuotes[0].quote).toContain('Adoption doubled in a year');
+  });
+});
+
+it('POST /api/flow/analyze returns line-by-line coaching seeded with the user vocab', async () => {
+  upsertVocab(db, USER_ID, { word: 'entrenched', normalized: 'entrenched', kind: 'word', timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, USER_ID, { word: 'as a result', normalized: 'as a result', kind: 'collocation', timesSuggested: 0, timesUsed: 0 });
+
+  let captured: { system: string; user: string } | undefined;
+  const utilityProvider: LLMProvider = {
+    async complete(opts) {
+      captured = opts;
+      return JSON.stringify({
+        lines: [
+          {
+            original: 'I read a lot.',
+            pieces: ['I read a lot'],
+            rewrite: 'I read widely.',
+            linkToPrevious: null,
+            tenseNote: null,
+            changes: [],
+            drill: {
+              prompt: 'Link: "The plan slipped. The launch moved." with a cause connective.',
+              targetSkill: 'cause-effect connective',
+              vocabUsed: ['as a result'],
+              modelAnswer: 'The plan slipped; as a result, the launch moved.',
+            },
+          },
+        ],
+      });
+    },
+  };
+
+  await withServer(createApp({ db, utilityProvider }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/flow/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ draft: 'I read a lot. My writing is weak.', context: 'reflection' }),
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.lines).toHaveLength(1);
+    expect(json.lines[0].drill.targetSkill).toBe('cause-effect connective');
+    // The saved vocab is offered to the model as drill seeds.
+    expect(captured!.user).toContain('as a result');
+    expect(captured!.user).toContain('entrenched');
+  });
+});
+
+it('POST /api/flow/analyze rejects a too-short draft', async () => {
+  await withServer(createApp({ db }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/flow/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ draft: 'too short' }),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+it('POST /api/flow/drill/check grades a write-your-own attempt', async () => {
+  const utilityProvider: LLMProvider = {
+    async complete() {
+      return JSON.stringify({
+        correct: true,
+        feedback: 'Good concession with "even though" and consistent present tense.',
+        modelAnswer: 'Even though I study daily, I still forget words.',
+      });
+    },
+  };
+
+  await withServer(createApp({ db, utilityProvider }), async baseUrl => {
+    const res = await fetch(`${baseUrl}/api/flow/drill/check`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        drillPrompt: 'Link two ideas with a concession.',
+        targetSkill: 'concession + present tense',
+        attempt: 'Even though I study daily, I forget words.',
+      }),
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.correct).toBe(true);
+    expect(json.modelAnswer).toContain('Even though');
   });
 });
 

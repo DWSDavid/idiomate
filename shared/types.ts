@@ -342,6 +342,50 @@ export interface SentenceLabResultResponse {
   annotations: Array<Annotation & { userRewrite?: string; accepted?: boolean }>;
 }
 
+export interface SentenceTranslationResponse {
+  sentence: string;
+  translation: string;
+}
+
+// Flow Coach: line-by-line connective / tense / sentence-splitting coaching over a
+// whole draft, plus a write-your-own practice drill seeded from the user's saved vocab.
+export interface FlowConnective {
+  connective: string; // e.g. "Even though", "As a result", "merge", "relative clause (which)"
+  why: string;
+}
+
+export interface FlowTenseNote {
+  tense: string;
+  why: string;
+}
+
+export interface FlowDrill {
+  prompt: string;        // a NEW mini task in a similar context
+  targetSkill: string;   // e.g. "concession connective + present tense"
+  vocabUsed: string[];   // saved words the drill asks the writer to deploy
+  modelAnswer: string;   // hidden client-side until a check returns
+}
+
+export interface FlowLine {
+  original: string;
+  pieces: string[];                        // logical sub-ideas the sentence contains
+  rewrite: string;
+  linkToPrevious: FlowConnective | null;   // null for the first sentence
+  tenseNote: FlowTenseNote | null;         // only when tense is a teaching point
+  changes: string[];                       // short what-changed-and-why notes
+  drill: FlowDrill;
+}
+
+export interface FlowAnalysisResponse {
+  lines: FlowLine[];
+}
+
+export interface FlowDrillCheckResponse {
+  correct: boolean;
+  feedback: string;      // names the connective + tense
+  modelAnswer: string;
+}
+
 export type FollowUpScope = 'sentence_lab' | 'paragraph';
 export type FollowUpMode = 'pre_rewrite' | 'post_rewrite';
 
