@@ -4,6 +4,7 @@ import type { AppDependencies } from '../appContext.js';
 import { buildPatternCue, detectPreposition } from '../../../shared/types.js';
 import { checkPatternUsage } from '../brain/patterns.js';
 import { config } from '../config.js';
+import { scanVocabForPatterns } from '../patternScan.js';
 import {
   deletePattern,
   insertPattern,
@@ -91,6 +92,15 @@ export function createPatternsRouter(deps: AppDependencies): Router {
         return;
       }
       res.status(204).send();
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  router.post('/scan', async (req, res, next) => {
+    try {
+      const result = await scanVocabForPatterns(deps.db, deps.utilityProvider, req.userId, config.modelUtility);
+      res.json(result);
     } catch (err) {
       next(err);
     }

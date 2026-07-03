@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { Pattern, PatternUsageCheckResponse } from '../../../shared/types';
 import { buildPatternCue, detectPreposition } from '../../../shared/types';
-import { addPattern, checkPatternUsage, deletePattern, getPatterns, reviewPattern } from '../api';
+import { addPattern, checkPatternUsage, deletePattern, getPatterns, reviewPattern, scanPatterns } from '../api';
 
 type Mode = 'browse' | 'drill';
 
@@ -270,6 +270,8 @@ export function PatternsPanel() {
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [mode, setMode] = useState<Mode>('browse');
   const [loaded, setLoaded] = useState(false);
+  const [scanStatus, setScanStatus] = useState<'idle' | 'scanning'>('idle');
+  const [scanNote, setScanNote] = useState('');
 
   const load = async () => {
     try {
@@ -279,6 +281,22 @@ export function PatternsPanel() {
       // Leave the panel usable for adding even if the initial load fails.
     } finally {
       setLoaded(true);
+    }
+  };
+
+  const runScan = async () => {
+    setScanStatus('scanning');
+    setScanNote('');
+    try {
+      const result = await scanPatterns();
+      await load();
+      setScanNote(result.added > 0
+        ? `Added ${result.added} pattern${result.added === 1 ? '' : 's'} from your vocabulary. Total: ${result.total}.`
+        : `No new patterns found. Total: ${result.total}.`);
+    } catch {
+      setScanNote('Scan failed. Please try again.');
+    } finally {
+      setScanStatus('idle');
     }
   };
 
@@ -304,6 +322,23 @@ export function PatternsPanel() {
   return (
     <div className="space-y-4">
       <AddPatternBox onAdded={upsert} />
+
+      <section className="surface space-y-2" aria-label="scan vocabulary">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <span className="section-label">Build from my vocabulary</span>
+            <p className="mt-1 text-sm leading-6 text-slate-600">
+              Scan your saved words for fixed prepositional combos (register for, depend on, keen on) and add them here.
+              New words you save are checked automatically.
+            </p>
+          </div>
+          <button type="button" className="btn-secondary whitespace-nowrap" disabled={scanStatus === 'scanning'} onClick={runScan}>
+            {scanStatus === 'scanning' ? 'Scanning…' : 'Scan my vocab'}
+          </button>
+        </div>
+        {scanStatus === 'scanning' ? <p className="text-xs text-slate-500">This can take up to a minute for a large vocabulary.</p> : null}
+        {scanNote ? <p className="text-sm text-emerald-700">{scanNote}</p> : null}
+      </section>
 
       <div className="flex rounded-full border border-slate-200 bg-white p-1" aria-label="patterns mode">
         {(['browse', 'drill'] as const).map(option => (

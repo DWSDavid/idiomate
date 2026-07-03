@@ -92,6 +92,13 @@ export const patternUsageCheckZ = z.object({
   modelSentence: z.string().min(1),
 });
 
+export const patternExtractionZ = z.object({
+  patterns: z.array(z.object({
+    phrase: z.string().min(2),
+    preposition: z.string().min(1),
+  })).default([]),
+});
+
 export const primeWordsZ = z.object({
   words: z.array(z.string().min(1)).min(1).max(10),
 });

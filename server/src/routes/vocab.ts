@@ -7,6 +7,7 @@ import type { WordDeepDive } from '../brain/schema.js';
 import { selectPrimeWords } from '../brain/prompts.js';
 import { config } from '../config.js';
 import { parseYoudaoTxt } from '../import/youdao.js';
+import { autoAddRulePattern } from '../patternScan.js';
 import {
   getAllVocab,
   getDeepDiveCache,
@@ -151,6 +152,8 @@ export function createVocabRouter(deps: AppDependencies): Router {
         timesSuggested: body.timesSuggested ?? 0,
         timesUsed: body.timesUsed ?? 0,
       });
+      // Instantly bank the pattern if this saved phrase already contains a preposition.
+      try { autoAddRulePattern(deps.db, req.userId, saved.canonicalWord ?? body.word); } catch { /* never block a save */ }
       res.status(201).json(saved);
     } catch (err) {
       next(err);
@@ -166,6 +169,7 @@ export function createVocabRouter(deps: AppDependencies): Router {
         model: config.modelUtility,
       });
       const saved = upsertVocabWithResult(deps.db, req.userId, translated);
+      try { autoAddRulePattern(deps.db, req.userId, saved.canonicalWord ?? translated.word); } catch { /* never block a save */ }
       res.status(201).json({
         id: saved.id,
         captureCount: saved.captureCount,
@@ -203,6 +207,7 @@ export function createVocabRouter(deps: AppDependencies): Router {
         timesSuggested: 0,
         timesUsed: 0,
       });
+      try { autoAddRulePattern(deps.db, req.userId, result.canonicalWord ?? enriched.word); } catch { /* never block a save */ }
       res.status(result.existed ? 200 : 201).json({
         id: result.id,
         captureCount: result.captureCount,

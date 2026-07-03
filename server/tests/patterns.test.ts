@@ -2,11 +2,13 @@ import { afterEach, beforeEach, expect, it } from 'vitest';
 import type { Server } from 'node:http';
 import { createApp } from '../src/index.js';
 import { openDb, migrate } from '../src/db/db.js';
-import { detectPreposition, buildPatternCue } from '../../shared/types.js';
+import { detectPreposition, buildPatternCue, rulePatternFrom } from '../../shared/types.js';
 import {
   assemblePatternUsagePrompt,
+  sanitizeCombos,
 } from '../src/brain/patterns.js';
-import { insertPattern, listPatterns, recordPatternReview, deletePattern } from '../src/db/dal.js';
+import { insertPattern, listPatterns, recordPatternReview, deletePattern, upsertVocab } from '../src/db/dal.js';
+import { scanVocabForPatterns, autoAddRulePattern } from '../src/patternScan.js';
 import type { LLMProvider } from '../src/brain/provider.js';
 
 const USER_ID = 'local';
@@ -92,6 +94,55 @@ it('POST /api/patterns auto-detects the preposition and stores the cue', async (
     const list = await (await fetch(`${baseUrl}/api/patterns`)).json();
     expect(list.items).toHaveLength(1);
   });
+});
+
+it('rulePatternFrom extracts patterns from prepositional phrases and rejects others', () => {
+  expect(rulePatternFrom('brush up on')).toEqual({ phrase: 'brush up on', preposition: 'on', cue: 'brush up ___' });
+  expect(rulePatternFrom('keen on')).toEqual({ phrase: 'keen on', preposition: 'on', cue: 'keen ___' });
+  expect(rulePatternFrom('backlash')).toBeNull(); // single word, no preposition
+});
+
+it('sanitizeCombos keeps only real prepositions that appear in the phrase', () => {
+  const clean = sanitizeCombos([
+    { phrase: 'register for', preposition: 'for' },
+    { phrase: 'depend on', preposition: 'on' },
+    { phrase: 'made up nonsense', preposition: 'xyz' }, // not a preposition -> dropped
+    { phrase: 'register for', preposition: 'for' },      // duplicate -> dropped
+    { phrase: 'commit', preposition: 'to' },             // preposition not in phrase -> dropped
+  ]);
+  expect(clean).toEqual([
+    { phrase: 'register for', preposition: 'for' },
+    { phrase: 'depend on', preposition: 'on' },
+  ]);
+});
+
+it('scanVocabForPatterns rule-harvests phrases and AI-detects bare-word combos', async () => {
+  upsertVocab(db, USER_ID, { word: 'keen on', normalized: 'keen on', kind: 'collocation', timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, USER_ID, { word: 'register', normalized: 'register', kind: 'word', timesSuggested: 0, timesUsed: 0 });
+  upsertVocab(db, USER_ID, { word: 'backlash', normalized: 'backlash', kind: 'word', timesSuggested: 0, timesUsed: 0 });
+
+  const provider: LLMProvider = {
+    async complete(opts) {
+      // Only the bare words (register, backlash) reach the AI pass.
+      expect(opts.user).toContain('register');
+      expect(opts.user).not.toContain('keen on');
+      return JSON.stringify({ patterns: [{ phrase: 'register for', preposition: 'for' }] });
+    },
+  };
+
+  const result = await scanVocabForPatterns(db, provider, USER_ID, 'm');
+  expect(result.added).toBe(2); // 'keen on' (rule) + 'register for' (AI)
+  const phrases = listPatterns(db, USER_ID).map(p => p.phrase).sort();
+  expect(phrases).toEqual(['keen on', 'register for']);
+});
+
+it('autoAddRulePattern banks prepositional phrases on save but skips bare words (no AI)', () => {
+  expect(autoAddRulePattern(db, USER_ID, 'brush up on')).toBe(true);
+  expect(listPatterns(db, USER_ID).map(p => p.phrase)).toContain('brush up on');
+
+  // A bare word has no preposition to blank, so the save-time hook adds nothing (Scan/AI does).
+  expect(autoAddRulePattern(db, USER_ID, 'register')).toBe(false);
+  expect(listPatterns(db, USER_ID).map(p => p.phrase)).not.toContain('register for');
 });
 
 it('POST /api/patterns/check-usage grades a sentence with the utility model', async () => {

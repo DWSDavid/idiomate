@@ -500,6 +500,10 @@ export function reviewPattern(id: number, correct: boolean): Promise<Pattern> {
   return postJson<Pattern>(`/api/patterns/${id}/review`, { correct });
 }
 
+export function scanPatterns(): Promise<{ added: number; total: number }> {
+  return postJson<{ added: number; total: number }>('/api/patterns/scan', {});
+}
+
 export function deletePattern(id: number): Promise<void> {
   return apiFetch(`/api/patterns/${id}`, { method: 'DELETE' }).then(readVoid);
 }

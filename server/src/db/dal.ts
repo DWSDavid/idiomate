@@ -2028,3 +2028,16 @@ export function deletePattern(db: Database.Database, userId: string, id: number)
   const info = db.prepare('DELETE FROM patterns WHERE id = ? AND user_id = ?').run(id, userId);
   return info.changes > 0;
 }
+
+export function getAllVocabForScan(db: Database.Database, userId: string): Vocab[] {
+  const rows = db.prepare(`
+    SELECT * FROM vocab
+    WHERE user_id = ? AND COALESCE(graduated, 0) = 0
+  `).all(userId) as VocabRow[];
+  return rows.map(mapVocab);
+}
+
+export function countPatterns(db: Database.Database, userId: string): number {
+  const row = db.prepare('SELECT COUNT(*) AS count FROM patterns WHERE user_id = ?').get(userId) as { count: number };
+  return row.count;
+}

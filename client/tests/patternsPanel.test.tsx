@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { addPattern, checkPatternUsage, getPatterns, reviewPattern } from '../src/api';
+import { addPattern, checkPatternUsage, getPatterns, reviewPattern, scanPatterns } from '../src/api';
 import { PatternsPanel } from '../src/components/PatternsPanel';
 
 vi.mock('../src/api', () => ({
@@ -18,6 +18,7 @@ vi.mock('../src/api', () => ({
   })),
   deletePattern: vi.fn(async () => undefined),
   checkPatternUsage: vi.fn(async () => ({ correct: true, feedback: 'Correct use of "on".', modelSentence: 'She stood on the stage.' })),
+  scanPatterns: vi.fn(async () => ({ added: 12, total: 13 })),
 }));
 
 afterEach(() => {
@@ -46,6 +47,18 @@ it('grades the fill-the-preposition drill locally and records the review', async
 
   await waitFor(() => expect(screen.getByText('✓ Correct')).toBeInTheDocument());
   expect(reviewPattern).toHaveBeenCalledWith(1, true);
+});
+
+it('scans the vocabulary and reports how many patterns were added', async () => {
+  render(<PatternsPanel />);
+  await waitFor(() => expect(getPatterns).toHaveBeenCalled());
+
+  fireEvent.click(screen.getByRole('button', { name: 'Scan my vocab' }));
+
+  await waitFor(() => expect(screen.getByText(/Added 12 patterns from your vocabulary/)).toBeInTheDocument());
+  expect(scanPatterns).toHaveBeenCalled();
+  // The list is reloaded after a scan.
+  expect(getPatterns).toHaveBeenCalledTimes(2);
 });
 
 it('runs the AI usage check in the drill', async () => {

@@ -439,6 +439,19 @@ export function buildPatternCue(phrase: string, preposition: string): string {
   return phrase.replace(wordBoundaryRegex(preposition), '___');
 }
 
+// Rule-only extraction: turn a phrase that already contains a preposition into a pattern,
+// or return null. Used to backfill the bank for free (no AI) from existing vocab.
+export function rulePatternFrom(phrase: string): { phrase: string; preposition: string; cue: string } | null {
+  const trimmed = phrase.trim();
+  const words = trimmed.split(/\s+/);
+  if (words.length < 2 || words.length > 6) return null;
+  const preposition = detectPreposition(trimmed);
+  if (!preposition) return null;
+  const cue = buildPatternCue(trimmed, preposition);
+  if (cue === trimmed) return null; // preposition not actually blanked
+  return { phrase: trimmed, preposition, cue };
+}
+
 export type FollowUpScope = 'sentence_lab' | 'paragraph';
 export type FollowUpMode = 'pre_rewrite' | 'post_rewrite';
 
