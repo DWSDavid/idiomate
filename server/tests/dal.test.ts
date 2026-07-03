@@ -706,8 +706,13 @@ it('returns a filterable mistake log ordered by recent occurrence', () => {
 });
 
 it('buckets daily mistake counts by session date and excludes vocab suggestions', () => {
-  const first = insertSession(db, USER_ID, { date: '2026-06-03T09:00:00.000Z', draftText: 'first' });
-  const second = insertSession(db, USER_ID, { date: '2026-06-04', draftText: 'second' });
+  // Use dates relative to today so the sessions always sit inside the rolling window
+  // (hardcoded absolute dates aged out of the 30-day range once real time moved on).
+  const daysAgoIso = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+  const dayA = daysAgoIso(6);
+  const dayB = daysAgoIso(5);
+  const first = insertSession(db, USER_ID, { date: `${dayA}T09:00:00.000Z`, draftText: 'first' });
+  const second = insertSession(db, USER_ID, { date: dayB, draftText: 'second' });
   insertAnnotations(db, USER_ID, first, [
     {
       paragraphIdx: 0,
@@ -746,8 +751,8 @@ it('buckets daily mistake counts by session date and excludes vocab suggestions'
   ]);
 
   expect(getDailyMistakeCounts(db, USER_ID, 30)).toEqual([
-    { date: '2026-06-03', count: 2 },
-    { date: '2026-06-04', count: 1 },
+    { date: dayA, count: 2 },
+    { date: dayB, count: 1 },
   ]);
 });
 

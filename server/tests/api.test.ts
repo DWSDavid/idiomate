@@ -1841,8 +1841,12 @@ it('GET /api/profile returns error tallies, ranking, and activation stats', asyn
 });
 
 it('GET /api/progress returns daily mistake counts and top-type trends', async () => {
-  const first = insertSession(db, USER_ID, { date: '2026-06-03', draftText: 'first' });
-  const second = insertSession(db, USER_ID, { date: '2026-06-04', draftText: 'second' });
+  // Dates relative to today so sessions stay within the rolling 30-day window.
+  const daysAgoIso = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+  const dayA = daysAgoIso(6);
+  const dayB = daysAgoIso(5);
+  const first = insertSession(db, USER_ID, { date: dayA, draftText: 'first' });
+  const second = insertSession(db, USER_ID, { date: dayB, draftText: 'second' });
   insertAnnotations(db, USER_ID, first, [
     {
       paragraphIdx: 0,
@@ -1894,21 +1898,21 @@ it('GET /api/progress returns daily mistake counts and top-type trends', async (
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.daily).toEqual([
-      { date: '2026-06-03', count: 2 },
-      { date: '2026-06-04', count: 2 },
+      { date: dayA, count: 2 },
+      { date: dayB, count: 2 },
     ]);
     expect(json.trend).toEqual([
       {
         errorType: 'redundancy',
         points: [
-          { date: '2026-06-03', count: 1 },
-          { date: '2026-06-04', count: 1 },
+          { date: dayA, count: 1 },
+          { date: dayB, count: 1 },
         ],
       },
       {
         errorType: 'calque',
         points: [
-          { date: '2026-06-04', count: 1 },
+          { date: dayB, count: 1 },
         ],
       },
     ]);
